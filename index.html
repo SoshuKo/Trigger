@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#071521" />
+  <title>TRION ARENA — B級ランク戦</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main id="app">
+    <section id="titleScreen" class="screen title-screen">
+      <div class="cube-stream" aria-hidden="true"></div>
+      <div class="title-shell">
+        <div class="title-mark" aria-hidden="true"><i></i><i></i><i></i></div>
+        <p class="title-kicker">B-GRADE RANK WAR</p>
+        <h1>TRION<br>ARENA</h1>
+        <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
+        <div class="title-actions">
+          <button id="enterSetupButton" class="title-start" type="button">出撃準備へ</button>
+          <button id="onlineOpenButton" class="title-online" type="button">オンライン</button>
+          <button id="titleGuideButton" class="title-sub" type="button">操作案内</button>
+        </div>
+        <div class="online-title-status"><span id="onlineStatusBadge" data-status="disabled">未設定</span><small id="onlineStatusNote">Supabase設定後に利用できます。</small></div>
+        <div class="title-rankings">
+          <section class="ranking-board">
+            <header><span>SOLO</span><h2>個人ランキング</h2></header>
+            <div id="soloTitleRanking" class="title-ranking-list"></div>
+          </section>
+          <section class="ranking-board">
+            <header><span>TEAM</span><h2>チームランキング</h2></header>
+            <div id="teamTitleRanking" class="title-ranking-list"></div>
+          </section>
+        </div>
+        <p class="title-note">非公式ファンゲーム。効果音はユーザー提供素材を使用しています。</p>
+      </div>
+    </section>
+
+    <section id="setupScreen" class="screen setup-screen hidden">
+      <div class="cube-stream" aria-hidden="true"></div>
+      <div class="setup-shell">
+        <header class="brand-row">
+          <div>
+            <p class="eyebrow">B-GRADE RANK WAR</p>
+            <h1>TRION ARENA</h1>
+            <p class="subtitle">ランク戦・出撃設定</p>
+          </div>
+          <div class="brand-actions">
+            <button id="setupBackTitle" type="button">タイトルへ戻る</button>
+            <button id="onlineSetupOpenButton" type="button">オンライン</button>
+            <div class="brand-badge">MAIN 4 <span>＋</span> SUB 4</div>
+          </div>
+        </header>
+
+        <div class="setup-grid">
+          <section class="panel match-panel">
+            <div class="panel-heading">
+              <span class="step">01</span>
+              <div><h2>試合設定</h2><p>対戦形式と戦場条件を選択します。</p></div>
+            </div>
+
+            <div class="segmented" id="modeSelector">
+              <button type="button" data-mode="solo" class="active">個人戦</button>
+              <button type="button" data-mode="team">チーム戦</button>
+              <button type="button" data-mode="defense">防衛戦</button>
+            </div>
+
+            <label class="field-label" for="participationRole">参加方法</label>
+            <select id="participationRole">
+              <option value="combatant" selected>戦闘員として出撃</option>
+              <option value="operator">オペレーターとして参加</option>
+              <option value="spectator">観戦する</option>
+            </select>
+            <small id="participationHelp" class="field-help">自分で隊員を操作して戦います。</small>
+
+            <div id="soloCountFields">
+              <label class="field-label" for="cpuCount">参加CPU <strong id="cpuCountValue">11</strong>人</label>
+              <input id="cpuCount" type="range" min="3" max="19" value="11" />
+            </div>
+            <div id="teamCountFields" class="hidden">
+              <div id="teamCountOnly">
+                <label class="field-label" for="teamCount">参加チーム <strong id="teamCountValue">2</strong>チーム</label>
+                <input id="teamCount" type="range" min="2" max="4" value="2" />
+              </div>
+              <label class="field-label" for="teamSize">1隊の戦闘員 <strong id="teamSizeValue">3</strong>人</label>
+              <input id="teamSize" type="range" min="1" max="4" value="3" />
+              <small id="teamRosterHelp" class="field-help">戦闘員を選んだ場合のみ、自チームの人数にプレイヤーを含みます。各チームにオペレーターが1人付きます。</small>
+            </div>
+
+            <label class="field-label" for="mapId">戦場</label>
+            <select id="mapId">
+              <option value="city" selected>市街</option>
+              <option value="desert">砂漠</option>
+            </select>
+            <small id="mapHelp" class="field-help">道路・河川・林・ビルが混在する市街戦マップです。</small>
+
+            <div id="matchLengthFields">
+              <label class="field-label" for="matchLength">試合時間</label>
+              <select id="matchLength">
+                <option value="120">2分</option>
+                <option value="180" selected>3分</option>
+                <option value="300">5分</option>
+                <option value="0">無制限（経過時間表示）</option>
+              </select>
+            </div>
+
+            <label class="field-label" for="difficulty">敵の難易度</label>
+            <select id="difficulty">
+              <option value="sandbag">サンドバッグ（移動・攻撃なし）</option>
+              <option value="weak">弱</option>
+              <option value="normal" selected>普通</option>
+              <option value="strong">強</option>
+            </select>
+
+            <div class="world-setting-grid">
+              <label><span>開始時間</span><select id="timeOfDay"><option value="morning">朝</option><option value="day" selected>昼</option><option value="night">夜</option></select></label>
+              <label><span>時間経過</span><select id="timeProgression"><option value="off" selected>固定</option><option value="on">変化あり</option></select></label>
+              <label><span>開始天候</span><select id="weather"><option value="clear" selected>晴</option><option value="cloudy">曇り</option><option value="rain">雨</option></select></label>
+              <label><span>天候変化</span><select id="weatherChange"><option value="off" selected>固定</option><option value="on">変化あり</option></select></label>
+            </div>
+            <div class="rule-note">
+              <strong>勝利条件</strong>
+              <span id="mapRuleText">撃破・トリオン粒子回収でポイント獲得。時間終了時の個人／チームスコアで順位を決定します。</span>
+            </div>
+          </section>
+
+          <section class="panel stats-panel combatant-only">
+            <div class="panel-heading">
+              <span class="step">02</span>
+              <div><h2>能力配分</h2><p>合計18。どれかを上げると他が下がります。</p></div>
+            </div>
+            <div id="statsControls" class="stats-controls">
+              <div class="stat-control" data-stat="trion">
+                <div><span>トリオン総量</span><strong id="trionValue">6</strong></div>
+                <input id="trionStat" type="range" min="2" max="10" value="6" />
+                <small>最大トリオン・再生・射程・弾出力</small>
+              </div>
+              <div class="stat-control" data-stat="technique">
+                <div><span>技術力</span><strong id="techniqueValue">6</strong></div>
+                <input id="techniqueStat" type="range" min="2" max="10" value="6" />
+                <small>命中精度・誘導・合成速度・クールダウン</small>
+              </div>
+              <div class="stat-control" data-stat="combat">
+                <div><span>戦闘力</span><strong id="combatValue">6</strong></div>
+                <input id="combatStat" type="range" min="2" max="10" value="6" />
+                <small>移動・近接威力・耐久・武器取り回し</small>
+              </div>
+            </div>
+            <div class="budget-row"><span>使用ポイント</span><strong id="budgetValue">18 / 18</strong></div>
+          </section>
+
+          <section class="panel loadout-panel combatant-only">
+            <div class="panel-heading">
+              <span class="step">03</span>
+              <div><h2>トリガーセット</h2><p>右手4枠＋左手4枠。改造・専用トリガーは収録していません。</p></div>
+            </div>
+
+            <div class="hands-grid">
+              <div class="hand-column main-hand">
+                <div class="hand-title"><span>RIGHT / MAIN</span><small>キー 1–4・左クリック</small></div>
+                <div id="mainSlots" class="slot-list"></div>
+              </div>
+              <div class="hand-column sub-hand">
+                <div class="hand-title"><span>LEFT / SUB</span><small>キー 5–8・右クリック</small></div>
+                <div id="subSlots" class="slot-list"></div>
+              </div>
+            </div>
+
+            <div id="loadoutWarnings" class="warnings" aria-live="polite"></div>
+            <div id="triggerInfo" class="trigger-info">
+              <strong>トリガーを選択してください</strong>
+              <span>各枠をクリックすると説明が表示されます。</span>
+            </div>
+          </section>
+
+          <section class="panel squad-panel">
+            <div class="panel-heading">
+              <span class="step">04</span>
+              <div><h2>隊カスタマイズ</h2><p>隊員名、隊色、隊章、隊名を設定します。</p></div>
+            </div>
+            <div class="squad-grid">
+              <div class="squad-fields">
+                <label>プレイヤー名<input id="playerName" type="text" maxlength="18" value="YOU"></label>
+                <label>隊名<input id="teamName" type="text" maxlength="8" value="蒼迅隊"></label>
+                <div class="inline-actions"><button id="randomTeamNameButton" type="button">汎用隊名を選ぶ</button><span id="teamNamePreview">蒼迅隊</span></div>
+                <label>キャラクターカラー<input id="bodyColor" type="color" value="#4aa8ff"></label>
+                <small class="field-help">全キャラクターは同じ32×32人型です。プレイヤーは全身色だけ変更できます。</small>
+                <label>隊章プリセット<select id="emblemPreset"><option value="cube">キューブ</option><option value="cross">クロス</option><option value="fang">ファング</option><option value="shield">シールド</option><option value="wing">ウィング</option><option value="road">ロード</option><option value="tower">タワー</option><option value="custom">カスタム</option></select></label>
+              </div>
+              <div class="emblem-editor-wrap">
+                <div class="emblem-heading"><strong>32×32 モノクロ隊章</strong><span>左クリックで描画 / 右クリックで消去</span></div>
+                <canvas id="emblemEditor" width="256" height="256"></canvas>
+                <div class="inline-actions"><button id="clearEmblemButton" type="button">クリア</button><button id="invertEmblemButton" type="button">白黒反転</button></div>
+                <small>NPCや敵チームには、漢字二文字+隊の汎用隊名と汎用エンブレムが自動で割り当てられます。</small>
+              </div>
+            </div>
+          </section>
+
+          <details class="panel cpu-detail-panel" id="cpuDetailPanel">
+            <summary><span class="step">05</span><div><h2>対戦隊員設定</h2><p>必要な場合だけ開き、対戦隊員の装備と能力を変更できます。</p></div><b>OPEN</b></summary>
+            <div class="cpu-detail-toolbar"><button id="resetCpuConfigsButton" type="button">標準編成に戻す</button><span id="cpuRosterSummary">CPU 11人</span></div>
+            <div id="cpuConfigList" class="cpu-config-list"></div>
+          </details>
+
+          <section class="panel controls-panel">
+            <div class="panel-heading compact">
+              <span class="step">06</span>
+              <div><h2>操作</h2></div>
+            </div>
+            <div class="controls-grid">
+              <div><kbd>WASD</kbd><span>移動</span></div>
+              <div><kbd>1–4</kbd><span>右手選択</span></div>
+              <div><kbd>5–8</kbd><span>左手選択</span></div>
+              <div><kbd>左 / 右クリック</kbd><span>右手 / 左手を発動</span></div>
+              <div><kbd>C</kbd><span>合成弾・マンティス</span></div>
+              <div><kbd>Shift</kbd><span>変形・設置・盾モード</span></div>
+              <div><kbd>Z</kbd><span>スイッチボックス切替</span></div>
+              <div><kbd>B</kbd><span>自主ベイルアウト</span></div>
+              <div><kbd>V</kbd><span>観戦／戦線復帰</span></div>
+              <div><kbd>Q / E</kbd><span>観戦対象を変更</span></div>
+              <div><kbd>O</kbd><span>オペレーター指示（チーム戦）</span></div>
+              <div><kbd>L</kbd><span>戦闘ログ</span></div>
+              <div><kbd>G</kbd><span>操作ガイド</span></div>
+              <div><kbd>P / Esc</kbd><span>一時停止・メニュー</span></div>
+            </div>
+            <label class="guide-setting"><span><strong>操作ガイド</strong><small>試合中にキーやボタンの役割を表示します。</small></span><input id="guideEnabled" type="checkbox" checked><i></i></label>
+            <label class="guide-setting"><span><strong>効果音</strong><small>攻撃・狙撃・爆発などの効果音を再生します。</small></span><input id="soundEnabled" type="checkbox" checked><i></i></label>
+            <button id="startButton" class="start-button" type="button">
+              <span>ランク戦を開始</span><small>START MATCH</small>
+            </button>
+            <p class="disclaimer">非公式ファンゲームです。効果音はユーザー提供素材を使用しています。</p>
+          </section>
+
+          <section class="panel log-panel">
+            <div class="panel-heading compact">
+              <span class="step">07</span>
+              <div><h2>戦闘記録</h2><p>直近30試合をブラウザ内に保存します。</p></div>
+            </div>
+            <div id="savedLogSummary" class="saved-log-summary">保存ログはありません。</div>
+            <div class="log-actions">
+              <button id="exportAllLogsButton" type="button">全ログをJSON保存</button>
+              <button id="clearLogsButton" type="button" class="secondary">保存ログを削除</button>
+            </div>
+          </section>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="onlinePanel" class="online-panel hidden" aria-label="オンラインロビー">
+      <div class="online-panel-card">
+        <header class="online-panel-heading">
+          <div><span>TRION NETWORK</span><h2>オンラインロビー</h2></div>
+          <button id="onlineCloseButton" type="button" aria-label="閉じる">×</button>
+        </header>
+        <div class="online-grid">
+          <section class="online-box">
+            <h3>プロフィール</h3>
+            <label>表示名<input id="onlineDisplayName" type="text" maxlength="18" value="隊員"></label>
+            <button id="onlineNameSave" type="button">名前を保存</button>
+            <div class="friend-code-card"><span>フレンドコード</span><strong id="onlineFriendCodeLabel">--------</strong><button id="onlineCopyFriendCode" type="button">コピー</button></div>
+          </section>
+          <section class="online-box">
+            <h3>フレンド</h3>
+            <div class="online-inline"><input id="onlineFriendCode" type="text" maxlength="12" placeholder="フレンドコード"><button id="onlineAddFriend" type="button">追加</button></div>
+            <div id="onlineFriendList" class="online-friend-list"><div class="online-empty">接続後に表示します</div></div>
+          </section>
+          <section class="online-box">
+            <h3>ルームを作る</h3>
+            <div class="online-three-fields">
+              <label>参加方法<select id="onlineCreateRole"><option value="combatant">戦闘員</option><option value="operator">オペレーター</option><option value="spectator">観戦</option></select></label>
+              <label>チーム<select id="onlineCreateTeam"><option value="0">TEAM 1</option><option value="1">TEAM 2</option><option value="2">TEAM 3</option><option value="3">TEAM 4</option></select></label>
+              <label>上限<select id="onlineMaxPlayers"><option value="4">4人</option><option value="8" selected>8人</option><option value="12">12人</option><option value="16">16人</option></select></label>
+            </div>
+            <button id="onlineCreateRoom" type="button" class="online-primary">ルーム作成</button>
+          </section>
+          <section class="online-box">
+            <h3>ルームへ参加</h3>
+            <input id="onlineJoinCode" type="text" maxlength="6" placeholder="6文字のルームコード">
+            <div class="online-two-fields">
+              <label>参加方法<select id="onlineJoinRole"><option value="combatant">戦闘員</option><option value="operator">オペレーター</option><option value="spectator">観戦</option></select></label>
+              <label>チーム<select id="onlineJoinTeam"><option value="0">TEAM 1</option><option value="1">TEAM 2</option><option value="2">TEAM 3</option><option value="3">TEAM 4</option></select></label>
+            </div>
+            <button id="onlineJoinRoom" type="button" class="online-primary">参加</button>
+          </section>
+        </div>
+        <section id="onlineLobbyPanel" class="online-lobby hidden">
+          <div class="online-lobby-head"><div><span>ROOM CODE</span><strong id="onlineRoomCode">------</strong></div><b id="onlineHostLabel">参加中</b></div>
+          <div id="onlineMemberList" class="online-member-list"></div>
+          <div class="online-lobby-controls">
+            <label>自分のチーム<select id="onlineTeamSelect"><option value="0">TEAM 1</option><option value="1">TEAM 2</option><option value="2">TEAM 3</option><option value="3">TEAM 4</option></select></label>
+            <label>自分の役割<select id="onlineRoleSelect"><option value="combatant">戦闘員</option><option value="operator">オペレーター</option><option value="spectator">観戦</option></select></label>
+            <button id="onlineReadyButton" type="button">準備完了</button>
+            <button id="onlineStartButton" type="button" class="online-primary">試合開始</button>
+            <button id="onlineLeaveRoom" type="button" class="secondary">退出</button>
+          </div>
+          <p>同じTEAMを選べば共闘、別のTEAMを選べば対戦できます。観戦を選ぶと戦闘員枠には入りません。</p>
+        </section>
+        <footer class="online-panel-foot">オンライン機能には無料Supabaseプロジェクトの設定が必要です。接続設定は <code>js/online-config.js</code> に記入します。</footer>
+      </div>
+    </section>
+
+    <section id="gameScreen" class="screen game-screen hidden">
+      <canvas id="gameCanvas" width="1280" height="720"></canvas>
+
+      <div class="game-actions">
+        <button id="menuButton" type="button">MENU</button>
+        <button id="bailoutButton" type="button">BAIL OUT</button>
+        <button id="spectateButton" type="button">SPECTATE</button>
+        <button id="operatorButton" type="button" class="hidden">OPERATOR</button>
+        <button id="guideButton" type="button">GUIDE</button>
+        <button id="soundButton" type="button">SOUND ON</button>
+        <button id="debugButton" type="button">RECORD</button>
+      </div>
+
+      <div class="top-hud">
+        <div class="match-card">
+          <span id="modeLabel">個人戦</span>
+          <strong id="timerLabel">03:00</strong>
+        </div>
+        <div class="score-card">
+          <span>SCORE</span><strong id="scoreLabel">0</strong>
+          <span>K / D</span><strong id="kdLabel">0 / 0</strong>
+        </div>
+        <div id="teamScoreCard" class="team-score-card hidden"></div>
+        <div id="defenseHud" class="defense-hud hidden"><span>ROUND</span><strong id="defenseRoundLabel">1</strong><span>FLAG</span><strong id="defenseFlagLabel">100%</strong></div>
+      </div>
+
+      <div class="left-hud">
+        <div class="meter-card">
+          <div class="meter-label"><span>BODY</span><strong id="hpText">100 / 100</strong></div>
+          <div class="meter"><i id="hpBar"></i></div>
+          <div class="meter-label"><span>TRION</span><strong id="trionText">200 / 200</strong></div>
+          <div class="meter trion"><i id="trionBar"></i></div>
+        </div>
+        <div id="statusList" class="status-list"></div>
+      </div>
+
+      <div class="right-hud">
+        <canvas id="radarCanvas" width="220" height="150"></canvas>
+        <div class="radar-label"><span>RADAR</span><small>バッグワームは非表示</small></div>
+        <div id="killFeed" class="kill-feed"></div>
+      </div>
+
+      <div id="slotHud" class="slot-hud">
+        <div class="hud-hand main"><span class="hud-hand-label">RIGHT / MAIN</span><div id="mainHudSlots"></div></div>
+        <div class="center-help"><strong>C</strong><span>COMBINE</span></div>
+        <div class="hud-hand sub"><span class="hud-hand-label">LEFT / SUB</span><div id="subHudSlots"></div></div>
+      </div>
+
+      <div id="spectatorHud" class="spectator-hud hidden">
+        <span>SPECTATING</span><strong id="spectatorName">---</strong><small>Q / E：対象変更　V：戦線復帰</small>
+      </div>
+
+      <aside id="operatorPanel" class="operator-panel hidden">
+        <div class="operator-heading"><div><span>TACTICAL OPERATOR</span><strong id="operatorName">BLUE OPERATOR</strong></div><button id="closeOperatorButton" type="button">×</button></div>
+        <div class="operator-offboard">盤面外指揮・戦闘員数には含まれません</div>
+        <div class="operator-status"><span id="environmentLabel">昼・晴</span><span id="operatorWorkLabel">待機中</span></div>
+        <label class="operator-field">指示対象<select id="operatorUnitSelect"></select></label>
+        <label class="operator-field">攻撃対象<select id="operatorEnemySelect"></select></label>
+        <label class="operator-field">護衛対象<select id="operatorAllySelect"></select></label>
+        <div class="operator-section-title">戦術指示</div>
+        <div class="operator-command-grid">
+          <button type="button" data-command="focus">指定敵を集中攻撃</button><button type="button" data-command="move">指定位置へ移動</button>
+          <button type="button" data-command="hold">現在位置で待機</button><button type="button" data-command="regroup">隊本部へ集合</button>
+          <button type="button" data-command="defend">指定地点を防衛</button><button type="button" data-command="flankLeft">左側面へ回り込む</button>
+          <button type="button" data-command="flankRight">右側面へ回り込む</button><button type="button" data-command="retreat">後方へ退避</button>
+          <button type="button" data-command="spread">指定地点へ分散展開</button><button type="button" data-command="suppress">指定地域を制圧</button>
+          <button type="button" data-command="huntWeak">消耗した敵を追撃</button><button type="button" data-command="escort">指定隊員を護衛</button>
+          <button type="button" data-command="activate">設備を起動</button><button type="button" data-command="clear" class="secondary">指示を解除</button>
+        </div>
+        <div class="operator-section-title">オペレーター支援</div>
+        <div class="operator-support-grid">
+          <button type="button" data-support="scan">広域索敵</button>
+          <button type="button" data-support="supply">トリオン補給投下</button>
+          <button type="button" data-support="flare">照明ビーコン投下</button>
+          <button type="button" data-support="barrier">緊急バリケード</button>
+          <button type="button" data-support="rally">機動支援</button>
+          <button type="button" data-support="decoy">囮ビーコン投下</button>
+          <button type="button" data-support="flagRepair">フラッグ緊急修復</button>
+        </div>
+        <div id="operatorCooldowns" class="operator-cooldowns"></div>
+        <div id="operatorMessage" class="operator-message">味方を選び、指示または支援を選択してください。</div>
+        <small>位置指定型の指示と支援は、ボタンを押した後に戦場をタップします。WASDまたは左パッドで作戦画面を移動できます。</small>
+      </aside>
+
+      <aside id="debugPanel" class="debug-panel hidden">
+        <div class="debug-heading"><div><span>MATCH RECORD</span><strong id="debugMatchLabel">---</strong></div><button id="closeDebugButton" type="button">×</button></div>
+        <div id="debugSummary" class="debug-summary"></div>
+        <div id="debugTable" class="debug-table"></div>
+        <div id="debugEvents" class="debug-events"></div>
+        <div class="debug-actions">
+          <button id="exportCurrentJsonButton" type="button">JSON</button>
+          <button id="exportCurrentCsvButton" type="button">CSV</button>
+        </div>
+      </aside>
+
+      <aside id="controlGuide" class="control-guide hidden" aria-live="polite">
+        <div class="control-guide-head"><strong>操作ガイド</strong><span>Gで表示切替</span></div>
+        <div class="guide-desktop">
+          <b>移動</b><span>WASD</span><b>右手</b><span>左クリック / 1–4</span><b>左手</b><span>右クリック / 5–8</span>
+          <b>連携</b><span>C</span><b>補助操作</b><span>Shift / Z</span><b>フラッグ回復</b><span>F（防衛戦）</span><b>メニュー</b><span>P / Esc</span>
+        </div>
+        <div class="guide-mobile">
+          <b>左パッド</b><span>移動</span><b>右パッド</b><span>照準</span><b>MAIN / SUB</b><span>トリガー発動</span><b>1–8</b><span>装備選択</span>
+        </div>
+      </aside>
+
+      <div id="mobileControls" class="mobile-controls" aria-label="モバイル操作">
+        <div id="movePad" class="touch-pad move-pad"><span>MOVE</span><i></i></div>
+        <div id="aimPad" class="touch-pad aim-pad"><span>AIM</span><i></i></div>
+        <div class="mobile-trigger-slots">
+          <button type="button" data-mobile-key="Digit1">1</button><button type="button" data-mobile-key="Digit2">2</button><button type="button" data-mobile-key="Digit3">3</button><button type="button" data-mobile-key="Digit4">4</button>
+          <button type="button" data-mobile-key="Digit5">5</button><button type="button" data-mobile-key="Digit6">6</button><button type="button" data-mobile-key="Digit7">7</button><button type="button" data-mobile-key="Digit8">8</button>
+        </div>
+        <div class="mobile-action-cluster">
+          <button type="button" class="mobile-main" data-mobile-hold="main">MAIN</button>
+          <button type="button" class="mobile-sub" data-mobile-hold="sub">SUB</button>
+          <button type="button" data-mobile-key="KeyC">C</button>
+          <button type="button" data-mobile-hold="shift">SHIFT</button>
+          <button type="button" data-mobile-key="KeyZ">Z</button>
+          <button type="button" data-mobile-key="KeyF">FLAG</button>
+        </div>
+      </div>
+
+      <div id="toast" class="toast"></div>
+      <div id="centerMessage" class="center-message hidden"></div>
+
+      <div id="pauseOverlay" class="overlay hidden">
+        <div class="overlay-card pause-menu">
+          <p>PAUSED</p><h2>一時停止</h2><span>PまたはEscで再開</span>
+          <div class="pause-actions">
+            <button id="resumeButton" type="button">試合へ戻る</button>
+            <button id="pauseSpectateButton" type="button">観戦モード</button>
+            <button id="pauseBailoutButton" type="button">自主ベイルアウト</button>
+            <button id="titleButton" type="button" class="secondary">タイトル画面へ</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="resultOverlay" class="overlay hidden">
+        <div class="result-card">
+          <p class="eyebrow">BATTLE RESULT</p>
+          <h2 id="resultTitle">試合終了</h2>
+          <div id="resultSummary" class="result-summary"></div>
+          <div id="rankingList" class="ranking-list"></div>
+          <div class="result-actions">
+            <button id="rematchButton" type="button">同じ設定でもう一度</button>
+            <button id="backButton" type="button" class="secondary">出撃設定へ</button>
+            <button id="resultJsonButton" type="button" class="secondary">戦闘記録 JSON</button>
+            <button id="resultCsvButton" type="button" class="secondary">戦闘記録 CSV</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/online-config.js"></script>
+  <script src="js/trigger-data.js"></script>
+  <script src="js/online.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
