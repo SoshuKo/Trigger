@@ -20,6 +20,10 @@ button, select, input { font: inherit; }
 button { color: inherit; }
 body { overflow-x: hidden; }
 
+html.game-active, body.game-active { width:100%; height:100%; overflow:hidden; overscroll-behavior:none; }
+body.game-active { position:fixed; inset:0; touch-action:none; }
+body.game-active::before { display:none; }
+
 body::before {
   content: "";
   position: fixed;

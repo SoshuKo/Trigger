@@ -153,6 +153,8 @@
     if (game) game.destroy();
     game = null;
     window.__TRION_GAME__ = null;
+    document.body.classList.remove('game-active');
+    document.documentElement.classList.remove('game-active');
     $('#gameScreen')?.classList.add('hidden');
     $('#setupScreen')?.classList.add('hidden');
     $('#titleScreen')?.classList.remove('hidden');
@@ -163,6 +165,8 @@
   }
 
   function showSetup(options = {}) {
+    document.body.classList.remove('game-active');
+    document.documentElement.classList.remove('game-active');
     $('#titleScreen')?.classList.add('hidden');
     $('#gameScreen')?.classList.add('hidden');
     $('#setupScreen')?.classList.remove('hidden');
@@ -858,7 +862,17 @@
     const local = roster.find((member) => member.userId === descriptor.localUserId) || {};
     const base = { ...getSetupConfig(), ...(session.settings || {}) };
     base.playerRole = local.role || 'spectator';
-    base.teamCount = Math.max(2, Math.min(4, Number(base.teamCount || 2)));
+    const combatants = roster.filter((member) => member.role === 'combatant');
+    const maxRosterTeam = roster.reduce((max, member) => Math.max(max, Number(member.team || 0)), 0);
+    const largestHumanTeam = combatants.reduce((counts, member) => {
+      const team = Number(member.team || 0);
+      counts[team] = (counts[team] || 0) + 1;
+      return counts;
+    }, []);
+    base.teamCount = Math.min(4, Math.max(2, Number(base.teamCount || 2), maxRosterTeam + 1));
+    if (base.mode === 'team') base.teamSize = Math.min(4, Math.max(1, Number(base.teamSize || 3), ...largestHumanTeam.filter(Number.isFinite)));
+    if (base.mode === 'defense') base.teamSize = Math.min(4, Math.max(1, Number(base.teamSize || 3), combatants.length));
+    if (base.mode === 'solo') base.cpuCount = Math.max(0, Number(base.cpuCount ?? 11));
     base.onlineSession = {
       roomId: session.roomId || descriptor.roomId,
       roomCode: session.roomCode || descriptor.roomCode,
@@ -878,6 +892,10 @@
   function launchGame(config) {
     if (game) game.destroy();
     config.difficulty = AI_DIFFICULTIES[config.difficulty] ? config.difficulty : 'normal';
+    document.activeElement?.blur?.();
+    document.body.classList.add('game-active');
+    document.documentElement.classList.add('game-active');
+    $('#onlinePanel')?.classList.add('hidden');
     $('#titleScreen')?.classList.add('hidden');
     $('#setupScreen').classList.add('hidden');
     $('#gameScreen').classList.remove('hidden');
@@ -892,6 +910,11 @@
     $('#pauseSpectateButton').textContent = '観戦モード';
     game = new ArenaGame(config);
     window.__TRION_GAME__ = game;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      $('#gameCanvas')?.focus?.({ preventScroll: true });
+    });
     game.start();
   }
 
@@ -1128,6 +1151,9 @@
       this.onlineInputSequence = 0;
       this.onlineInputTimer = 0;
       this.onlineSnapshotTimer = 0;
+      this.onlineSnapshotSequence = 0;
+      this.onlineLastAppliedSequence = -1;
+      this.onlineSyncRetryTimer = .8;
       this.onlineMemberCount = Math.max(1, Number(this.onlineSession?.roster?.length || 1));
       const requestedSnapshotHz = Math.max(2, Math.min(10, Number(window.TRION_ONLINE_CONFIG?.snapshotHz || 6)));
       const adaptiveSnapshotCap = this.onlineMemberCount <= 4 ? 8 : this.onlineMemberCount <= 8 ? 5 : this.onlineMemberCount <= 12 ? 3 : 2;
@@ -1135,6 +1161,8 @@
       this.onlineInputHz = this.onlineMemberCount <= 4 ? 14 : this.onlineMemberCount <= 8 ? 8 : this.onlineMemberCount <= 12 ? 5 : 3;
       this.onlineUnsubscribe = null;
       this.onlineLastSnapshotAt = 0;
+      this.onlineWorldReceived = !this.onlineMirror;
+      this.onlineSnapshotReceived = !this.onlineMirror;
       this.onlineWorldReady = !this.onlineMirror;
       this.onlineApplyingRemote = false;
       this.mapId = MAP_IDS.includes(config.mapId) ? config.mapId : 'city';
@@ -1228,8 +1256,14 @@
       this.lifecycleStats = { placedDespawned: 0, terrainDestroyed: 0, terrainRespawned: 0, installationsDestroyed: 0, installationsRespawned: 0, lightsDestroyed: 0, lightsRespawned: 0, gasExplosions: 0 };
       this.matchId = `match-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
       this.startedAt = new Date().toISOString();
-      this.resizeHandler = () => this.resize();
+      this.resizeQueued = false;
+      this.resizeHandler = () => {
+        if (this.resizeQueued) return;
+        this.resizeQueued = true;
+        requestAnimationFrame(() => { this.resizeQueued = false; this.resize(); });
+      };
       window.addEventListener('resize', this.resizeHandler);
+      window.visualViewport?.addEventListener('resize', this.resizeHandler);
       this.resize();
       this.generateArena();
       this.spawnCombatants();
@@ -1313,7 +1347,8 @@
       if (world.environment) this.environment = { ...this.environment, ...world.environment };
       if (world.defenseFlag) this.defenseFlag = { ...world.defenseFlag };
       this.terrainChunks.clear();
-      this.onlineWorldReady = true;
+      this.onlineWorldReceived = true;
+      this.onlineWorldReady = this.onlineSnapshotReceived;
     }
 
     buildOnlineSnapshot() {
@@ -1341,6 +1376,7 @@
         return result;
       };
       return {
+        seq: ++this.onlineSnapshotSequence,
         matchId: this.matchId, at: performance.now(), elapsed: this.elapsed, matchTime: this.matchTime,
         teamScores: [...this.teamScores], environment: { ...this.environment },
         defenseRound: this.defenseRound, defenseTier: this.defenseTier,
@@ -1382,9 +1418,16 @@
 
     applyOnlineSnapshot(snapshot) {
       if (!snapshot) return;
+      if (Number.isFinite(snapshot.seq)) {
+        if (snapshot.seq <= this.onlineLastAppliedSequence) return;
+        this.onlineLastAppliedSequence = snapshot.seq;
+      }
       this.onlineLastSnapshotAt = performance.now();
       if (snapshot.matchId) this.matchId = snapshot.matchId;
-      if (Number.isFinite(snapshot.elapsed)) this.elapsed = snapshot.elapsed;
+      if (Number.isFinite(snapshot.elapsed)) {
+        const drift = snapshot.elapsed - this.elapsed;
+        this.elapsed = Math.abs(drift) > 1.25 ? snapshot.elapsed : this.elapsed + drift * .35;
+      }
       if (snapshot.matchTime !== undefined) this.matchTime = snapshot.matchTime;
       if (Array.isArray(snapshot.teamScores)) this.teamScores = [...snapshot.teamScores];
       if (snapshot.environment) this.environment = { ...this.environment, ...snapshot.environment };
@@ -1396,8 +1439,25 @@
       for (const state of snapshot.players || []) {
         ids.add(state.id);
         const player = this.ensureOnlinePlayerFromState(state);
-        for (const key of ['name','team','archetype','squadName','appearance','emblemPixels','stats','loadout','x','y','vx','vy','radius','aim','facing','walkFrame','isMoving','maxHp','hp','maxTrion','trion','dead','respawnTimer','invulnTimer','score','kills','deaths','selected','shields','toggles','revealTimer','markedTimer','slowTimer','slowFactor','leadWeights','pendingComposite','isDefenseEnemy','defenseType','isDefenseBoss','flying','cubedTimer']) {
+        const wasDead = Boolean(player.dead);
+        const firstState = !player.onlineSnapshotReady;
+        const distance = Math.hypot(Number(state.x || 0) - Number(player.x || 0), Number(state.y || 0) - Number(player.y || 0));
+        const mustSnap = firstState || wasDead !== Boolean(state.dead) || distance > 760;
+        for (const key of ['name','team','archetype','squadName','appearance','emblemPixels','stats','loadout','radius','facing','walkFrame','isMoving','maxHp','hp','maxTrion','trion','dead','respawnTimer','invulnTimer','score','kills','deaths','selected','shields','toggles','revealTimer','markedTimer','slowTimer','slowFactor','leadWeights','pendingComposite','isDefenseEnemy','defenseType','isDefenseBoss','flying','cubedTimer']) {
           if (state[key] !== undefined) player[key] = state[key];
+        }
+        player.onlineTargetX = Number.isFinite(state.x) ? state.x : player.x;
+        player.onlineTargetY = Number.isFinite(state.y) ? state.y : player.y;
+        player.onlineTargetVx = Number.isFinite(state.vx) ? state.vx : 0;
+        player.onlineTargetVy = Number.isFinite(state.vy) ? state.vy : 0;
+        player.onlineTargetAim = Number.isFinite(state.aim) ? state.aim : player.aim;
+        player.onlineSnapshotReady = true;
+        if (mustSnap) {
+          player.x = player.onlineTargetX;
+          player.y = player.onlineTargetY;
+          player.vx = player.onlineTargetVx;
+          player.vy = player.onlineTargetVy;
+          player.aim = player.onlineTargetAim;
         }
         if (state.onlineUserId) player.onlineUserId = state.onlineUserId;
         if (state.metrics) player.metrics = { ...player.metrics, ...state.metrics };
@@ -1433,7 +1493,30 @@
       for (const [id, hp, active, team, cooldown, ttl] of snapshot.installationState || []) { const f = facilities.get(id); if (f) Object.assign(f,{hp,active,team,cooldown,ttl}); }
       const lights = new Map(this.lightSources.map((light) => [light.id, light]));
       for (const [id, hp, respawnTimer, ttl] of snapshot.lightState || []) { const light = lights.get(id); if (light) Object.assign(light,{hp,respawnTimer,ttl}); }
-      this.onlineWorldReady = true;
+      this.onlineSnapshotReceived = true;
+      this.onlineWorldReady = this.onlineWorldReceived;
+    }
+
+    updateOnlineInterpolation(dt) {
+      const snapshotAge = this.onlineLastSnapshotAt ? Math.min(.16, Math.max(0, (performance.now() - this.onlineLastSnapshotAt) / 1000)) : 0;
+      for (const player of this.players) {
+        if (!player.onlineSnapshotReady || player.dead) continue;
+        const targetX = Number(player.onlineTargetX ?? player.x) + Number(player.onlineTargetVx || 0) * snapshotAge;
+        const targetY = Number(player.onlineTargetY ?? player.y) + Number(player.onlineTargetVy || 0) * snapshotAge;
+        const distance = Math.hypot(targetX - player.x, targetY - player.y);
+        if (distance > 760) {
+          player.x = targetX;
+          player.y = targetY;
+        } else {
+          const speed = player.human ? 22 : 15;
+          const alpha = 1 - Math.exp(-speed * dt);
+          player.x = lerp(player.x, targetX, alpha);
+          player.y = lerp(player.y, targetY, alpha);
+        }
+        player.vx = lerp(Number(player.vx || 0), Number(player.onlineTargetVx || 0), 1 - Math.exp(-18 * dt));
+        player.vy = lerp(Number(player.vy || 0), Number(player.onlineTargetVy || 0), 1 - Math.exp(-18 * dt));
+        if (Number.isFinite(player.onlineTargetAim)) player.aim += angleDiff(player.onlineTargetAim, player.aim) * (1 - Math.exp(-20 * dt));
+      }
     }
 
     updateOnlineHost(dt) {
@@ -1444,8 +1527,18 @@
     }
 
     updateOnlineMirror(dt) {
+      this.elapsed += dt;
+      if (!this.isUnlimited && Number.isFinite(this.matchTime)) this.matchTime = Math.max(0, this.matchTime - dt);
+      if (!this.onlineWorldReady) {
+        this.onlineSyncRetryTimer -= dt;
+        if (this.onlineSyncRetryTimer <= 0) {
+          this.onlineSyncRetryTimer = 2;
+          window.trionOnline?.broadcast('sync_request', { roomId: this.onlineSession?.roomId });
+        }
+      }
       if (this.isPlayerCombatant && this.human && !this.spectating) this.sendOnlineInput(dt);
       if (this.isPlayerOperator) this.updateOperatorCamera(dt);
+      this.updateOnlineInterpolation(dt);
       this.updateCamera(dt);
       this.toastTimer = Math.max(0, this.toastTimer - dt);
       if (this.toastTimer <= 0) $('#toast').classList.remove('show');
@@ -1580,6 +1673,7 @@
       if (this.onlineUnsubscribe) this.onlineUnsubscribe();
       this.onlineUnsubscribe = null;
       window.removeEventListener('resize', this.resizeHandler);
+      window.visualViewport?.removeEventListener('resize', this.resizeHandler);
     }
 
     bindGameUi() {
@@ -2341,7 +2435,7 @@
 
     buildLog(reason = 'snapshot') {
       return {
-        schemaVersion: 14,
+        schemaVersion: 15,
         matchId: this.matchId,
         startedAt: this.startedAt,
         endedAt: new Date().toISOString(),
@@ -2475,8 +2569,14 @@
 
     resize() {
       const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
-      this.viewW = window.innerWidth;
-      this.viewH = window.innerHeight;
+      const viewport = window.visualViewport;
+      const nextW = Math.max(320, Math.round(viewport?.width || document.documentElement.clientWidth || window.innerWidth));
+      const nextH = Math.max(320, Math.round(viewport?.height || document.documentElement.clientHeight || window.innerHeight));
+      if (this.viewW === nextW && this.viewH === nextH && this.dpr === dpr) return;
+      const centerX = Number.isFinite(this.viewW) ? this.camera.x + this.viewW / 2 : this.world.w / 2;
+      const centerY = Number.isFinite(this.viewH) ? this.camera.y + this.viewH / 2 : this.world.h / 2;
+      this.viewW = nextW;
+      this.viewH = nextH;
       this.canvas.width = Math.round(this.viewW * dpr);
       this.canvas.height = Math.round(this.viewH * dpr);
       this.canvas.style.width = `${this.viewW}px`;
@@ -2484,6 +2584,8 @@
       this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       this.environmentCanvas.width = Math.max(1, Math.ceil(this.viewW));
       this.environmentCanvas.height = Math.max(1, Math.ceil(this.viewH));
+      this.camera.x = clamp(centerX - this.viewW / 2, 0, Math.max(0, this.world.w - this.viewW));
+      this.camera.y = clamp(centerY - this.viewH / 2, 0, Math.max(0, this.world.h - this.viewH));
       this.dpr = dpr;
     }
 
@@ -2711,7 +2813,7 @@
       this.players.length = 0;
       const roster = Array.isArray(this.onlineSession?.roster) ? this.onlineSession.roster : [];
       const combatants = roster.filter((member) => member.role === 'combatant');
-      const maxRosterTeam = combatants.reduce((max, member) => Math.max(max, Number(member.team || 0)), 0);
+      const maxRosterTeam = roster.reduce((max, member) => Math.max(max, Number(member.team || 0)), 0);
       if (this.config.mode === 'team') {
         this.teamCount = clamp(Math.max(this.teamCount || 2, maxRosterTeam + 1), 2, 4);
         this.teamScores = new Array(this.teamCount).fill(0);
@@ -2773,22 +2875,39 @@
       }) : [];
 
       let cpuSerial = 0;
+      const configuredCpus = Array.isArray(this.config.cpuConfigs) ? this.config.cpuConfigs : [];
       const addCpu = (team) => {
         const template = DATA.aiLoadouts[cpuSerial % DATA.aiLoadouts.length];
-        const cfg = makeCpuConfig(cpuSerial);
-        const appearance = { ...randomCpuAppearance(cpuSerial, team), bodyColor: TEAM_COLORS[team % TEAM_COLORS.length] };
-        const player = this.createPlayer({ id:`cpu-online-${team}-${cpuSerial}`, name:cfg.name, human:false, team, stats:cfg.stats, loadout:{main:[...template.main],sub:[...template.sub]}, archetype:template.name, appearance, squadName:this.teamMeta[team]?.name || cfg.squadName, emblemPixels:this.teamMeta[team]?.emblemPixels || appearance.emblemPixels });
+        const fallback = makeCpuConfig(cpuSerial);
+        const cfg = { ...fallback, ...(configuredCpus[cpuSerial] || {}) };
+        const stats = cfg.stats && Object.values(cfg.stats).reduce((sum, value) => sum + Number(value || 0), 0) === 18 ? cfg.stats : fallback.stats;
+        const loadout = {
+          main: Array.isArray(cfg.main) && cfg.main.length === 4 ? [...cfg.main] : [...template.main],
+          sub: Array.isArray(cfg.sub) && cfg.sub.length === 4 ? [...cfg.sub] : [...template.sub],
+        };
+        const appearance = { ...randomCpuAppearance(cpuSerial, team), ...(cfg.appearance || {}), bodyColor: TEAM_COLORS[team % TEAM_COLORS.length] };
+        const squadName = this.config.mode === 'solo' ? (cfg.squadName || GENERIC_SQUAD_NAMES[cpuSerial % GENERIC_SQUAD_NAMES.length]) : (this.teamMeta[team]?.name || cfg.squadName);
+        const emblemPixels = this.config.mode === 'solo' ? (appearance.emblemPixels || emblemToString(makeEmblemPreset(appearance.emblemPreset || 'cube'))) : (this.teamMeta[team]?.emblemPixels || appearance.emblemPixels);
+        const player = this.createPlayer({ id:`cpu-online-${team}-${cpuSerial}`, name:cfg.name, human:false, team, stats, loadout, archetype:cfg.archetype || template.name, appearance, squadName, emblemPixels });
         this.players.push(player); cpuSerial++;
       };
       if (this.config.mode === 'team') {
+        const targetSize = Math.max(1, Math.min(4, Number(this.config.teamSize || 3)));
+        this.config.teamSize = targetSize;
         for (let team = 0; team < this.teamCount; team++) {
           const current = combatants.filter((member) => Number(member.team || 0) === team).length;
-          for (let i = current; i < Number(this.config.teamSize || 3); i++) addCpu(team);
+          for (let i = current; i < targetSize; i++) addCpu(team);
         }
       } else if (this.isDefenseMode) {
+        const targetSize = Math.max(1, Math.min(4, Number(this.config.teamSize || 3)));
+        this.config.teamSize = targetSize;
         const current = combatants.length;
-        for (let i = current; i < Number(this.config.teamSize || 3); i++) addCpu(0);
+        for (let i = current; i < targetSize; i++) addCpu(0);
+      } else {
+        const targetTotal = Math.max(combatants.length, Math.max(2, Number(this.config.cpuCount ?? 11) + 1));
+        for (let i = combatants.length; i < targetTotal; i++) addCpu(i + 1);
       }
+      if (this.isOnlineHost) this.logEvent('online_cpu_fill', `オンライン参加 ${combatants.length}人 / CPU補充 ${cpuSerial}人`);
 
       this.placeInitialPlayers();
       if (this.isDefenseMode) this.initializeDefenseMode();
@@ -5880,6 +5999,17 @@
       ctx.clearRect(0, 0, this.viewW, this.viewH);
       ctx.fillStyle = '#06131d';
       ctx.fillRect(0, 0, this.viewW, this.viewH);
+      if (this.onlineMirror && !this.onlineWorldReady) {
+        const pulse = .55 + Math.sin(performance.now() / 260) * .16;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(101,232,255,${pulse})`;
+        ctx.font = '900 18px Inter, sans-serif';
+        ctx.fillText('戦場を同期中', this.viewW / 2, this.viewH / 2 - 4);
+        ctx.fillStyle = 'rgba(234,250,255,.58)';
+        ctx.font = '700 11px Inter, sans-serif';
+        ctx.fillText('ホストから初期状態を受信しています', this.viewW / 2, this.viewH / 2 + 21);
+        return;
+      }
       ctx.save();
       ctx.translate(-this.camera.x, -this.camera.y);
       this.drawTerrain(ctx);

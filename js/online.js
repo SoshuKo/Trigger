@@ -32,6 +32,7 @@
       this.lastError = '';
       this.gameListeners = new Set();
       this.pendingLargeMessages = new Map();
+      this.launchedMatchKey = '';
     }
 
     get configured() { return this.enabled; }
@@ -249,13 +250,21 @@
       });
       this.dbChannel = this.client.channel(`trion-room-db:${room.id}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'room_members', filter: `room_id=eq.${room.id}` }, () => this.refreshMembers())
-        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}` }, ({ new: updated }) => {
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${room.id}` }, async ({ new: updated }) => {
           this.room = updated;
           this.emit('room', { room: updated, members: this.members });
+          if (updated.status === 'playing') {
+            try { await this.recoverPlayingRoom(); } catch (error) { console.warn('Playing room recovery failed', error); }
+          }
         });
       this.dbChannel.subscribe();
       this.emit('room', { room: this.room, members: this.members });
-      if (room.status === 'playing') setTimeout(() => this.broadcast('sync_request', { roomId: room.id }), 250);
+      if (room.status === 'playing') {
+        setTimeout(async () => {
+          try { await this.recoverPlayingRoom(); } catch (error) { console.warn('Playing room recovery failed', error); }
+          this.broadcast('sync_request', { roomId: room.id });
+        }, 250);
+      }
     }
 
     async refreshMembers() {
@@ -283,6 +292,39 @@
       });
     }
 
+    buildSessionFromRoom() {
+      if (!this.room || !this.user) return null;
+      return {
+        roomId: this.room.id,
+        roomCode: this.room.code,
+        hostId: this.room.host_id,
+        roster: this.members.map((member) => ({
+          userId: member.user_id,
+          displayName: member.display_name,
+          team: Number(member.team || 0),
+          role: member.role || 'combatant',
+          playerConfig: member.player_config || {},
+        })),
+        settings: safeJson(this.room.settings || {}, {}),
+        startedAt: this.room.started_at ? Date.parse(this.room.started_at) || Date.now() : Date.now(),
+      };
+    }
+
+    emitMatchStartOnce(session) {
+      if (!session?.roomId) return false;
+      const key = `${session.roomId}:${session.startedAt || 0}`;
+      if (this.launchedMatchKey === key) return false;
+      this.launchedMatchKey = key;
+      this.emit('match-start', { session });
+      return true;
+    }
+
+    async recoverPlayingRoom() {
+      if (!this.room || this.room.status !== 'playing') return false;
+      await this.refreshMembers();
+      return this.emitMatchStartOnce(this.buildSessionFromRoom());
+    }
+
     async startMatch(settings) {
       if (!this.isHost) throw new Error('ホストだけが試合を開始できます。');
       await this.refreshMembers();
@@ -303,8 +345,9 @@
       const { data: updated, error } = await this.client.from('rooms').update({ status: 'playing', settings: session.settings, started_at: new Date().toISOString() }).eq('id', this.room.id).select('*').single();
       if (error) throw error;
       this.room = updated;
+      session.startedAt = updated.started_at ? Date.parse(updated.started_at) || session.startedAt : session.startedAt;
       await this.broadcast('match_start', session);
-      this.emit('match-start', { session });
+      this.emitMatchStartOnce(session);
       return session;
     }
 
@@ -331,6 +374,7 @@
       await this.unsubscribeRoomChannels();
       this.room = null;
       this.members = [];
+      this.launchedMatchKey = '';
       this.emit('room-left', {});
     }
 
@@ -390,8 +434,8 @@
         try { listener(message); } catch (error) { console.error(error); }
       }
       this.emit('game-event', message);
-      if (event === 'match_start' && senderId !== this.user?.id) this.emit('match-start', { session: data });
-      if (event === 'late_join_start' && data?.targetId === this.user?.id) this.emit('match-start', { session: data.session });
+      if (event === 'match_start' && senderId !== this.user?.id) this.emitMatchStartOnce(data);
+      if (event === 'late_join_start' && data?.targetId === this.user?.id) this.emitMatchStartOnce(data.session);
     }
 
     onGameEvent(listener) {
@@ -567,6 +611,8 @@
   service.addEventListener('room', renderLobby);
   service.addEventListener('room-left', renderLobby);
   service.addEventListener('match-start', (event) => {
+    $('#onlinePanel')?.classList.add('hidden');
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     if (window.TRION_START_ONLINE_MATCH) window.TRION_START_ONLINE_MATCH(event.detail.session);
   });
 
