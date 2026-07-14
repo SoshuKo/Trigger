@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
   <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=16" />
+  <link rel="stylesheet" href="styles.css?v=18" />
 </head>
 <body>
   <main id="app">
@@ -336,6 +336,17 @@
         <div id="statusList" class="status-list"></div>
       </div>
 
+      <aside id="defenseBuildPanel" class="defense-build-panel hidden" aria-label="フラッグ防衛設備">
+        <header><div><span>FORTIFICATION</span><strong>フラッグ防衛</strong></div><b id="defenseBuildResource">0 / 0</b></header>
+        <div class="defense-build-grid">
+          <button type="button" data-defense-build="barrier"><span>防壁</span><small>22資材</small></button>
+          <button type="button" data-defense-build="trap"><span>トラップ</span><small>26資材</small></button>
+          <button type="button" data-defense-build="turret"><span>固定砲台</span><small>40資材</small></button>
+          <button type="button" data-defense-build="decoy"><span>囮</span><small>16資材</small></button>
+        </div>
+        <p>防衛資材を使い、フラッグ周辺の空き位置へ自動展開します。</p>
+      </aside>
+
       <div class="right-hud">
         <canvas id="radarCanvas" width="220" height="150"></canvas>
         <div class="radar-label"><span>RADAR</span><small>バッグワームは非表示</small></div>
@@ -399,10 +410,10 @@
         <div class="control-guide-head"><strong>操作ガイド</strong><span>Gで表示切替</span></div>
         <div class="guide-desktop">
           <b>移動</b><span>WASD</span><b>右手</b><span>左クリック / 1–4</span><b>左手</b><span>右クリック / 5–8</span>
-          <b>連携</b><span>C</span><b>補助操作</b><span>Shift / Z</span><b>フラッグ回復</b><span>F（防衛戦）</span><b>メニュー</b><span>P / Esc</span>
+          <b>連携</b><span>C</span><b>補助操作</b><span>Shift / Z</span><b>フラッグ回復</b><span>F（防衛戦）</span><b>防衛設備</b><span>画面右下のパネル</span><b>メニュー</b><span>P / Esc</span>
         </div>
         <div class="guide-mobile">
-          <b>左パッド</b><span>移動</span><b>右パッド</b><span>照準</span><b>MAIN / SUB</b><span>トリガー発動</span><b>1–8</b><span>装備選択</span>
+          <b>左パッド</b><span>移動</span><b>右パッド</b><span>照準</span><b>MAIN / SUB</b><span>トリガー発動</span><b>防衛設備</b><span>右下の4ボタン</span><b>1–8</b><span>装備選択</span>
         </div>
       </aside>
 
@@ -456,9 +467,9 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/online-config.js?v=16"></script>
-  <script src="js/trigger-data.js?v=16"></script>
-  <script src="js/online.js?v=16"></script>
-  <script src="js/game.js?v=16"></script>
+  <script src="js/online-config.js?v=18"></script>
+  <script src="js/trigger-data.js?v=18"></script>
+  <script src="js/online.js?v=18"></script>
+  <script src="js/game.js?v=18"></script>
 </body>
 </html>

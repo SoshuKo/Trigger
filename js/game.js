@@ -50,6 +50,12 @@
     normal: { label: '普通', rethink: [.22, .5], aimError: 1, move: 1, shieldChance: .78, utilityChance: .78, attackInterval: [.11, .25], comboChance: .08, prediction: .06 },
     strong: { label: '強', rethink: [.08, .2], aimError: .38, move: 1.12, shieldChance: .98, utilityChance: .95, attackInterval: [.055, .13], comboChance: .24, prediction: .22 },
   };
+  const DEFENSE_BUILD_DEFS = {
+    barrier: { label: '防壁', cost: 22, cooldown: 7, ttl: 78, maxActive: 8 },
+    trap: { label: '固定トラップ', cost: 26, cooldown: 10, ttl: 86, maxActive: 5 },
+    turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
+    decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
+  };
 
   function downloadText(filename, text, mime = 'application/json') {
     const blob = new Blob([text], { type: `${mime};charset=utf-8` });
@@ -1230,6 +1236,12 @@
       this.defenseHazards = [];
       this.defenseEnemySerial = 0;
       this.flagChannelTimer = 0;
+      this.defenseBuildPoints = 0;
+      this.defenseBuildMaxPoints = 0;
+      this.defenseBuildCooldowns = { barrier: 0, trap: 0, turret: 0, decoy: 0 };
+      this.defenseBuildSerial = 0;
+      this.defenseNpcBuildTimer = 2.5;
+      this.defenseBuildStats = { barrier: 0, trap: 0, turret: 0, decoy: 0 };
       this.projectiles = [];
       this.effects = [];
       this.particles = [];
@@ -1294,11 +1306,15 @@
         if (event === 'input' && this.isOnlineHost) {
           this.onlineRemoteInputs.set(senderId, { ...(data || {}), receivedAt: this.elapsed });
         } else if (event === 'player_action' && this.isOnlineHost) {
-          const player = this.players.find((unit) => unit.onlineUserId === senderId);
-          if (!player) return;
+          const member = this.getOnlineMemberByUserId(senderId);
+          const player = this.players.find((unit) => unit.onlineUserId === senderId) || null;
           if (data.action === 'bailout') {
+            if (!player) return;
             const contactAge = this.elapsed - (player.lastDamageAt || -999);
             if (!player.dead && contactAge >= 4.2 && !this.projectileThreat(player)) this.bailout(player, null, '自主ベイルアウト', { kind: 'manual' });
+          } else if (data.action === 'defense_build' && this.isDefenseMode) {
+            const role = member?.role || (player ? 'combatant' : 'spectator');
+            if (role !== 'spectator') this.deployDefenseBuild(data.buildType, role === 'combatant' ? player : null, Number(member?.team || 0), { remote: true, role });
           }
         } else if (event === 'operator_command' && this.isOnlineHost) {
           this.applyOnlineOperatorCommand(senderId, data);
@@ -1405,6 +1421,8 @@
         teamScores: [...this.teamScores], environment: { ...this.environment },
         defenseRound: this.defenseRound, defenseTier: this.defenseTier,
         defenseWaveActive: this.defenseWaveActive, defenseFlag: this.defenseFlag ? { ...this.defenseFlag } : null,
+        defenseBuildPoints: this.defenseBuildPoints, defenseBuildMaxPoints: this.defenseBuildMaxPoints,
+        defenseBuildCooldowns: { ...this.defenseBuildCooldowns },
         players: this.players.map(playerFields),
         projectiles: this.projectiles.slice(-180).map(projectileFields),
         effects: this.effects.slice(-90).map(effectFields),
@@ -1415,6 +1433,8 @@
         mines: this.mines.slice(-70).map((m) => ({...m})),
         traps: this.traps.slice(-70).map((t) => ({...t})),
         beacons: this.beacons.slice(-70).map((b) => ({...b})),
+        dynamicWalls: this.walls.filter((wall) => wall.defenseBuildType).map((wall) => ({...wall})),
+        temporaryInstallations: this.installations.filter((facility) => facility.temporary || facility.defenseBuildType).map((facility) => ({...facility})),
         wallState: this.walls.map((wall) => [wall.id, wall.hp, wall.ttl]),
         installationState: this.installations.map((f) => [f.id, f.hp, f.active, f.team, f.cooldown, f.ttl]),
         lightState: this.lightSources.map((l) => [l.id, l.hp, l.respawnTimer, l.ttl]),
@@ -1473,6 +1493,9 @@
       if (Number.isFinite(snapshot.defenseRound)) this.defenseRound = snapshot.defenseRound;
       if (Number.isFinite(snapshot.defenseTier)) this.defenseTier = snapshot.defenseTier;
       if (snapshot.defenseWaveActive !== undefined) this.defenseWaveActive = snapshot.defenseWaveActive;
+      if (Number.isFinite(snapshot.defenseBuildPoints)) this.defenseBuildPoints = snapshot.defenseBuildPoints;
+      if (Number.isFinite(snapshot.defenseBuildMaxPoints)) this.defenseBuildMaxPoints = snapshot.defenseBuildMaxPoints;
+      if (snapshot.defenseBuildCooldowns) this.defenseBuildCooldowns = { ...this.defenseBuildCooldowns, ...snapshot.defenseBuildCooldowns };
       const ids = new Set();
       for (const state of snapshot.players || []) {
         ids.add(state.id);
@@ -1544,6 +1567,14 @@
       if (Array.isArray(snapshot.mines)) this.mines = snapshot.mines;
       if (Array.isArray(snapshot.traps)) this.traps = snapshot.traps;
       if (Array.isArray(snapshot.beacons)) this.beacons = snapshot.beacons;
+      if (Array.isArray(snapshot.dynamicWalls)) {
+        const staticWalls = this.walls.filter((wall) => !wall.defenseBuildType);
+        this.walls = [...staticWalls, ...snapshot.dynamicWalls.map((wall) => ({...wall}))];
+      }
+      if (Array.isArray(snapshot.temporaryInstallations)) {
+        const permanent = this.installations.filter((facility) => !facility.temporary && !facility.defenseBuildType);
+        this.installations = [...permanent, ...snapshot.temporaryInstallations.map((facility) => ({...facility}))];
+      }
       if (Array.isArray(snapshot.wallState)) {
         const walls = new Map(this.walls.map((wall) => [wall.id, wall]));
         for (const [id, hp, ttl] of snapshot.wallState) { const wall = walls.get(id); if (wall) { wall.hp = hp; wall.ttl = ttl; } }
@@ -1783,6 +1814,11 @@
       bind('#debugButton', () => this.toggleDebugPanel());
       bind('#operatorButton', () => this.toggleOperatorPanel());
       bind('#closeOperatorButton', () => this.toggleOperatorPanel(false));
+      $$('#defenseBuildPanel [data-defense-build]').forEach((button) => {
+        const handler = () => this.requestDefenseBuild(button.dataset.defenseBuild);
+        button.addEventListener('click', handler);
+        this.uiListeners.push(() => button.removeEventListener('click', handler));
+      });
       bind('#closeDebugButton', () => this.toggleDebugPanel(false));
       const unitSelect = $('#operatorUnitSelect');
       const enemySelect = $('#operatorEnemySelect');
@@ -2376,8 +2412,18 @@
       this.logEvent('installation_deactivate',`${facility.id} ${reason}`);
     }
     updateInstallations(dt){
-      for(const f of this.installations){
+      for(let index=this.installations.length-1;index>=0;index--){
+        const f=this.installations[index];
         f.cooldown=Math.max(0,(f.cooldown||0)-dt);
+        if(f.temporary){
+          f.ttl=(f.ttl??f.activeTimer??60)-dt;
+          f.activeTimer=f.ttl;
+          if(f.hp<=0||f.ttl<=0){
+            this.deactivateInstallation(f,f.hp<=0?'destroyed':'timeout');
+            this.installations.splice(index,1);
+            continue;
+          }
+        }
         if(f.hp<=0){
           if(!f.destroyedLogged){
             f.destroyedLogged=true; f.respawnTimer=rand(45,70); this.deactivateInstallation(f,'destroyed');
@@ -2392,12 +2438,16 @@
           continue;
         }
         if(!f.active) continue;
-        f.activeTimer=(f.activeTimer||0)-dt;
-        if(f.activeTimer<=0){ this.deactivateInstallation(f,'timeout'); continue; }
+        if(!f.temporary) f.activeTimer=(f.activeTimer||0)-dt;
+        if(f.activeTimer<=0){
+          if(f.temporary){this.installations.splice(index,1);continue;}
+          this.deactivateInstallation(f,'timeout'); continue;
+        }
+        const hostile=(p)=>!p.dead&&((this.config.mode==='team'||this.isDefenseMode)?p.team!==f.team:true);
         if(f.type==='turret'&&f.cooldown<=0){
-          const target=this.players.filter(p=>!p.dead&&(this.config.mode!=='team'||p.team!==f.team)).sort((a,b)=>Math.hypot(a.x-f.x,a.y-f.y)-Math.hypot(b.x-f.x,b.y-f.y))[0];
-          if(target&&Math.hypot(target.x-f.x,target.y-f.y)<820){ const owner=this.players.find(p=>p.team===f.team&&!p.dead); if(owner){ const ang=Math.atan2(target.y-f.y,target.x-f.x); this.spawnProjectile(owner,'main',{angle:ang,speed:650,damage:15,radius:5,life:1.4,color:'#ffd369',sourceKey:'fixedTurret',sourceName:'固定砲台'}); const proj=this.projectiles[this.projectiles.length-1]; if(proj){proj.x=f.x;proj.y=f.y;} f.cooldown=.72; } }
-        } else if(f.type==='trap'&&f.cooldown<=0){ const target=this.players.find(p=>!p.dead&&(this.config.mode!=='team'||p.team!==f.team)&&Math.hypot(p.x-f.x,p.y-f.y)<78); if(target){ const owner=this.players.find(p=>p.team===f.team&&!p.dead); if(owner){ this.explode(f.x,f.y,125,28,owner.id,owner.team,null,'固定トラップ',{sourceKey:'fixedTrap'}); f.cooldown=8; } } }
+          const target=this.players.filter(hostile).sort((a,b)=>Math.hypot(a.x-f.x,a.y-f.y)-Math.hypot(b.x-f.x,b.y-f.y))[0];
+          if(target&&Math.hypot(target.x-f.x,target.y-f.y)<820){ const owner=this.players.find(p=>p.team===f.team&&!p.dead); if(owner){ const ang=Math.atan2(target.y-f.y,target.x-f.x); this.spawnProjectile(owner,'main',{angle:ang,speed:650,damage:this.isDefenseMode?19:15,radius:5,life:1.4,color:'#ffd369',sourceKey:'fixedTurret',sourceName:'固定砲台'}); const proj=this.projectiles[this.projectiles.length-1]; if(proj){proj.x=f.x;proj.y=f.y;} f.cooldown=this.isDefenseMode?.58:.72; } }
+        } else if(f.type==='trap'&&f.cooldown<=0){ const target=this.players.find(p=>hostile(p)&&Math.hypot(p.x-f.x,p.y-f.y)<88); if(target){ const owner=this.players.find(p=>p.team===f.team&&!p.dead); if(owner){ this.explode(f.x,f.y,138,this.isDefenseMode?38:28,owner.id,owner.team,null,'固定トラップ',{sourceKey:'fixedTrap'}); f.cooldown=this.isDefenseMode?6.5:8; } } }
       }
     }
     toggleDebugPanel(force) {
@@ -2524,7 +2574,7 @@
 
     buildLog(reason = 'snapshot') {
       return {
-        schemaVersion: 16,
+        schemaVersion: 18,
         matchId: this.matchId,
         startedAt: this.startedAt,
         endedAt: new Date().toISOString(),
@@ -2567,7 +2617,8 @@
           enemiesDefeated: this.defenseEnemiesDefeated,
           bossesDefeated: this.defenseBossesDefeated,
           activeEnemies: this.players.filter((player) => player.isDefenseEnemy && !player.dead).map((enemy) => ({ id: enemy.id, type: enemy.defenseType, boss: enemy.isDefenseBoss, hp: Number(enemy.hp.toFixed(2)), maxHp: enemy.maxHp, objective: enemy.defenseAI?.objectiveMode || null, flagAttacks: enemy.defenseAI?.flagAttacks || 0 })),
-          flag: this.defenseFlag ? { hp: Number(this.defenseFlag.hp.toFixed(2)), maxHp: this.defenseFlag.maxHp, repaired: Number(this.defenseFlag.repaired.toFixed(2)), lastDamageAt: Number(this.defenseFlag.lastDamageAt.toFixed(2)) } : null,
+          flag: this.defenseFlag ? { hp: Number(this.defenseFlag.hp.toFixed(2)), maxHp: this.defenseFlag.maxHp, repaired: Number(this.defenseFlag.repaired.toFixed(2)), lastDamageAt: Number(this.defenseFlag.lastDamageAt.toFixed(2)), armor: this.defenseFlag.armor || 0 } : null,
+          fortification: { points: Number(this.defenseBuildPoints.toFixed(2)), maxPoints: this.defenseBuildMaxPoints, built: { ...this.defenseBuildStats } },
         } : null,
         teamScores: this.teamScores.map((score) => Number(score.toFixed(2))),
         humanConfig: { role: this.playerRole, stats: this.config.stats, loadout: this.config.loadout, teamConfig: this.config.teamConfig || null, offBoard: !this.isPlayerCombatant },
@@ -3092,8 +3143,15 @@
       const home = this.getTeamHome(0);
       this.walls = this.walls.filter((wall) => Math.hypot((wall.x + wall.w / 2) - home.x, (wall.y + wall.h / 2) - home.y) > 260);
       this.installations = this.installations.filter((facility) => Math.hypot(facility.x - home.x, facility.y - home.y) > 230);
-      const maxHp = 1100 + (this.config.teamSize || 3) * 260;
-      this.defenseFlag = { x: home.x, y: home.y, radius: 42, maxHp, hp: maxHp, pulse: 0, lastDamageAt: -999, repaired: 0 };
+      const teamSize = this.config.teamSize || 3;
+      const maxHp = 2200 + teamSize * 520;
+      this.defenseFlag = { x: home.x, y: home.y, radius: 46, maxHp, hp: maxHp, pulse: 0, lastDamageAt: -999, repaired: 0, armor: .22 };
+      this.defenseBuildMaxPoints = 150 + teamSize * 18;
+      this.defenseBuildPoints = this.defenseBuildMaxPoints;
+      this.defenseBuildCooldowns = { barrier: 0, trap: 0, turret: 0, decoy: 0 };
+      this.defenseBuildSerial = 0;
+      this.defenseNpcBuildTimer = 3;
+      this.defenseBuildStats = { barrier: 0, trap: 0, turret: 0, decoy: 0 };
       const defenders = this.players.filter((player) => !player.isDefenseEnemy);
       defenders.forEach((player, index) => {
         const angle = index / Math.max(1, defenders.length) * TAU;
@@ -3104,7 +3162,11 @@
       this.defenseRound = 0;
       this.defenseTier = 0;
       this.defenseWaveActive = false;
-      this.defenseRoundTimer = 4;
+      this.defenseRoundTimer = 5;
+      this.deployDefenseBuild('barrier', null, 0, { free: true, silent: true, ignoreCooldown: true });
+      this.deployDefenseBuild('barrier', null, 0, { free: true, silent: true, ignoreCooldown: true });
+      this.deployDefenseBuild('trap', null, 0, { free: true, silent: true, ignoreCooldown: true });
+      this.defenseBuildCooldowns = { barrier: 0, trap: 0, turret: 0, decoy: 0 };
       this.updateDefenseHud();
       $('#defenseHud')?.classList.remove('hidden');
       $('#teamScoreCard')?.classList.add('hidden');
@@ -3130,18 +3192,18 @@
 
     createDefenseEnemy(type, index = 0, total = 1) {
       const tier = this.defenseTier;
-      const hpScale = 1 + tier * .34;
-      const damageScale = 1 + tier * .22;
-      const speedScale = 1 + Math.min(.35, tier * .06);
+      const hpScale = 1 + tier * .22;
+      const damageScale = 1 + tier * .14;
+      const speedScale = 1 + Math.min(.2, tier * .035);
       const definitions = {
-        marmod: { name: 'モールモッド', hp: 150, speed: 205, radius: 24, damage: 24, color: '#c8c9c7', archetype: '戦闘用トリオン兵' },
-        ilgar: { name: 'イルガー', hp: 520, speed: 95, radius: 58, damage: 28, color: '#e2bd38', archetype: '爆撃用トリオン兵', flying: true },
-        rabbit: { name: 'ラービット', hp: 650, speed: 132, radius: 33, damage: 36, color: '#f2f3ef', archetype: '捕獲用トリオン兵' },
-        fujin: { name: '風刃', hp: 2250, speed: 150, radius: 27, damage: 52, color: '#39d57a', archetype: 'ブラックトリガー', boss: true },
-        seals: { name: '印', hp: 2450, speed: 175, radius: 27, damage: 45, color: '#d7d7df', archetype: 'ブラックトリガー', boss: true },
-        alektor: { name: 'アレクトール', hp: 2700, speed: 126, radius: 29, damage: 40, color: '#b4e2a0', archetype: 'ブラックトリガー', boss: true },
-        borboros: { name: 'ボルボロス', hp: 2550, speed: 155, radius: 29, damage: 48, color: '#a37ad7', archetype: 'ブラックトリガー', boss: true },
-        organon: { name: 'オルガノン', hp: 3000, speed: 108, radius: 29, damage: 58, color: '#d3c9a8', archetype: 'ブラックトリガー', boss: true },
+        marmod: { name: 'モールモッド', hp: 112, speed: 184, radius: 24, damage: 16, color: '#c8c9c7', archetype: '戦闘用トリオン兵' },
+        ilgar: { name: 'イルガー', hp: 395, speed: 82, radius: 58, damage: 19, color: '#e2bd38', archetype: '爆撃用トリオン兵', flying: true },
+        rabbit: { name: 'ラービット', hp: 485, speed: 114, radius: 33, damage: 25, color: '#f2f3ef', archetype: '捕獲用トリオン兵' },
+        fujin: { name: '風刃', hp: 1650, speed: 137, radius: 27, damage: 35, color: '#39d57a', archetype: 'ブラックトリガー', boss: true },
+        seals: { name: '印', hp: 1780, speed: 151, radius: 27, damage: 32, color: '#d7d7df', archetype: 'ブラックトリガー', boss: true },
+        alektor: { name: 'アレクトール', hp: 1920, speed: 116, radius: 29, damage: 29, color: '#b4e2a0', archetype: 'ブラックトリガー', boss: true },
+        borboros: { name: 'ボルボロス', hp: 1840, speed: 139, radius: 29, damage: 33, color: '#a37ad7', archetype: 'ブラックトリガー', boss: true },
+        organon: { name: 'オルガノン', hp: 2150, speed: 101, radius: 29, damage: 39, color: '#d3c9a8', archetype: 'ブラックトリガー', boss: true },
       };
       const def = definitions[type] || definitions.marmod;
       const enemy = this.createPlayer({
@@ -3161,7 +3223,7 @@
       enemy.isDefenseEnemy = true;
       enemy.defenseType = type;
       enemy.isDefenseBoss = Boolean(def.boss);
-      enemy.maxHp = Math.round(def.hp * hpScale * (def.boss ? 1 + tier * .12 : 1));
+      enemy.maxHp = Math.round(def.hp * hpScale * (def.boss ? 1 + tier * .07 : 1));
       enemy.hp = enemy.maxHp;
       enemy.maxTrion = 0; enemy.trion = 0; enemy.regen = 0;
       enemy.speed = def.speed * speedScale;
@@ -3195,12 +3257,12 @@
         this.logEvent('defense_boss_round', `Round ${this.defenseRound} / ${this.players[this.players.length - 1].name}`);
       } else {
         const teamSize = this.config.teamSize || 3;
-        const count = Math.min(18, 2 + teamSize + Math.floor(this.defenseRound * .75));
+        const count = Math.min(14, 1 + teamSize + Math.floor(this.defenseRound * .55));
         for (let i = 0; i < count; i++) {
           const roll = Math.random();
           let type = 'marmod';
-          if (this.defenseRound >= 3 && roll > .72) type = 'rabbit';
-          else if (this.defenseRound >= 2 && roll > .52) type = 'ilgar';
+          if (this.defenseRound >= 4 && roll > .84) type = 'rabbit';
+          else if (this.defenseRound >= 2 && roll > .67) type = 'ilgar';
           this.createDefenseEnemy(type, i, count);
         }
         this.showCenterMessage(`ROUND ${this.defenseRound}`, `侵攻群 ${count}体`, 2.1);
@@ -3214,6 +3276,8 @@
       if (!this.isDefenseMode || this.ended) return;
       this.updateDefenseHazards(dt);
       this.updateDefenseFlag(dt);
+      for (const key of Object.keys(this.defenseBuildCooldowns)) this.defenseBuildCooldowns[key] = Math.max(0, (this.defenseBuildCooldowns[key] || 0) - dt);
+      this.updateDefenseNpcConstruction(dt);
       for (let i = this.players.length - 1; i >= 0; i--) {
         const enemy = this.players[i];
         if (!enemy.isDefenseEnemy || !enemy.dead) continue;
@@ -3225,8 +3289,9 @@
         this.defenseWaveActive = false;
         this.defenseRoundTimer = 6;
         const defenders = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
-        defenders.forEach((player) => { player.trion = Math.min(player.maxTrion, player.trion + player.maxTrion * .18); });
-        if (this.defenseFlag) this.defenseFlag.hp = Math.min(this.defenseFlag.maxHp, this.defenseFlag.hp + this.defenseFlag.maxHp * .06);
+        defenders.forEach((player) => { player.trion = Math.min(player.maxTrion, player.trion + player.maxTrion * .24); });
+        if (this.defenseFlag) this.defenseFlag.hp = Math.min(this.defenseFlag.maxHp, this.defenseFlag.hp + this.defenseFlag.maxHp * .12);
+        this.defenseBuildPoints = Math.min(this.defenseBuildMaxPoints, this.defenseBuildPoints + 42 + (this.config.teamSize || 3) * 6);
         this.showCenterMessage('ROUND CLEAR', '次の侵攻に備えろ', 1.7);
         this.logEvent('defense_round_clear', `Round ${this.defenseRound}`);
       }
@@ -3241,6 +3306,10 @@
       const flag = this.defenseFlag;
       if (!flag || flag.hp <= 0) return;
       flag.pulse += dt * 3;
+      if (this.elapsed - flag.lastDamageAt > 7 && flag.hp < flag.maxHp) {
+        const passive = 5.5 + flag.maxHp * .00115;
+        flag.hp = Math.min(flag.maxHp, flag.hp + passive * dt);
+      }
       if (this.input.consume('KeyF')) this.flagChannelTimer = 1.15;
       this.flagChannelTimer = Math.max(0, this.flagChannelTimer - dt);
       const defenders = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
@@ -3252,7 +3321,7 @@
         else channel = near && !hostileNear && flag.hp < flag.maxHp * .68 && player.trion > player.maxTrion * .55;
         if (!channel || player.trion <= 2 || flag.hp >= flag.maxHp) continue;
         const cost = Math.min(player.trion, (player.human ? 17 : 10) * dt);
-        const healing = cost * (player.human ? 2.25 : 1.8);
+        const healing = cost * (player.human ? 2.9 : 2.25);
         player.trion -= cost;
         player.metrics.trionSpent += cost;
         flag.hp = Math.min(flag.maxHp, flag.hp + healing);
@@ -3264,12 +3333,13 @@
     damageDefenseFlag(amount, source = null, name = '敵攻撃') {
       const flag = this.defenseFlag;
       if (!this.isDefenseMode || !flag || flag.hp <= 0 || amount <= 0) return;
-      flag.hp = Math.max(0, flag.hp - amount);
+      const mitigated = amount * (1 - clamp(flag.armor || 0, 0, .55));
+      flag.hp = Math.max(0, flag.hp - mitigated);
       flag.lastDamageAt = this.elapsed;
       if (source?.defenseAI) source.defenseAI.flagAttacks = (source.defenseAI.flagAttacks || 0) + 1;
       this.sfx?.play('explosion', { x: flag.x, y: flag.y, bucket: 'flag-hit', cooldown: .13, volume: .38, rate: 1.12 });
       this.effects.push({ type: 'flagHit', x: flag.x, y: flag.y, ttl: .35, maxTtl: .35 });
-      this.logEvent('flag_damage', `${name} / ${Math.round(amount)} damage / ${Math.round(flag.hp)} HP`, false);
+      this.logEvent('flag_damage', `${name} / ${Math.round(mitigated)} damage / ${Math.round(flag.hp)} HP`, false);
       if (flag.hp <= 0) this.endDefenseMatch();
     }
 
@@ -3280,30 +3350,147 @@
       $('#defenseFlagLabel').textContent = flag ? `${Math.ceil(flag.hp / flag.maxHp * 100)}%` : '---';
       $('#modeLabel').textContent = '防衛戦';
       $('#timerLabel').textContent = this.defenseWaveActive ? `R${Math.max(1, this.defenseRound)}` : `NEXT ${Math.max(0, Math.ceil(this.defenseRoundTimer))}`;
+      this.updateDefenseBuildUi();
+    }
+
+    getDefenseBuildActiveCount(type) {
+      if (type === 'barrier') return new Set(this.walls.filter((wall) => wall.defenseBuildType === 'barrier' && wall.hp > 0 && wall.ttl > 0).map((wall) => wall.defenseBuildGroup || wall.id)).size;
+      if (type === 'decoy') return this.beacons.filter((beacon) => beacon.defenseDecoy && beacon.hp > 0 && beacon.ttl > 0).length;
+      return this.installations.filter((facility) => facility.defenseBuildType === type && facility.hp > 0 && facility.active).length;
+    }
+
+    findDefenseBuildPoint(type) {
+      const flag = this.defenseFlag;
+      if (!flag) return null;
+      const radiusByType = { barrier: 160, trap: 215, turret: 255, decoy: 190 };
+      const ring = radiusByType[type] || 200;
+      const base = this.defenseBuildSerial * 2.399963229728653;
+      for (let attempt = 0; attempt < 30; attempt++) {
+        const angle = base + attempt * .47;
+        const radius = ring + ((attempt % 3) - 1) * 28;
+        const point = { x: flag.x + Math.cos(angle) * radius, y: flag.y + Math.sin(angle) * radius, angle };
+        if (point.x < 80 || point.y < 80 || point.x > this.world.w - 80 || point.y > this.world.h - 80) continue;
+        if (this.isInRiver(point.x, point.y)) continue;
+        if (this.walls.some((wall) => wall.hp > 0 && Math.hypot(wall.x + wall.w / 2 - point.x, wall.y + wall.h / 2 - point.y) < 82)) continue;
+        if (this.installations.some((facility) => facility.hp > 0 && Math.hypot(facility.x - point.x, facility.y - point.y) < 86)) continue;
+        if (this.beacons.some((beacon) => beacon.hp > 0 && Math.hypot(beacon.x - point.x, beacon.y - point.y) < 58)) continue;
+        return point;
+      }
+      return null;
+    }
+
+    deployDefenseBuild(type, builder = null, team = 0, options = {}) {
+      const def = DEFENSE_BUILD_DEFS[type];
+      if (!this.isDefenseMode || !this.defenseFlag || !def || team !== 0) return false;
+      if (this.onlineMirror && !options.remote) {
+        window.trionOnline?.broadcast('player_action', { action: 'defense_build', buildType: type });
+        this.toast(`${def.label}の展開を要請しました`);
+        return true;
+      }
+      if (!options.ignoreCooldown && (this.defenseBuildCooldowns[type] || 0) > 0) { if (!options.silent) this.toast(`${def.label}は準備中です`); return false; }
+      if (this.getDefenseBuildActiveCount(type) >= def.maxActive) { if (!options.silent) this.toast(`${def.label}は上限です`); return false; }
+      if (!options.free && this.defenseBuildPoints < def.cost) { if (!options.silent) this.toast('防衛資材が足りません'); return false; }
+      const point = this.findDefenseBuildPoint(type);
+      if (!point) { if (!options.silent) this.toast('フラッグ周辺に設置場所がありません'); return false; }
+      const id = `flag-build-${type}-${++this.defenseBuildSerial}-${Math.round(this.elapsed * 10)}`;
+      if (type === 'barrier') {
+        const vertical = Math.abs(Math.cos(point.angle)) > Math.abs(Math.sin(point.angle));
+        for (let i = -1; i <= 1; i++) {
+          const w = vertical ? 28 : 58, h = vertical ? 58 : 28;
+          this.walls.push({
+            id: `${id}-${i}`, x: point.x - w / 2 + (vertical ? 0 : i * 56), y: point.y - h / 2 + (vertical ? i * 56 : 0),
+            w, h, type: 'barricade', defenseBuildType: 'barrier', defenseBuildGroup: id, hp: 245, maxHp: 245, ttl: def.ttl, team: 0, respawnable: false,
+          });
+        }
+      } else if (type === 'decoy') {
+        this.beacons.push({ id, x: point.x, y: point.y, vx: rand(-9, 9), vy: rand(-9, 9), radius: 18, team: 0, ownerId: builder?.id || 'defense-command', ttl: def.ttl, hp: 105, maxHp: 105, createdAt: this.elapsed, exposedTeams: {}, defenseDecoy: true });
+      } else {
+        const hp = type === 'turret' ? 280 : 205;
+        this.installations.push({ id, type, defenseBuildType: type, x: point.x, y: point.y, radius: 24, hp, maxHp: hp, active: true, team: 0, work: 0, cooldown: 0, activeTimer: def.ttl, ttl: def.ttl, temporary: true, destroyedLogged: false });
+      }
+      if (!options.free) this.defenseBuildPoints = Math.max(0, this.defenseBuildPoints - def.cost);
+      if (!options.ignoreCooldown) this.defenseBuildCooldowns[type] = def.cooldown;
+      this.defenseBuildStats[type] = (this.defenseBuildStats[type] || 0) + 1;
+      this.effects.push({ type: 'flagHeal', x: point.x, y: point.y, ttl: .55, maxTtl: .55 });
+      if (!options.silent) this.toast(`${def.label}をフラッグ周辺へ展開`);
+      this.logEvent('defense_build', `${builder?.name || (options.role === 'operator' ? 'OPERATOR' : '防衛隊')}：${def.label}`, false);
+      return true;
+    }
+
+    requestDefenseBuild(type) {
+      if (!this.isDefenseMode || this.ended || this.spectating || this.playerRole === 'spectator') return;
+      const builder = this.isPlayerCombatant ? this.human : null;
+      this.deployDefenseBuild(type, builder, this.playerTeam, { role: this.playerRole });
+    }
+
+    updateDefenseBuildUi() {
+      const panel = $('#defenseBuildPanel');
+      if (!panel) return;
+      const available = this.isDefenseMode && this.playerRole !== 'spectator' && !this.spectating;
+      panel.classList.toggle('hidden', !this.isDefenseMode);
+      panel.classList.toggle('read-only', !available);
+      const resource = $('#defenseBuildResource');
+      if (resource) resource.textContent = `${Math.floor(this.defenseBuildPoints)} / ${Math.floor(this.defenseBuildMaxPoints)}`;
+      $$('#defenseBuildPanel [data-defense-build]').forEach((button) => {
+        const type = button.dataset.defenseBuild;
+        const def = DEFENSE_BUILD_DEFS[type];
+        const cooldown = Math.max(0, this.defenseBuildCooldowns[type] || 0);
+        const count = this.getDefenseBuildActiveCount(type);
+        button.disabled = !available || cooldown > 0 || this.defenseBuildPoints < def.cost || count >= def.maxActive;
+        const small = button.querySelector('small');
+        if (small) small.textContent = cooldown > 0 ? `${cooldown.toFixed(1)}秒` : `${def.cost}資材・${count}/${def.maxActive}`;
+      });
+    }
+
+    updateDefenseNpcConstruction(dt) {
+      if (!this.isDefenseMode || this.onlineMirror || this.ended) return;
+      this.defenseNpcBuildTimer -= dt;
+      if (this.defenseNpcBuildTimer > 0) return;
+      this.defenseNpcBuildTimer = this.defenseWaveActive ? rand(7, 11) : rand(2.6, 4.4);
+      if (this.defenseBuildPoints < 62) return;
+      const enemiesNear = this.players.some((enemy) => enemy.isDefenseEnemy && !enemy.dead && Math.hypot(enemy.x - this.defenseFlag.x, enemy.y - this.defenseFlag.y) < 520);
+      if (enemiesNear) return;
+      const desired = [
+        ['barrier', 4], ['trap', 2], ['turret', 2], ['decoy', 1],
+      ].find(([type, wanted]) => this.getDefenseBuildActiveCount(type) < wanted && (this.defenseBuildCooldowns[type] || 0) <= 0);
+      if (!desired) return;
+      const builder = this.players.filter((unit) => !unit.isDefenseEnemy && !unit.dead && !unit.human).sort((a, b) => Math.hypot(a.x - this.defenseFlag.x, a.y - this.defenseFlag.y) - Math.hypot(b.x - this.defenseFlag.x, b.y - this.defenseFlag.y))[0] || null;
+      this.deployDefenseBuild(desired[0], builder, 0, { silent: true });
     }
 
     selectDefenseObjective(enemy, defenders, flag) {
       const ai = enemy.defenseAI || (enemy.defenseAI = {});
       const nearest = defenders.length ? [...defenders].sort((a, b) => dist2(enemy, a) - dist2(enemy, b))[0] : null;
-      if (!flag) return nearest;
-      if (!nearest) return flag;
+      const decoys = this.beacons.filter((beacon) => beacon.defenseDecoy && beacon.hp > 0 && beacon.ttl > 0);
+      const nearestDecoy = decoys.length ? [...decoys].sort((a, b) => dist2(enemy, a) - dist2(enemy, b))[0] : null;
+      if (!flag) return nearestDecoy || nearest;
+      if (!nearest && !nearestDecoy) return flag;
       const dFlag = Math.hypot(flag.x - enemy.x, flag.y - enemy.y);
-      const dNearest = Math.hypot(nearest.x - enemy.x, nearest.y - enemy.y);
+      const dNearest = nearest ? Math.hypot(nearest.x - enemy.x, nearest.y - enemy.y) : Infinity;
+      const dDecoy = nearestDecoy ? Math.hypot(nearestDecoy.x - enemy.x, nearestDecoy.y - enemy.y) : Infinity;
       const recentlyHit = this.elapsed - (enemy.lastDamageAt || -999) < 2.25;
-      const threatRadius = enemy.defenseType === 'rabbit' ? 210 : enemy.defenseType === 'marmod' ? 175 : 235;
-      if (recentlyHit && dNearest < threatRadius) return nearest;
-      if (dFlag < 360 && !(dNearest < 125 && recentlyHit)) return flag;
-      if (ai.objectiveTimer <= 0 || !['flag', 'defender'].includes(ai.objectiveMode)) {
-        const baseBias = enemy.defenseType === 'ilgar' ? .78
-          : enemy.defenseType === 'marmod' ? .70
-          : enemy.defenseType === 'rabbit' ? .46
-          : enemy.isDefenseBoss ? .62 : .58;
-        const damagedFlagBonus = flag.hp < flag.maxHp * .55 ? .14 : 0;
-        ai.objectiveMode = Math.random() < Math.min(.92, baseBias + damagedFlagBonus) ? 'flag' : 'defender';
-        ai.objectiveTimer = rand(3.2, 6.4);
+      const threatRadius = enemy.defenseType === 'rabbit' ? 205 : enemy.defenseType === 'marmod' ? 170 : 225;
+      if (recentlyHit && dNearest < threatRadius) { ai.objectiveMode = 'defender'; ai.objectiveTimer = Math.max(ai.objectiveTimer || 0, 1.5); return nearest; }
+      if (nearestDecoy && dDecoy < 620 && (ai.objectiveMode === 'decoy' || ai.objectiveTimer <= 0) && Math.random() < (enemy.isDefenseBoss ? .35 : .68)) {
+        ai.objectiveMode = 'decoy'; ai.objectiveTimer = rand(2.4, 4.8); ai.objectiveId = nearestDecoy.id;
+      }
+      if (ai.objectiveMode === 'decoy') {
+        const selected = this.beacons.find((beacon) => beacon.id === ai.objectiveId && beacon.defenseDecoy && beacon.hp > 0 && beacon.ttl > 0);
+        if (selected) return selected;
+        ai.objectiveTimer = 0;
+      }
+      if (dFlag < 340 && !(dNearest < 120 && recentlyHit)) return flag;
+      if (ai.objectiveTimer <= 0 || !['flag', 'defender', 'decoy'].includes(ai.objectiveMode)) {
+        const baseBias = enemy.defenseType === 'ilgar' ? .68
+          : enemy.defenseType === 'marmod' ? .60
+          : enemy.defenseType === 'rabbit' ? .38
+          : enemy.isDefenseBoss ? .52 : .5;
+        const damagedFlagBonus = flag.hp < flag.maxHp * .45 ? .1 : 0;
+        ai.objectiveMode = Math.random() < Math.min(.82, baseBias + damagedFlagBonus) ? 'flag' : 'defender';
+        ai.objectiveTimer = rand(4.2, 7.2);
       }
       if (ai.objectiveMode === 'flag') return flag;
-      if (dNearest > dFlag * 1.18) return flag;
+      if (!nearest || dNearest > dFlag * 1.3) return flag;
       return nearest;
     }
 
@@ -3312,13 +3499,40 @@
       const dx = target.x - enemy.x, dy = target.y - enemy.y;
       const d = Math.hypot(dx, dy) || 1;
       const directAngle = Math.atan2(dy, dx);
-      const moveAngle = enemy.flying || !enemy.ai
+      let moveAngle = enemy.flying || !enemy.ai
         ? directAngle
         : this.getAINavigationAngle(enemy, target.x, target.y, directAngle, dt, Math.abs(speedFactor));
+      if (enemy.ai) moveAngle = this.stabilizeAIMovementAngle(enemy, moveAngle, target.x, target.y, dt, Math.abs(speedFactor));
       enemy.aim = directAngle;
-      enemy.vx += Math.cos(moveAngle) * enemy.speed * speedFactor * dt * 5.2;
-      enemy.vy += Math.sin(moveAngle) * enemy.speed * speedFactor * dt * 5.2;
+      enemy.vx += Math.cos(moveAngle) * enemy.speed * speedFactor * dt * 4.65;
+      enemy.vy += Math.sin(moveAngle) * enemy.speed * speedFactor * dt * 4.65;
+      if (enemy.ai) this.applyAISeparation(enemy, dt, true);
       return d;
+    }
+
+    tryDefenseEnemyAttackBarrier(enemy, target, dt) {
+      if (!enemy?.ai || enemy.flying || !target) return false;
+      const wallId = enemy.ai.wallBreakTarget;
+      if (!wallId || enemy.ai.wallBreakTimer <= 0) return false;
+      const wall = this.walls.find((candidate) => candidate.id === wallId && candidate.hp > 0);
+      if (!wall) { enemy.ai.wallBreakTarget = null; return false; }
+      const cx = wall.x + wall.w / 2, cy = wall.y + wall.h / 2;
+      const reach = enemy.radius + Math.max(wall.w, wall.h) * .55 + 54;
+      const distance = Math.hypot(cx - enemy.x, cy - enemy.y);
+      if (distance > reach) return false;
+      enemy.aim = Math.atan2(cy - enemy.y, cx - enemy.x);
+      if ((enemy.defenseAI?.attackCooldown || 0) > 0) return true;
+      const damage = Math.max(11, (enemy.defenseAI?.damage || 18) * (enemy.defenseType === 'rabbit' ? 1.08 : .82));
+      wall.hp -= damage;
+      enemy.defenseAI.attackCooldown = enemy.defenseType === 'marmod' ? .72 : enemy.defenseType === 'rabbit' ? 1.05 : 1.25;
+      this.effects.push({ type: 'hit', x: cx, y: cy, ttl: .18, maxTtl: .18 });
+      if (wall.hp <= 0) {
+        enemy.ai.wallBreakTarget = null;
+        enemy.ai.wallBreakTimer = 0;
+        enemy.ai.stuckTimer = 0;
+        this.effects.push({ type: 'explosion', x: cx, y: cy, radius: 52, ttl: .3, maxTtl: .3 });
+      }
+      return true;
     }
 
     updateDefenseEnemyAI(enemy, dt) {
@@ -3333,6 +3547,7 @@
       const flag = this.defenseFlag;
       const objective = this.selectDefenseObjective(enemy, defenders, flag);
       const type = enemy.defenseType;
+      if (this.tryDefenseEnemyAttackBarrier(enemy, objective || flag, dt)) return;
       if (type === 'ilgar') {
         if (!ai.selfDestruct && enemy.hp <= enemy.maxHp * .34) {
           ai.selfDestruct = true; ai.selfDestructTimer = 4.6; enemy.speed *= 1.65;
@@ -3344,7 +3559,7 @@
         if (ai.selfDestruct) {
           ai.selfDestructTimer -= dt;
           if (d < 105 || ai.selfDestructTimer <= 0) {
-            this.queueDefenseHazard({ type: 'circle', x: enemy.x, y: enemy.y, radius: 280, delay: .28, damage: ai.damage * 3.6, owner: enemy, name: 'イルガー自爆', hitsFlag: true, color: '#ffd24d' });
+            this.queueDefenseHazard({ type: 'circle', x: enemy.x, y: enemy.y, radius: 235, delay: .42, damage: ai.damage * 2.55, owner: enemy, name: 'イルガー自爆', hitsFlag: true, color: '#ffd24d' });
             this.defeatDefenseEnemy(enemy, null, '自爆');
           }
         } else if (ai.attackCooldown <= 0 && target) {
@@ -3352,7 +3567,7 @@
           const tx = targetingFlag ? flag.x : target.x + (target.vx || 0) * .45;
           const ty = targetingFlag ? flag.y : target.y + (target.vy || 0) * .45;
           this.queueDefenseHazard({ type: 'circle', x: tx, y: ty, radius: 105, delay: .8, damage: ai.damage, owner: enemy, name: 'イルガー爆撃', hitsFlag: true, color: '#e7bf35' });
-          ai.attackCooldown = rand(2.1, 3.1);
+          ai.attackCooldown = rand(2.7, 3.8);
         }
         return;
       }
@@ -3361,8 +3576,9 @@
         const d = this.moveDefenseEnemy(enemy, target, dt, 1.15);
         if (ai.attackCooldown <= 0 && d < (target === flag ? 225 : 72)) {
           if (target === flag) this.damageDefenseFlag(ai.damage, enemy, 'モールモッドのブレード');
+          else if (target.defenseDecoy) this.damageDefenseDecoy(target, ai.damage * 1.2, enemy, 'モールモッドのブレード');
           else this.damagePlayer(target, ai.damage, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: 'モールモッド・ブレード', sourceKey: 'marmodBlade' });
-          ai.attackCooldown = .62;
+          ai.attackCooldown = .78;
         }
         return;
       }
@@ -3371,13 +3587,14 @@
         const d = this.moveDefenseEnemy(enemy, target, dt, .92);
         if (ai.attackCooldown <= 0 && d < (target === flag ? 240 : 86)) {
           if (target === flag) this.damageDefenseFlag(ai.damage * .8, enemy, 'ラービット打撃');
+          else if (target.defenseDecoy) this.damageDefenseDecoy(target, ai.damage, enemy, 'ラービット打撃');
           else {
             this.damagePlayer(target, ai.damage * .55, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: 'ラービット捕獲腕', sourceKey: 'rabbitCapture' });
-            target.cubedTimer = Math.max(target.cubedTimer || 0, 2.8);
-            target.slowTimer = Math.max(target.slowTimer, 3.8); target.slowFactor = Math.min(target.slowFactor, .18);
-            target.trion = Math.max(0, target.trion - 16);
+            target.cubedTimer = Math.max(target.cubedTimer || 0, 1.9);
+            target.slowTimer = Math.max(target.slowTimer, 2.7); target.slowFactor = Math.min(target.slowFactor, .28);
+            target.trion = Math.max(0, target.trion - 10);
           }
-          ai.attackCooldown = 1.25;
+          ai.attackCooldown = 1.55;
         }
         return;
       }
@@ -3459,6 +3676,17 @@
       }
     }
 
+    damageDefenseDecoy(decoy, amount, source = null, name = '敵攻撃') {
+      if (!decoy || decoy.hp <= 0 || amount <= 0) return;
+      decoy.hp = Math.max(0, decoy.hp - amount);
+      this.effects.push({ type: 'hit', x: decoy.x, y: decoy.y, ttl: .2, maxTtl: .2 });
+      if (decoy.hp <= 0) {
+        this.effects.push({ type: 'explosion', x: decoy.x, y: decoy.y, radius: 58, ttl: .34, maxTtl: .34 });
+        this.logEvent('defense_decoy_destroyed', `${name}で囮破壊`, false);
+        if (source?.defenseAI) { source.defenseAI.objectiveTimer = 0; source.defenseAI.objectiveMode = 'flag'; }
+      }
+    }
+
     queueDefenseHazard(hazard) {
       this.defenseHazards.push({ ...hazard, delay: hazard.delay ?? .6, ttl: (hazard.delay ?? .6) + .55, resolved: false });
     }
@@ -3488,11 +3716,33 @@
         if (!hit) continue;
         hits.push(target);
         this.damagePlayer(target, hazard.damage || 0, hazard.owner, { x: hazard.x, y: hazard.y, type: 'explosion', name: hazard.name, sourceKey: `defense:${hazard.name}` });
-        if (hazard.status === 'cube') target.cubedTimer = Math.max(target.cubedTimer || 0, 3.4);
-        if (hazard.status === 'anchor') { target.leadWeights = Math.min(8, target.leadWeights + 2); target.slowTimer = Math.max(target.slowTimer, 5); target.slowFactor = Math.min(target.slowFactor, .45); }
+        if (hazard.status === 'cube') target.cubedTimer = Math.max(target.cubedTimer || 0, 2.35);
+        if (hazard.status === 'anchor') { target.leadWeights = Math.min(8, target.leadWeights + 2); target.slowTimer = Math.max(target.slowTimer, 3.8); target.slowFactor = Math.min(target.slowFactor, .52); }
         if (hazard.status === 'chain') { const a = Math.atan2(hazard.y - target.y, hazard.x - target.x); target.vx += Math.cos(a) * 520; target.vy += Math.sin(a) * 520; }
         if (hazard.status === 'bounce') { const a = Math.atan2(target.y - hazard.y, target.x - hazard.x); target.vx += Math.cos(a) * 650; target.vy += Math.sin(a) * 650; }
         if (hazard.status === 'poison') target.defensePoisonTimer = Math.max(target.defensePoisonTimer || 0, 4.5);
+      }
+      for (const decoy of this.beacons.filter((beacon) => beacon.defenseDecoy && beacon.hp > 0)) {
+        let hitDecoy = false;
+        if (hazard.type === 'circle') hitDecoy = Math.hypot(decoy.x - hazard.x, decoy.y - hazard.y) <= hazard.radius + decoy.radius;
+        else if (hazard.type === 'line') hitDecoy = segmentPointDistance(hazard.x, hazard.y, hazard.x2, hazard.y2, decoy.x, decoy.y).distance <= (hazard.width || 24) + decoy.radius;
+        else if (hazard.type === 'ring') hitDecoy = Math.abs(Math.hypot(decoy.x - hazard.x, decoy.y - hazard.y) - hazard.radius) <= (hazard.width || 24) + decoy.radius;
+        if (hitDecoy) this.damageDefenseDecoy(decoy, (hazard.damage || 0) * .9, hazard.owner, hazard.name);
+      }
+      const hazardHitsPoint = (x, y, radius = 0) => {
+        if (hazard.type === 'circle') return Math.hypot(x - hazard.x, y - hazard.y) <= hazard.radius + radius;
+        if (hazard.type === 'line') return segmentPointDistance(hazard.x, hazard.y, hazard.x2, hazard.y2, x, y).distance <= (hazard.width || 24) + radius;
+        if (hazard.type === 'ring') return Math.abs(Math.hypot(x - hazard.x, y - hazard.y) - hazard.radius) <= (hazard.width || 24) + radius;
+        return false;
+      };
+      for (const wall of this.walls) {
+        if (!wall.defenseBuildType || wall.hp <= 0) continue;
+        const cx = wall.x + wall.w / 2, cy = wall.y + wall.h / 2;
+        if (hazardHitsPoint(cx, cy, Math.max(wall.w, wall.h) * .42)) wall.hp -= (hazard.damage || 0) * .55;
+      }
+      for (const facility of this.installations) {
+        if (!facility.defenseBuildType || facility.hp <= 0) continue;
+        if (hazardHitsPoint(facility.x, facility.y, facility.radius || 24)) facility.hp -= (hazard.damage || 0) * .62;
       }
       if (hazard.hitsFlag && this.defenseFlag) {
         let hitFlag = false;
@@ -3500,7 +3750,7 @@
         if (hazard.type === 'circle') hitFlag = Math.hypot(flag.x - hazard.x, flag.y - hazard.y) <= hazard.radius + flag.radius;
         else if (hazard.type === 'line') hitFlag = segmentPointDistance(hazard.x, hazard.y, hazard.x2, hazard.y2, flag.x, flag.y).distance <= (hazard.width || 24) + flag.radius;
         else if (hazard.type === 'ring') hitFlag = Math.abs(Math.hypot(flag.x - hazard.x, flag.y - hazard.y) - hazard.radius) <= (hazard.width || 24) + flag.radius;
-        if (hitFlag) this.damageDefenseFlag((hazard.damage || 0) * .72, hazard.owner, hazard.name);
+        if (hitFlag) this.damageDefenseFlag((hazard.damage || 0) * .62, hazard.owner, hazard.name);
       }
       this.effects.push({ type: 'defenseImpact', x: hazard.x2 ?? hazard.x, y: hazard.y2 ?? hazard.y, ttl: .35, maxTtl: .35, color: hazard.color });
     }
@@ -3510,6 +3760,8 @@
       enemy.hp = 0; enemy.dead = true; enemy.respawnTimer = Infinity; enemy.corpseTimer = .8;
       this.defenseEnemiesDefeated += 1;
       if (enemy.isDefenseBoss) this.defenseBossesDefeated += 1;
+      const resourceReward = enemy.isDefenseBoss ? 28 : enemy.defenseType === 'rabbit' ? 8 : enemy.defenseType === 'ilgar' ? 6 : 4;
+      this.defenseBuildPoints = Math.min(this.defenseBuildMaxPoints, this.defenseBuildPoints + resourceReward);
       if (attacker && !attacker.isDefenseEnemy) {
         attacker.kills += 1;
         attacker.score += enemy.scoreValue || 100;
@@ -3605,7 +3857,7 @@
           dummyBeaconTargetSeconds: 0, bagwormHiddenSeconds: 0, chameleonHiddenSeconds: 0,
           leadBulletSlowSeconds: 0, leadBulletWeightsApplied: 0, starmakerRevealSeconds: 0, starmakerMarks: 0,
           grasshopperBoostImpulse: 0, escudoDamagePrevented: 0,
-          aiWallAvoidances: 0, aiWallBreakFallbacks: 0, dummyBeaconIdentifications: 0,
+          aiWallAvoidances: 0, aiWallBreakFallbacks: 0, aiStuckEscapes: 0, aiOscillationBreaks: 0, dummyBeaconIdentifications: 0,
           aiVoluntaryBailouts: 0, desertReliefVisits: 0, desertReliefDepartures: 0,
           triggerUses: {}, triggerDamage: {}, triggerStats: {}, aiTriggerSelections: {},
         },
@@ -3625,6 +3877,10 @@
           wanderTimer: 0, wanderPoint: null,
           navCheckTimer: 0, navProgressTimer: 0, navLastX: null, navLastY: null, stuckTimer: 0, navBlockerId: null,
           avoidWaypoint: null, avoidWallId: null, avoidTimer: 0, wallBreakTarget: null, wallBreakTimer: 0,
+          movementMode: 'advance', movementModeTimer: 0, movementAngle: null, movementAngleTimer: 0,
+          lastMoveAngle: null, lastDesiredMoveAngle: null, directionFlipCount: 0, directionFlipTimer: 0, strafeTimer: rand(1.4, 2.8),
+          escapeWaypoint: null, escapeTimer: 0, recentNavPoints: [], navLastGoalDistance: null, failedDetours: 0,
+          separationSide: Math.random() < .5 ? -1 : 1,
           beaconMemory: {},
         },
       };
@@ -3756,6 +4012,7 @@
       $('#modeLabel').textContent = `${MAP_LABELS[this.mapId]} / ${teamText} / ${roleLabel} / ${difficulty}`;
       $('#teamScoreCard').classList.toggle('hidden', this.config.mode !== 'team');
       $('#defenseHud')?.classList.toggle('hidden', !this.isDefenseMode);
+      $('#defenseBuildPanel')?.classList.toggle('hidden', !this.isDefenseMode);
       $('#operatorButton').classList.toggle('hidden', !this.isPlayerOperator);
       $('#bailoutButton').classList.toggle('hidden', !this.isPlayerCombatant);
       $('#spectateButton').classList.toggle('hidden', this.isPlayerOperator);
@@ -4937,33 +5194,148 @@
       });
       if (!viable.length) return null;
       viable.sort((a, b) => {
-        const scoreA = Math.hypot(a.x - p.x, a.y - p.y) + Math.hypot(goalX - a.x, goalY - a.y) + (this.findBlockingWall(a.x, a.y, goalX, goalY, p.radius * .6, wall.id) ? 180 : 0);
-        const scoreB = Math.hypot(b.x - p.x, b.y - p.y) + Math.hypot(goalX - b.x, goalY - b.y) + (this.findBlockingWall(b.x, b.y, goalX, goalY, p.radius * .6, wall.id) ? 180 : 0);
+        const recentPenalty = (point) => (p.ai.recentNavPoints || []).reduce((sum, old) => sum + (Math.hypot(old.x - point.x, old.y - point.y) < 95 ? 260 : 0), 0);
+        const scoreA = Math.hypot(a.x - p.x, a.y - p.y) + Math.hypot(goalX - a.x, goalY - a.y) + (this.findBlockingWall(a.x, a.y, goalX, goalY, p.radius * .6, wall.id) ? 180 : 0) + recentPenalty(a);
+        const scoreB = Math.hypot(b.x - p.x, b.y - p.y) + Math.hypot(goalX - b.x, goalY - b.y) + (this.findBlockingWall(b.x, b.y, goalX, goalY, p.radius * .6, wall.id) ? 180 : 0) + recentPenalty(b);
         return scoreA - scoreB;
       });
       return viable[0];
     }
 
-    updateAINavigationProgress(p, dt, wantsMovement) {
+    updateAINavigationProgress(p, dt, wantsMovement, goalX = null, goalY = null) {
       if (p.ai.navLastX === null) {
         p.ai.navLastX = p.x;
         p.ai.navLastY = p.y;
+        p.ai.navLastGoalDistance = Number.isFinite(goalX) ? Math.hypot(goalX - p.x, goalY - p.y) : null;
       }
       p.ai.navProgressTimer += dt;
       if (p.ai.navProgressTimer < .55) return;
       const moved = Math.hypot(p.x - p.ai.navLastX, p.y - p.ai.navLastY);
-      if (wantsMovement && moved < 8) p.ai.stuckTimer += p.ai.navProgressTimer;
-      else p.ai.stuckTimer = Math.max(0, p.ai.stuckTimer - p.ai.navProgressTimer * 1.7);
+      const goalDistance = Number.isFinite(goalX) ? Math.hypot(goalX - p.x, goalY - p.y) : null;
+      const progress = goalDistance !== null && p.ai.navLastGoalDistance !== null ? p.ai.navLastGoalDistance - goalDistance : moved;
+      if (wantsMovement && (moved < 9 || progress < -4)) p.ai.stuckTimer += p.ai.navProgressTimer;
+      else p.ai.stuckTimer = Math.max(0, p.ai.stuckTimer - p.ai.navProgressTimer * 1.9);
       p.ai.navLastX = p.x;
       p.ai.navLastY = p.y;
+      p.ai.navLastGoalDistance = goalDistance;
       p.ai.navProgressTimer = 0;
+    }
+
+    chooseAIStuckEscape(p, goalX, goalY) {
+      const base = Math.atan2(goalY - p.y, goalX - p.x);
+      const sides = [p.ai.separationSide || 1, -(p.ai.separationSide || 1)];
+      for (const side of sides) {
+        for (const distance of [145, 205, 265]) {
+          const angle = base + side * Math.PI / 2 + rand(-.2, .2);
+          const point = { x: p.x + Math.cos(angle) * distance, y: p.y + Math.sin(angle) * distance };
+          if (!this.isAINavPointOpen(point.x, point.y, p.radius)) continue;
+          if (this.findBlockingWall(p.x, p.y, point.x, point.y, p.radius + 4)) continue;
+          p.ai.separationSide = side;
+          return point;
+        }
+      }
+      return null;
+    }
+
+    stabilizeAIMovementAngle(p, desiredAngle, goalX, goalY, dt, movementScale = 1) {
+      p.ai.movementAngleTimer = Math.max(0, (p.ai.movementAngleTimer || 0) - dt);
+      p.ai.directionFlipTimer = Math.max(0, (p.ai.directionFlipTimer || 0) - dt);
+      p.ai.escapeTimer = Math.max(0, (p.ai.escapeTimer || 0) - dt);
+
+      if (p.ai.lastDesiredMoveAngle !== null && movementScale > .22) {
+        const reversal = Math.abs(angleDiff(desiredAngle, p.ai.lastDesiredMoveAngle));
+        if (reversal > 2.25) {
+          p.ai.directionFlipCount = (p.ai.directionFlipCount || 0) + 1;
+          p.ai.directionFlipTimer = 1.8;
+        } else if (p.ai.directionFlipTimer <= 0) {
+          p.ai.directionFlipCount = Math.max(0, (p.ai.directionFlipCount || 0) - 1);
+        }
+      }
+      p.ai.lastDesiredMoveAngle = desiredAngle;
+
+      const oscillating = (p.ai.directionFlipCount || 0) >= 3;
+      if ((oscillating || p.ai.stuckTimer > 1.7) && !p.ai.escapeWaypoint) {
+        const point = this.chooseAIStuckEscape(p, goalX, goalY);
+        if (point) {
+          p.ai.escapeWaypoint = point;
+          p.ai.escapeTimer = rand(1.55, 2.45);
+          p.ai.stuckTimer = Math.max(0, p.ai.stuckTimer - 1.35);
+          p.ai.movementAngleTimer = 0;
+          if (oscillating) p.metrics.aiOscillationBreaks = (p.metrics.aiOscillationBreaks || 0) + 1;
+          else p.metrics.aiStuckEscapes = (p.metrics.aiStuckEscapes || 0) + 1;
+        }
+        p.ai.directionFlipCount = 0;
+      }
+
+      if (p.ai.escapeWaypoint) {
+        const d = Math.hypot(p.ai.escapeWaypoint.x - p.x, p.ai.escapeWaypoint.y - p.y);
+        if (d < 48 || p.ai.escapeTimer <= 0) {
+          p.ai.escapeWaypoint = null;
+          p.ai.movementAngleTimer = 0;
+        } else {
+          desiredAngle = Math.atan2(p.ai.escapeWaypoint.y - p.y, p.ai.escapeWaypoint.x - p.x);
+        }
+      }
+
+      if (p.ai.movementAngle === null) {
+        p.ai.movementAngle = desiredAngle;
+        p.ai.movementAngleTimer = rand(.48, .82);
+      } else {
+        const diff = angleDiff(desiredAngle, p.ai.movementAngle);
+        const urgentTurn = p.ai.escapeWaypoint || p.ai.stuckTimer > 2.5;
+        if (p.ai.movementAngleTimer <= 0) {
+          p.ai.movementAngle = desiredAngle;
+          p.ai.movementAngleTimer = rand(.48, .82);
+        } else {
+          const maxTurn = (urgentTurn ? 3.6 : 1.85) * dt;
+          p.ai.movementAngle += clamp(diff, -maxTurn, maxTurn);
+        }
+      }
+      p.ai.lastMoveAngle = p.ai.movementAngle;
+      return p.ai.movementAngle;
+    }
+
+    applyAISeparation(p, dt, includeEnemies = false) {
+      let sx = 0, sy = 0, weight = 0;
+      for (const other of this.players) {
+        if (other === p || other.dead) continue;
+        const allied = other.team === p.team;
+        if (!allied && !includeEnemies) continue;
+        const dx = p.x - other.x, dy = p.y - other.y;
+        const d = Math.hypot(dx, dy) || 1;
+        const range = p.radius + other.radius + (allied ? 34 : 18);
+        if (d >= range) continue;
+        const force = (range - d) / range;
+        sx += dx / d * force; sy += dy / d * force; weight += force;
+      }
+      if (weight > 0) {
+        p.vx += sx / weight * p.speed * dt * 2.1;
+        p.vy += sy / weight * p.speed * dt * 2.1;
+      }
+    }
+
+    chooseAIMovementMode(p, distanceToTarget, preferred, role, lowHeavyResources, hasSniper, dt) {
+      p.ai.movementModeTimer = Math.max(0, (p.ai.movementModeTimer || 0) - dt);
+      p.ai.strafeTimer = Math.max(0, (p.ai.strafeTimer || 0) - dt);
+      if (p.ai.strafeTimer <= 0) { p.ai.strafeTimer = rand(1.7, 3.3); if (Math.random() < .42) p.ai.strafe *= -1; }
+      let desired = p.ai.movementMode || 'advance';
+      if (lowHeavyResources) desired = 'retreat';
+      else if (role === '工作手' && distanceToTarget < 295) desired = 'retreat';
+      else if (distanceToTarget < preferred * .61) desired = 'retreat';
+      else if (distanceToTarget > preferred * 1.42) desired = 'advance';
+      else if (distanceToTarget > preferred * .8 && distanceToTarget < preferred * 1.2) desired = hasSniper ? 'hold' : 'strafe';
+      if (p.ai.movementModeTimer <= 0 || desired === 'retreat' && distanceToTarget < preferred * .52 || desired === 'advance' && distanceToTarget > preferred * 1.58) {
+        p.ai.movementMode = desired;
+        p.ai.movementModeTimer = rand(.65, 1.15);
+      }
+      return p.ai.movementMode;
     }
 
     getAINavigationAngle(p, goalX, goalY, fallbackAngle, dt, movementScale = 1) {
       p.ai.navCheckTimer = Math.max(0, (p.ai.navCheckTimer || 0) - dt);
       p.ai.avoidTimer = Math.max(0, (p.ai.avoidTimer || 0) - dt);
       p.ai.wallBreakTimer = Math.max(0, (p.ai.wallBreakTimer || 0) - dt);
-      this.updateAINavigationProgress(p, dt, movementScale > .18);
+      this.updateAINavigationProgress(p, dt, movementScale > .18, goalX, goalY);
 
       if (p.ai.wallBreakTimer <= 0) p.ai.wallBreakTarget = null;
       if (p.ai.avoidWaypoint) {
@@ -4992,9 +5364,11 @@
           const changedWall = p.ai.avoidWallId !== blocker.id;
           p.ai.avoidWaypoint = waypoint;
           p.ai.avoidWallId = blocker.id;
-          p.ai.avoidTimer = 3.4;
+          p.ai.avoidTimer = 4.2;
+          p.ai.recentNavPoints = [...(p.ai.recentNavPoints || []).slice(-3), { x: waypoint.x, y: waypoint.y }];
+          p.ai.failedDetours = changedWall ? 0 : (p.ai.failedDetours || 0) + 1;
           if (changedWall) p.metrics.aiWallAvoidances = (p.metrics.aiWallAvoidances || 0) + 1;
-        } else if (p.ai.stuckTimer > 4.5 && Number.isFinite(blocker.hp)) {
+        } else if (p.ai.stuckTimer > 6.2 && (p.ai.failedDetours || 0) >= 1 && Number.isFinite(blocker.hp)) {
           p.ai.wallBreakTarget = blocker.id;
           p.ai.wallBreakTimer = 2.2;
           p.ai.stuckTimer = 1.8;
@@ -5012,6 +5386,10 @@
         if (wall) return Math.atan2(wall.y + wall.h / 2 - p.y, wall.x + wall.w / 2 - p.x);
       }
       if (p.ai.avoidWaypoint) return Math.atan2(p.ai.avoidWaypoint.y - p.y, p.ai.avoidWaypoint.x - p.x);
+      if (p.ai.stuckTimer > 1.9 && !p.ai.escapeWaypoint) {
+        const escape = this.chooseAIStuckEscape(p, goalX, goalY);
+        if (escape) { p.ai.escapeWaypoint = escape; p.ai.escapeTimer = rand(1.4, 2.2); p.metrics.aiStuckEscapes = (p.metrics.aiStuckEscapes || 0) + 1; }
+      }
       return fallbackAngle;
     }
 
@@ -5062,15 +5440,27 @@
     updateAIWander(p, dt) {
       p.ai.wanderTimer -= dt;
       const point = p.ai.wanderPoint;
-      if (!point || p.ai.wanderTimer <= 0 || Math.hypot(point.x - p.x, point.y - p.y) < 80) {
-        p.ai.wanderPoint = this.randomOpenPoint((this.config.mode === 'team' || this.isDefenseMode) ? p.team : null);
-        p.ai.wanderTimer = rand(2.8, 6.2);
+      const reached = point && Math.hypot(point.x - p.x, point.y - p.y) < 72;
+      if (!point || p.ai.wanderTimer <= 0 || reached) {
+        let next = null;
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const candidate = this.randomOpenPoint((this.config.mode === 'team' || this.isDefenseMode) ? p.team : null);
+          if (!candidate) continue;
+          const tooRecent = (p.ai.recentNavPoints || []).some((old) => Math.hypot(old.x - candidate.x, old.y - candidate.y) < 260);
+          if (!tooRecent || attempt === 7) { next = candidate; break; }
+        }
+        p.ai.wanderPoint = next;
+        p.ai.wanderTimer = rand(5.2, 9.4);
+        if (next) p.ai.recentNavPoints = [...(p.ai.recentNavPoints || []).slice(-3), { x: next.x, y: next.y }];
       }
       const target = p.ai.wanderPoint;
       if (!target) return;
-      const angle = Math.atan2(target.y - p.y, target.x - p.x);
-      p.vx += Math.cos(angle) * p.speed * dt * 2.8;
-      p.vy += Math.sin(angle) * p.speed * dt * 2.8;
+      let angle = Math.atan2(target.y - p.y, target.x - p.x);
+      angle = this.getAINavigationAngle(p, target.x, target.y, angle, dt, .72);
+      angle = this.stabilizeAIMovementAngle(p, angle, target.x, target.y, dt, .72);
+      p.vx += Math.cos(angle) * p.speed * dt * 3.05;
+      p.vy += Math.sin(angle) * p.speed * dt * 3.05;
+      this.applyAISeparation(p, dt, false);
       p.aim += clamp(angleDiff(angle, p.aim), -3.2 * dt, 3.2 * dt);
     }
 
@@ -5103,7 +5493,14 @@
         const hostileNearFlag = this.players.some((enemy) => enemy.isDefenseEnemy && !enemy.dead && Math.hypot(enemy.x - this.defenseFlag.x, enemy.y - this.defenseFlag.y) < 340);
         if (eligible[0] === p && !hostileNearFlag) {
           const dFlag = Math.hypot(this.defenseFlag.x - p.x, this.defenseFlag.y - p.y) || 1;
-          if (dFlag > 85) { p.vx += (this.defenseFlag.x - p.x) / dFlag * p.speed * dt * 4.5; p.vy += (this.defenseFlag.y - p.y) / dFlag * p.speed * dt * 4.5; }
+          if (dFlag > 85) {
+            let angle = Math.atan2(this.defenseFlag.y - p.y, this.defenseFlag.x - p.x);
+            angle = this.getAINavigationAngle(p, this.defenseFlag.x, this.defenseFlag.y, angle, dt, 1);
+            angle = this.stabilizeAIMovementAngle(p, angle, this.defenseFlag.x, this.defenseFlag.y, dt, 1);
+            p.vx += Math.cos(angle) * p.speed * dt * 4.5;
+            p.vy += Math.sin(angle) * p.speed * dt * 4.5;
+            this.applyAISeparation(p, dt, false);
+          }
           return;
         }
       }
@@ -5128,9 +5525,12 @@
         this.updateAIConcealment(p, null, Infinity, dt);
         const reliefPoint = this.getAIDesertRecoveryDirective(p, null, immediateThreat, dt);
         if (reliefPoint) {
-          const angle = Math.atan2(reliefPoint.y - p.y, reliefPoint.x - p.x);
+          let angle = Math.atan2(reliefPoint.y - p.y, reliefPoint.x - p.x);
+          angle = this.getAINavigationAngle(p, reliefPoint.x, reliefPoint.y, angle, dt, 1);
+          angle = this.stabilizeAIMovementAngle(p, angle, reliefPoint.x, reliefPoint.y, dt, 1);
           p.vx += Math.cos(angle) * p.speed * dt * 4.4 * profile.move;
           p.vy += Math.sin(angle) * p.speed * dt * 4.4 * profile.move;
+          this.applyAISeparation(p, dt, false);
         } else {
           this.updateAIWander(p, dt);
         }
@@ -5186,11 +5586,11 @@
       const preferred = role === '重装手' ? 145 : role === '工作手' ? 390 : hasSniper ? 690 : hasMelee ? 105 : 330;
       let moveAngle = targetAngle;
       let movementScale = 1;
-      if (lowHeavyResources) moveAngle += Math.PI;
-      else if (role === '工作手' && d < 320) moveAngle += Math.PI;
-      else if (d < preferred * .72) moveAngle += Math.PI;
-      else if (d < preferred * 1.25) moveAngle += p.ai.strafe * Math.PI / 2;
-      if (hasSniper && d > 560 && d < 820 && p.ai.targetAge < .55) movementScale = .24;
+      const movementMode = this.chooseAIMovementMode(p, d, preferred, role, lowHeavyResources, hasSniper, dt);
+      if (movementMode === 'retreat') moveAngle += Math.PI;
+      else if (movementMode === 'strafe') moveAngle += p.ai.strafe * Math.PI / 2;
+      else if (movementMode === 'hold') movementScale = .16;
+      if (hasSniper && d > 560 && d < 820 && p.ai.targetAge < .55) movementScale = Math.min(movementScale, .24);
       if (hasSniper && p.ai.relocateTimer > 0) { moveAngle = targetAngle + p.ai.strafe * Math.PI * .68; movementScale = 1.2; }
       const directive = this.getOperatorMoveDirective(p, target);
       if (directive) {
@@ -5207,8 +5607,10 @@
       let navGoalY = p.y + Math.sin(moveAngle) * navGoalDistance;
       if (directive && Number.isFinite(directive.x) && Number.isFinite(directive.y)) { navGoalX = directive.x; navGoalY = directive.y; }
       moveAngle = this.getAINavigationAngle(p, navGoalX, navGoalY, moveAngle, dt, movementScale);
+      moveAngle = this.stabilizeAIMovementAngle(p, moveAngle, navGoalX, navGoalY, dt, movementScale);
       p.vx += Math.cos(moveAngle) * p.speed * dt * 4.2 * profile.move * movementScale;
       p.vy += Math.sin(moveAngle) * p.speed * dt * 4.2 * profile.move * movementScale;
+      this.applyAISeparation(p, dt, false);
 
       p.ai.threatTime = threatened ? p.ai.threatTime + dt : 0;
       const baseReaction = this.config.difficulty === 'strong' ? .11 : this.config.difficulty === 'normal' ? .18 : .32;
@@ -5750,7 +6152,8 @@
         const cx=wall.x+wall.w/2,cy=wall.y+wall.h/2,d=Math.hypot(cx-x,cy-y);
         if(d<radius+Math.max(wall.w,wall.h)*.35) wall.hp-=damage*(1-clamp(d/(radius+1),0,.85))*.8;
       }
-      for(const f of this.installations){if(f.hp<=0||(this.config.mode==='team'&&f.team===team))continue;const d=Math.hypot(f.x-x,f.y-y);if(d<radius+f.radius)f.hp-=damage*(1-clamp(d/(radius+1),0,.85));}
+      for(const f of this.installations){if(f.hp<=0||((this.config.mode==='team'||this.isDefenseMode)&&f.team===team))continue;const d=Math.hypot(f.x-x,f.y-y);if(d<radius+f.radius)f.hp-=damage*(1-clamp(d/(radius+1),0,.85));}
+      for(const beacon of this.beacons){if(beacon.hp<=0||((this.config.mode==='team'||this.isDefenseMode)&&beacon.team===team))continue;const d=Math.hypot(beacon.x-x,beacon.y-y);if(d<radius+(beacon.radius||9))beacon.hp-=damage*(1-clamp(d/(radius+1),0,.85));}
       for(const light of this.lightSources){if(light.hp<=0)continue;const d=Math.hypot(light.x-x,light.y-y);if(d<radius+light.radius)light.hp-=damage*(1-clamp(d/(radius+1),0,.85));}
       for (const mine of [...this.mines]) if (Math.hypot(mine.x - x, mine.y - y) < radius + 35) this.detonateMine(mine);
       for (const wire of this.wires) {
@@ -5941,9 +6344,10 @@
         beacon.y += beacon.vy * dt;
         if (beacon.x < 20 || beacon.x > this.world.w - 20) beacon.vx *= -1;
         if (beacon.y < 20 || beacon.y > this.world.h - 20) beacon.vy *= -1;
-        if (Math.random() < .015) {
-          beacon.vx = rand(-55, 55);
-          beacon.vy = rand(-55, 55);
+        if (Math.random() < (beacon.defenseDecoy ? .004 : .015)) {
+          const limit = beacon.defenseDecoy ? 14 : 55;
+          beacon.vx = rand(-limit, limit);
+          beacon.vy = rand(-limit, limit);
         }
         if (beacon.ttl <= 0 || beacon.hp <= 0) this.beacons.splice(i, 1);
       }
@@ -6475,8 +6879,8 @@
       }
       for (const beacon of this.beacons) {
         if (!this.inView(beacon.x, beacon.y, 25)) continue;
-        ctx.fillStyle = '#79d7ff';
-        ctx.strokeStyle = '#d8f7ff';
+        ctx.fillStyle = beacon.defenseDecoy ? '#ffd96a' : '#79d7ff';
+        ctx.strokeStyle = beacon.defenseDecoy ? '#fff1b8' : '#d8f7ff';
         ctx.lineWidth = 1.5;
         ctx.fillRect(beacon.x-beacon.radius,beacon.y-beacon.radius,beacon.radius*2,beacon.radius*2);ctx.strokeRect(beacon.x-beacon.radius,beacon.y-beacon.radius,beacon.radius*2,beacon.radius*2);
         ctx.globalAlpha = .22;

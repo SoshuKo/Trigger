@@ -530,3 +530,40 @@ body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity
   .friend-code-card { grid-template-columns:1fr auto; }
   .friend-code-card span { grid-column:1/-1; }
 }
+
+
+/* v18: defense fortifications and steadier NPC navigation */
+.defense-build-panel {
+  position:absolute; right:16px; bottom:112px; z-index:8; width:238px; padding:11px;
+  border:1px solid rgba(255,217,106,.34); background:rgba(6,20,28,.92);
+  box-shadow:0 16px 42px rgba(0,0,0,.38); backdrop-filter:blur(10px);
+}
+.defense-build-panel header { display:flex; justify-content:space-between; align-items:end; gap:10px; margin-bottom:8px; }
+.defense-build-panel header div { display:grid; gap:2px; }
+.defense-build-panel header span { color:#ffd96a; font-size:7px; font-weight:900; letter-spacing:.16em; }
+.defense-build-panel header strong { color:#f4fbff; font-size:13px; }
+.defense-build-panel header b { color:#ffd96a; font-size:12px; white-space:nowrap; }
+.defense-build-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.defense-build-grid button {
+  min-height:48px; display:grid; place-items:center; gap:2px; padding:6px 7px; cursor:pointer;
+  border:1px solid rgba(255,217,106,.24); background:rgba(76,62,21,.42); color:#fff8d8;
+  font-weight:900; font-size:10px;
+}
+.defense-build-grid button:hover:not(:disabled) { filter:brightness(1.18); border-color:rgba(255,217,106,.58); }
+.defense-build-grid button:disabled { opacity:.42; cursor:not-allowed; filter:saturate(.45); }
+.defense-build-grid button small { color:#d1c79a; font-size:7px; font-weight:700; }
+.defense-build-panel p { margin:7px 0 0; color:var(--muted); font-size:7px; line-height:1.45; }
+.defense-build-panel.read-only { opacity:.62; }
+@media (max-width:760px), (pointer:coarse) {
+  .defense-build-panel { right:8px; bottom:158px; width:178px; padding:8px; }
+  .defense-build-panel header strong { font-size:11px; }
+  .defense-build-panel header b { font-size:9px; }
+  .defense-build-grid { gap:4px; }
+  .defense-build-grid button { min-height:39px; padding:4px; font-size:8px; }
+  .defense-build-grid button small { font-size:6px; }
+  .defense-build-panel p { display:none; }
+}
+@media (max-width:430px) {
+  .defense-build-panel { width:154px; bottom:148px; }
+  .defense-build-grid button { min-height:36px; }
+}
