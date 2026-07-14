@@ -1155,10 +1155,20 @@
       this.onlineLastAppliedSequence = -1;
       this.onlineSyncRetryTimer = .8;
       this.onlineMemberCount = Math.max(1, Number(this.onlineSession?.roster?.length || 1));
-      const requestedSnapshotHz = Math.max(2, Math.min(10, Number(window.TRION_ONLINE_CONFIG?.snapshotHz || 6)));
-      const adaptiveSnapshotCap = this.onlineMemberCount <= 4 ? 8 : this.onlineMemberCount <= 8 ? 5 : this.onlineMemberCount <= 12 ? 3 : 2;
+      const requestedSnapshotHz = Math.max(2, Math.min(8, Number(window.TRION_ONLINE_CONFIG?.snapshotHz || 6)));
+      const adaptiveSnapshotCap = this.onlineMemberCount <= 4 ? 6 : this.onlineMemberCount <= 8 ? 4 : this.onlineMemberCount <= 12 ? 3 : 2;
       this.onlineSnapshotHz = Math.min(requestedSnapshotHz, adaptiveSnapshotCap);
       this.onlineInputHz = this.onlineMemberCount <= 4 ? 14 : this.onlineMemberCount <= 8 ? 8 : this.onlineMemberCount <= 12 ? 5 : 3;
+      const lowCoreDevice = Number(navigator.hardwareConcurrency || 8) <= 4;
+      const lowMemoryDevice = Number(navigator.deviceMemory || 8) <= 4;
+      const mobileDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+      this.onlineLowPowerGuest = Boolean(this.onlineMirror && (lowCoreDevice || lowMemoryDevice || mobileDevice));
+      this.onlineReducedEffects = Boolean(this.onlineMirror);
+      this.onlineRenderInterval = this.onlineMirror ? (this.onlineLowPowerGuest ? 1 / 30 : 1 / 45) : 0;
+      this.onlineRenderAccumulator = 0;
+      this.hudRefreshTimer = 0;
+      this.radarRefreshTimer = 0;
+      this.onlinePendingSnapshot = null;
       this.onlineUnsubscribe = null;
       this.onlineLastSnapshotAt = 0;
       this.onlineWorldReceived = !this.onlineMirror;
@@ -1189,7 +1199,7 @@
       this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [] };
       this.terrainChunkSize = 640;
       this.terrainChunks = new Map();
-      this.maxTerrainChunks = 24;
+      this.maxTerrainChunks = this.onlineMirror ? 12 : 24;
       this.installations = [];
       this.lightSources = [];
       this.worldRespawns = [];
@@ -1307,7 +1317,7 @@
           this.applyOnlineWorld(data.world || data);
         } else if (event === 'snapshot' && this.onlineMirror) {
           if (data.targetId && data.targetId !== this.localOnlineUserId) return;
-          this.applyOnlineSnapshot(data.snapshot || data);
+          this.queueOnlineSnapshot(data.snapshot || data);
         } else if (event === 'match_end' && this.onlineMirror && !this.ended) {
           this.applyOnlineSnapshot(data.snapshot || {});
           this.endMatch();
@@ -1333,7 +1343,7 @@
     async sendOnlineBootstrap(targetId = null) {
       if (!this.isOnlineHost || !window.trionOnline) return;
       await window.trionOnline.broadcast('world_init', { targetId, world: this.serializeOnlineWorld() });
-      await window.trionOnline.broadcast('snapshot', { targetId, snapshot: this.buildOnlineSnapshot() });
+      await window.trionOnline.broadcast('snapshot', { targetId, snapshot: this.buildOnlineSnapshot({ full: true }) });
     }
 
     applyOnlineWorld(world) {
@@ -1351,49 +1361,77 @@
       this.onlineWorldReady = this.onlineSnapshotReceived;
     }
 
-    buildOnlineSnapshot() {
-      const playerFields = (player) => ({
-        id: player.id, onlineUserId: player.onlineUserId || null, name: player.name, team: player.team,
-        archetype: player.archetype, squadName: player.squadName, appearance: player.appearance,
-        emblemPixels: player.emblemPixels, stats: player.stats, loadout: player.loadout,
-        x: player.x, y: player.y, vx: player.vx, vy: player.vy, radius: player.radius,
-        aim: player.aim, facing: player.facing, walkFrame: player.walkFrame, isMoving: player.isMoving,
-        maxHp: player.maxHp, hp: player.hp, maxTrion: player.maxTrion, trion: player.trion,
-        dead: player.dead, respawnTimer: player.respawnTimer, invulnTimer: player.invulnTimer,
-        score: player.score, kills: player.kills, deaths: player.deaths, selected: player.selected,
-        shields: player.shields, toggles: player.toggles, revealTimer: player.revealTimer,
-        markedTimer: player.markedTimer, slowTimer: player.slowTimer, slowFactor: player.slowFactor,
-        leadWeights: player.leadWeights, pendingComposite: player.pendingComposite,
-        isDefenseEnemy: Boolean(player.isDefenseEnemy), defenseType: player.defenseType || null,
-        isDefenseBoss: Boolean(player.isDefenseBoss), flying: Boolean(player.flying),
-        cubedTimer: player.cubedTimer || 0, borborosPhase: player.defenseAI?.phase || null,
-        metrics: { assists: player.metrics?.assists || 0 },
+    buildOnlineSnapshot(options = {}) {
+      const full = Boolean(options.full);
+      const seq = ++this.onlineSnapshotSequence;
+      const slowEvery = Math.max(1, Math.round(this.onlineSnapshotHz));
+      const includeSlowState = full || seq % slowEvery === 0;
+      const playerFields = (player) => {
+        const dynamic = {
+          id: player.id, onlineUserId: player.onlineUserId || null, name: player.name, team: player.team,
+          x: player.x, y: player.y, vx: player.vx, vy: player.vy, radius: player.radius,
+          aim: player.aim, facing: player.facing, walkFrame: player.walkFrame, isMoving: player.isMoving,
+          maxHp: player.maxHp, hp: player.hp, maxTrion: player.maxTrion, trion: player.trion,
+          dead: player.dead, respawnTimer: player.respawnTimer, invulnTimer: player.invulnTimer,
+          score: player.score, kills: player.kills, deaths: player.deaths, selected: player.selected,
+          shields: player.shields, toggles: player.toggles, revealTimer: player.revealTimer,
+          markedTimer: player.markedTimer, slowTimer: player.slowTimer, slowFactor: player.slowFactor,
+          leadWeights: player.leadWeights, pendingComposite: player.pendingComposite,
+          isDefenseEnemy: Boolean(player.isDefenseEnemy), defenseType: player.defenseType || null,
+          isDefenseBoss: Boolean(player.isDefenseBoss), flying: Boolean(player.flying),
+          cubedTimer: player.cubedTimer || 0, borborosPhase: player.defenseAI?.phase || null,
+          metrics: { assists: player.metrics?.assists || 0 },
+        };
+        if (full) Object.assign(dynamic, {
+          archetype: player.archetype, squadName: player.squadName,
+          appearance: player.appearance, emblemPixels: player.emblemPixels,
+          stats: player.stats, loadout: player.loadout,
+        });
+        else if (player.appearance?.bodyColor) dynamic.appearance = { bodyColor: player.appearance.bodyColor };
+        return dynamic;
+      };
+      const projectileFields = (p) => ({
+        id:p.id,x:p.x,y:p.y,vx:p.vx||0,vy:p.vy||0,radius:p.radius,color:p.color,
+        lead:p.lead,team:p.team,angle:p.angle,life:p.life,sourceName:p.sourceName,sourceKey:p.sourceKey,
       });
-      const projectileFields = (p) => ({ id:p.id,x:p.x,y:p.y,radius:p.radius,color:p.color,lead:p.lead,team:p.team,angle:p.angle,life:p.life,sourceName:p.sourceName,sourceKey:p.sourceKey });
       const effectFields = (e) => {
         const result = {};
         for (const key of ['type','x','y','x2','y2','ttl','maxTtl','style','range','angle','arc','radius','color','text','team','width']) if (e[key] !== undefined) result[key] = e[key];
         return result;
       };
-      return {
-        seq: ++this.onlineSnapshotSequence,
+      const snapshot = {
+        seq, full,
         matchId: this.matchId, at: performance.now(), elapsed: this.elapsed, matchTime: this.matchTime,
         teamScores: [...this.teamScores], environment: { ...this.environment },
         defenseRound: this.defenseRound, defenseTier: this.defenseTier,
         defenseWaveActive: this.defenseWaveActive, defenseFlag: this.defenseFlag ? { ...this.defenseFlag } : null,
         players: this.players.map(playerFields),
-        projectiles: this.projectiles.slice(-320).map(projectileFields),
-        effects: this.effects.slice(-160).map(effectFields),
-        particles: this.particles.slice(-140).map((p) => ({x:p.x,y:p.y,radius:p.radius,color:p.color,ttl:p.ttl,maxTtl:p.maxTtl})),
-        pickups: this.pickups.filter((p) => p.active).slice(0, 420).map((p) => ({id:p.id,x:p.x,y:p.y,radius:p.radius,value:p.value,pulse:p.pulse,active:true,temporary:p.temporary,kind:p.kind,team:p.team,support:p.support})),
-        wires: this.wires.slice(-180).map((w) => ({...w})),
-        mines: this.mines.slice(-100).map((m) => ({...m})),
-        traps: this.traps.slice(-100).map((t) => ({...t})),
-        beacons: this.beacons.slice(-100).map((b) => ({...b})),
+        projectiles: this.projectiles.slice(-180).map(projectileFields),
+        effects: this.effects.slice(-90).map(effectFields),
+      };
+      if (includeSlowState) Object.assign(snapshot, {
+        pickups: this.pickups.filter((p) => p.active).slice(0, 260).map((p) => ({id:p.id,x:p.x,y:p.y,radius:p.radius,value:p.value,active:true,temporary:p.temporary,kind:p.kind,team:p.team,support:p.support})),
+        wires: this.wires.slice(-120).map((w) => ({...w})),
+        mines: this.mines.slice(-70).map((m) => ({...m})),
+        traps: this.traps.slice(-70).map((t) => ({...t})),
+        beacons: this.beacons.slice(-70).map((b) => ({...b})),
         wallState: this.walls.map((wall) => [wall.id, wall.hp, wall.ttl]),
         installationState: this.installations.map((f) => [f.id, f.hp, f.active, f.team, f.cooldown, f.ttl]),
         lightState: this.lightSources.map((l) => [l.id, l.hp, l.respawnTimer, l.ttl]),
-      };
+      });
+      return snapshot;
+    }
+
+    queueOnlineSnapshot(snapshot) {
+      if (!snapshot) return;
+      if (snapshot.full && !this.onlineSnapshotReceived) {
+        this.applyOnlineSnapshot(snapshot);
+        return;
+      }
+      const incomingSeq = Number(snapshot.seq);
+      const pendingSeq = Number(this.onlinePendingSnapshot?.seq ?? -1);
+      if (Number.isFinite(incomingSeq) && incomingSeq <= Math.max(this.onlineLastAppliedSequence, pendingSeq)) return;
+      this.onlinePendingSnapshot = snapshot;
     }
 
     ensureOnlinePlayerFromState(state) {
@@ -1466,33 +1504,58 @@
         if (player.human) this.human = player;
       }
       this.players = this.players.filter((player) => ids.has(player.id));
-      const oldProjectileIds = new Set(this.projectiles.map((projectile) => projectile.id));
-      const oldEffectKeys = new Set(this.effects.map((effect) => `${effect.type}:${Math.round(effect.x || 0)}:${Math.round(effect.y || 0)}:${Math.round(effect.x2 || 0)}:${Math.round(effect.y2 || 0)}`));
-      for (const projectile of snapshot.projectiles || []) {
-        if (oldProjectileIds.has(projectile.id)) continue;
-        const isSniper = ['egret','lightning','ibis'].includes(projectile.sourceKey) || /イーグレット|ライトニング|アイビス|狙撃/.test(projectile.sourceName || '');
-        this.sfx?.play(isSniper ? 'sniper' : 'gunner', { x: projectile.x, y: projectile.y, bucket: `online-shot:${projectile.id}`, cooldown: 0, volume: isSniper ? .44 : .27 });
+      if (Array.isArray(snapshot.projectiles)) {
+        const previousProjectiles = new Map(this.projectiles.map((projectile) => [projectile.id, projectile]));
+        for (const projectile of snapshot.projectiles) {
+          if (previousProjectiles.has(projectile.id)) continue;
+          const isSniper = ['egret','lightning','ibis'].includes(projectile.sourceKey) || /イーグレット|ライトニング|アイビス|狙撃/.test(projectile.sourceName || '');
+          this.sfx?.play(isSniper ? 'sniper' : 'gunner', { x: projectile.x, y: projectile.y, bucket: `online-shot:${projectile.id}`, cooldown: 0, volume: isSniper ? .44 : .27 });
+        }
+        this.projectiles = snapshot.projectiles.map((state) => {
+          const previous = previousProjectiles.get(state.id);
+          if (!previous) return { ...state, onlineTargetX: state.x, onlineTargetY: state.y };
+          const distance = Math.hypot(Number(state.x || 0) - Number(previous.x || 0), Number(state.y || 0) - Number(previous.y || 0));
+          const snap = distance > 260;
+          return {
+            ...state,
+            x: snap ? state.x : lerp(Number(previous.x || 0), Number(state.x || 0), .58),
+            y: snap ? state.y : lerp(Number(previous.y || 0), Number(state.y || 0), .58),
+            onlineTargetX: state.x,
+            onlineTargetY: state.y,
+          };
+        });
       }
-      for (const effect of snapshot.effects || []) {
-        const key = `${effect.type}:${Math.round(effect.x || 0)}:${Math.round(effect.y || 0)}:${Math.round(effect.x2 || 0)}:${Math.round(effect.y2 || 0)}`;
-        if (oldEffectKeys.has(key)) continue;
-        if (['explosion','defenseImpact','gasExplosion'].includes(effect.type)) this.sfx?.play('explosion', { x: effect.x, y: effect.y, bucket: `online-effect:${key}`, cooldown: 0, volume: .48 });
-        else if (['slash','senku'].includes(effect.type)) this.sfx?.play('attacker', { x: effect.x, y: effect.y, bucket: `online-effect:${key}`, cooldown: 0, volume: .36 });
+      if (Array.isArray(snapshot.effects)) {
+        const oldEffectKeys = new Set(this.effects.map((effect) => `${effect.type}:${Math.round(effect.x || 0)}:${Math.round(effect.y || 0)}:${Math.round(effect.x2 || 0)}:${Math.round(effect.y2 || 0)}`));
+        for (const effect of snapshot.effects) {
+          const key = `${effect.type}:${Math.round(effect.x || 0)}:${Math.round(effect.y || 0)}:${Math.round(effect.x2 || 0)}:${Math.round(effect.y2 || 0)}`;
+          if (oldEffectKeys.has(key)) continue;
+          if (['explosion','defenseImpact','gasExplosion'].includes(effect.type)) this.sfx?.play('explosion', { x: effect.x, y: effect.y, bucket: `online-effect:${key}`, cooldown: 0, volume: .48 });
+          else if (['slash','senku'].includes(effect.type)) this.sfx?.play('attacker', { x: effect.x, y: effect.y, bucket: `online-effect:${key}`, cooldown: 0, volume: .36 });
+        }
+        this.effects = snapshot.effects.map((effect) => ({ ...effect }));
       }
-      this.projectiles = snapshot.projectiles || [];
-      this.effects = snapshot.effects || [];
-      this.particles = snapshot.particles || [];
-      this.pickups = snapshot.pickups || [];
-      this.wires = snapshot.wires || [];
-      this.mines = snapshot.mines || [];
-      this.traps = snapshot.traps || [];
-      this.beacons = snapshot.beacons || [];
-      const walls = new Map(this.walls.map((wall) => [wall.id, wall]));
-      for (const [id, hp, ttl] of snapshot.wallState || []) { const wall = walls.get(id); if (wall) { wall.hp = hp; wall.ttl = ttl; } }
-      const facilities = new Map(this.installations.map((facility) => [facility.id, facility]));
-      for (const [id, hp, active, team, cooldown, ttl] of snapshot.installationState || []) { const f = facilities.get(id); if (f) Object.assign(f,{hp,active,team,cooldown,ttl}); }
-      const lights = new Map(this.lightSources.map((light) => [light.id, light]));
-      for (const [id, hp, respawnTimer, ttl] of snapshot.lightState || []) { const light = lights.get(id); if (light) Object.assign(light,{hp,respawnTimer,ttl}); }
+      if (Array.isArray(snapshot.particles)) this.particles = snapshot.particles;
+      if (Array.isArray(snapshot.pickups)) {
+        const oldPickups = new Map(this.pickups.map((pickup) => [pickup.id, pickup]));
+        this.pickups = snapshot.pickups.map((pickup) => ({ ...pickup, pulse: oldPickups.get(pickup.id)?.pulse || 0 }));
+      }
+      if (Array.isArray(snapshot.wires)) this.wires = snapshot.wires;
+      if (Array.isArray(snapshot.mines)) this.mines = snapshot.mines;
+      if (Array.isArray(snapshot.traps)) this.traps = snapshot.traps;
+      if (Array.isArray(snapshot.beacons)) this.beacons = snapshot.beacons;
+      if (Array.isArray(snapshot.wallState)) {
+        const walls = new Map(this.walls.map((wall) => [wall.id, wall]));
+        for (const [id, hp, ttl] of snapshot.wallState) { const wall = walls.get(id); if (wall) { wall.hp = hp; wall.ttl = ttl; } }
+      }
+      if (Array.isArray(snapshot.installationState)) {
+        const facilities = new Map(this.installations.map((facility) => [facility.id, facility]));
+        for (const [id, hp, active, team, cooldown, ttl] of snapshot.installationState) { const f = facilities.get(id); if (f) Object.assign(f,{hp,active,team,cooldown,ttl}); }
+      }
+      if (Array.isArray(snapshot.lightState)) {
+        const lights = new Map(this.lightSources.map((light) => [light.id, light]));
+        for (const [id, hp, respawnTimer, ttl] of snapshot.lightState) { const light = lights.get(id); if (light) Object.assign(light,{hp,respawnTimer,ttl}); }
+      }
       this.onlineSnapshotReceived = true;
       this.onlineWorldReady = this.onlineWorldReceived;
     }
@@ -1519,15 +1582,40 @@
       }
     }
 
+    updateOnlineMirrorVisuals(dt) {
+      const snapshotAge = this.onlineLastSnapshotAt ? Math.min(.3, Math.max(0, (performance.now() - this.onlineLastSnapshotAt) / 1000)) : 0;
+      for (const projectile of this.projectiles) {
+        projectile.x += Number(projectile.vx || 0) * dt;
+        projectile.y += Number(projectile.vy || 0) * dt;
+        projectile.life = Number(projectile.life || 0) - dt;
+        if (Number.isFinite(projectile.onlineTargetX)) {
+          const targetX = projectile.onlineTargetX + Number(projectile.vx || 0) * snapshotAge;
+          const targetY = projectile.onlineTargetY + Number(projectile.vy || 0) * snapshotAge;
+          const alpha = 1 - Math.exp(-10 * dt);
+          projectile.x = lerp(projectile.x, targetX, alpha);
+          projectile.y = lerp(projectile.y, targetY, alpha);
+        }
+      }
+      this.projectiles = this.projectiles.filter((projectile) => projectile.life > -.45);
+      for (const effect of this.effects) effect.ttl = Number(effect.ttl || 0) - dt;
+      this.effects = this.effects.filter((effect) => effect.ttl > 0);
+      for (const pickup of this.pickups) pickup.pulse = Number(pickup.pulse || 0) + dt * 4;
+    }
+
     updateOnlineHost(dt) {
       this.onlineSnapshotTimer -= dt;
       if (this.onlineSnapshotTimer > 0 || !window.trionOnline?.roomChannel) return;
       this.onlineSnapshotTimer = 1 / this.onlineSnapshotHz;
-      window.trionOnline.broadcast('snapshot', { snapshot: this.buildOnlineSnapshot() });
+      window.trionOnline.broadcast('snapshot', { snapshot: this.buildOnlineSnapshot({ full: false }) });
     }
 
     updateOnlineMirror(dt) {
       this.elapsed += dt;
+      if (this.onlinePendingSnapshot) {
+        const snapshot = this.onlinePendingSnapshot;
+        this.onlinePendingSnapshot = null;
+        this.applyOnlineSnapshot(snapshot);
+      }
       if (!this.isUnlimited && Number.isFinite(this.matchTime)) this.matchTime = Math.max(0, this.matchTime - dt);
       if (!this.onlineWorldReady) {
         this.onlineSyncRetryTimer -= dt;
@@ -1539,6 +1627,7 @@
       if (this.isPlayerCombatant && this.human && !this.spectating) this.sendOnlineInput(dt);
       if (this.isPlayerOperator) this.updateOperatorCamera(dt);
       this.updateOnlineInterpolation(dt);
+      this.updateOnlineMirrorVisuals(dt);
       this.updateCamera(dt);
       this.toastTimer = Math.max(0, this.toastTimer - dt);
       if (this.toastTimer <= 0) $('#toast').classList.remove('show');
@@ -2435,7 +2524,7 @@
 
     buildLog(reason = 'snapshot') {
       return {
-        schemaVersion: 15,
+        schemaVersion: 16,
         matchId: this.matchId,
         startedAt: this.startedAt,
         endedAt: new Date().toISOString(),
@@ -2568,7 +2657,8 @@
     }
 
     resize() {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
+      const dprCap = this.onlineMirror ? (this.onlineLowPowerGuest ? .85 : 1) : 1.25;
+      const dpr = Math.min(window.devicePixelRatio || 1, dprCap);
       const viewport = window.visualViewport;
       const nextW = Math.max(320, Math.round(viewport?.width || document.documentElement.clientWidth || window.innerWidth));
       const nextH = Math.max(320, Math.round(viewport?.height || document.documentElement.clientHeight || window.innerHeight));
@@ -3686,8 +3776,23 @@
         if (this.onlineMirror) this.updateOnlineMirror(dt);
         else this.update(dt);
       }
-      this.render();
-      this.updateHud();
+      this.hudRefreshTimer -= dt;
+      this.radarRefreshTimer -= dt;
+      let shouldRender = true;
+      if (this.onlineMirror) {
+        this.onlineRenderAccumulator += dt;
+        shouldRender = this.onlineRenderAccumulator >= this.onlineRenderInterval;
+        if (shouldRender) this.onlineRenderAccumulator %= this.onlineRenderInterval;
+      }
+      if (shouldRender) this.render();
+      if (this.radarRefreshTimer <= 0) {
+        this.renderRadar();
+        this.radarRefreshTimer = this.onlineMirror ? .16 : .06;
+      }
+      if (this.hudRefreshTimer <= 0) {
+        this.updateHud();
+        this.hudRefreshTimer = this.onlineMirror ? .1 : .05;
+      }
       this.input.endFrame();
       this.frameHandle = requestAnimationFrame((next) => this.loop(next));
     }
@@ -6031,7 +6136,6 @@
       ctx.restore();
       this.drawScreenVignette(ctx);
       this.drawEnvironmentOverlay(ctx);
-      this.renderRadar();
     }
 
     drawCubeRect(ctx,x,y,w,h,front='#153848',top='#1e5265',side='#0a2633'){
@@ -6305,7 +6409,7 @@
       ctx.save(); ctx.drawImage(this.environmentCanvas,0,0,this.viewW,this.viewH); ctx.restore();
       if(this.environment.weather==='rain'){
         ctx.save(); ctx.fillStyle='rgba(74,116,140,.12)';ctx.fillRect(0,0,this.viewW,this.viewH);ctx.strokeStyle='rgba(190,232,248,.38)';ctx.lineWidth=1;
-        const drops=Math.min(110,Math.max(55,Math.floor(this.viewW/13)));
+        const drops=this.onlineReducedEffects?Math.min(54,Math.max(28,Math.floor(this.viewW/24))):Math.min(110,Math.max(55,Math.floor(this.viewW/13)));
         for(let i=0;i<drops;i++){const x=(i*83+this.elapsed*230)%this.viewW,y=(i*47+this.elapsed*520)%this.viewH;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x-7,y+20);ctx.stroke()}
         ctx.restore();
       }
@@ -6611,7 +6715,7 @@
         if (p.toggles.chameleon && p.human) alpha = .48;
         const color = p.appearance?.bodyColor || p.appearance?.uniformColor || ((this.config.mode === 'team' || this.isDefenseMode) ? this.teamColors[p.team] : (p.human ? '#66ecff' : '#ff8b75'));
         ctx.save();
-        ctx.shadowColor = color; ctx.shadowBlur = p.human ? 16 : 6;
+        if (!this.onlineReducedEffects) { ctx.shadowColor = color; ctx.shadowBlur = p.human ? 16 : 6; }
         this.drawHumanoid(ctx, p, alpha);
         ctx.shadowBlur = 0;
         ctx.restore();
@@ -6672,6 +6776,11 @@
 
     drawEffects(ctx) {
       for (const e of this.effects) {
+        const cx = Number.isFinite(e.x2) ? (Number(e.x || 0) + Number(e.x2 || 0)) / 2 : Number(e.x || 0);
+        const cy = Number.isFinite(e.y2) ? (Number(e.y || 0) + Number(e.y2 || 0)) / 2 : Number(e.y || 0);
+        const span = Number.isFinite(e.x2) ? Math.hypot(Number(e.x2 || 0) - Number(e.x || 0), Number(e.y2 || 0) - Number(e.y || 0)) / 2 : 0;
+        const margin = Math.min(900, Math.max(100, Number(e.radius || e.range || 0) + span + 80));
+        if (!this.inView(cx, cy, margin)) continue;
         const t = clamp(e.ttl / e.maxTtl, 0, 1);
         ctx.save();
         if (e.type === 'slash') {
@@ -6942,7 +7051,7 @@
       this.finalizeLog('time_end');
       this.submitOnlineRanking();
       if (this.isOnlineHost) {
-        const finalSnapshot = this.buildOnlineSnapshot();
+        const finalSnapshot = this.buildOnlineSnapshot({ full: true });
         window.trionOnline?.broadcast('match_end', { snapshot: finalSnapshot, title });
         window.trionOnline?.endRoom({ matchId:this.matchId, mode:this.config.mode, teamScores:this.teamScores, elapsed:this.elapsed });
       }

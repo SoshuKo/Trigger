@@ -21,7 +21,7 @@ window.TRION_ONLINE_CONFIG = {
   enabled: true,
   supabaseUrl: 'https://YOUR_PROJECT.supabase.co',
   supabaseKey: 'YOUR_PUBLISHABLE_KEY',
-  snapshotHz: 6,
+  snapshotHz: 5,
 };
 ```
 
@@ -85,3 +85,8 @@ window.TRION_ONLINE_CONFIG = {
 - 参加側はホストからマップと戦闘状態を受信するまで「戦場を同期中」と表示します。
 - 座標は補間表示されるため、低い同期頻度でも瞬間移動のような画面崩れを抑えます。
 - GitHub Pagesで更新が古い場合は、公開ページを強制再読み込みしてください。HTMLにはバージョン付きのJavaScript URLが設定されています。
+
+
+## ゲスト端末の負荷について
+
+オンライン同期は標準5Hzです。4人を超えるルームでは通信量を抑えるため自動的に4Hz以下へ下がります。ゲスト側では固定データと戦闘データを分離し、低性能端末では描画を30fps・低解像度へ自動調整します。設定値を必要以上に上げると、Supabase Realtimeの通信量とゲスト端末のJSON処理負荷が増えるため、`snapshotHz`は5以下を推奨します。
