@@ -1202,6 +1202,8 @@
       });
       this.world = { w: 6400, h: 4400 };
       this.camera = { x: 0, y: 0 };
+      this.scopeActive = false;
+      this.scopeTarget = null;
       this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [] };
       this.terrainChunkSize = 640;
       this.terrainChunks = new Map();
@@ -2574,7 +2576,7 @@
 
     buildLog(reason = 'snapshot') {
       return {
-        schemaVersion: 18,
+        schemaVersion: 19,
         matchId: this.matchId,
         startedAt: this.startedAt,
         endedAt: new Date().toISOString(),
@@ -3826,6 +3828,7 @@
         speed: 155 + stats.combat * 8.5,
         selected: { main: 0, sub: 0 },
         cooldowns: {}, cooldownMax: {},
+        justCut: null,
         shields: { main: null, sub: null },
         toggles: { bagworm: false, bagwormTag: false, chameleon: false },
         revealTimer: 0,
@@ -3850,6 +3853,7 @@
           triggerActivations: 0, attackActions: 0, attackActivations: 0, activationsWithHit: 0, uniqueTargetsHit: 0,
           projectilesFired: 0, projectilesSpawned: 0, projectilesHit: 0, projectileHits: 0, meleeHits: 0,
           damageDealt: 0, damageTaken: 0, blockedDamage: 0, shieldDamagePrevented: 0, shieldBlocks: 0,
+          justCuts: 0, rangePenaltyHits: 0,
           trionSpent: 0, pickups: 0, pickupTrionGained: 0, pickupScore: 0,
           aliveTime: 0, currentLife: 0, longestLife: 0, assists: 0, supportScore: 0,
           combatDeaths: 0, manualBailouts: 0, spectateTransitions: 0, effectApplications: 0, successfulEffectActivations: 0,
@@ -4060,6 +4064,7 @@
       if (this.input.consume('KeyL')) this.toggleDebugPanel();
       if (this.input.consume('KeyO') && this.isPlayerOperator) this.toggleOperatorPanel();
       if (this.paused || this.ended) return;
+      if (this.input.consume('KeyR')) this.toggleScope();
       if (this.input.consume('KeyB')) this.manualBailout();
       if (this.input.consume('KeyV')) this.toggleSpectate();
       if (this.spectating && this.input.consume('KeyQ')) this.ensureSpectatorTarget(-1);
@@ -4186,6 +4191,43 @@
       p.cooldownMax[key] = value;
     }
 
+    getTriggerRangeProfile(trigger) {
+      if (!trigger || !['shooter', 'gun', 'sniper'].includes(trigger.kind)) return null;
+      const min = Number(trigger.optimalMin);
+      const max = Number(trigger.optimalMax);
+      if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return null;
+      return { min, max, kind: trigger.kind, id: trigger.id || '' };
+    }
+
+    getRangeDamageMultiplier(target, info = {}) {
+      const profile = info.rangeProfile;
+      if (!profile || !Number.isFinite(info.originX) || !Number.isFinite(info.originY)) return 1;
+      const shotDistance = Math.hypot(target.x - info.originX, target.y - info.originY);
+      return shotDistance >= profile.min && shotDistance <= profile.max ? 1 : .5;
+    }
+
+    tryJustCut(target, attacker, info = {}) {
+      const cut = target.justCut;
+      if (!cut || cut.timer <= 0 || target.isDefenseEnemy || !['projectile', 'melee'].includes(info.type)) return false;
+      let sourceAngle = Number(info.incomingAngle);
+      if (!Number.isFinite(sourceAngle)) {
+        const sx = Number.isFinite(info.x) ? info.x : attacker?.x;
+        const sy = Number.isFinite(info.y) ? info.y : attacker?.y;
+        if (!Number.isFinite(sx) || !Number.isFinite(sy)) return false;
+        sourceAngle = Math.atan2(sy - target.y, sx - target.x);
+      }
+      const acceptance = cut.sourceKey === 'kogetsu' ? .94 : .84;
+      if (Math.abs(angleDiff(sourceAngle, cut.angle)) > acceptance) return false;
+      const key = cut.slotKey;
+      if (key && Number.isFinite(target.cooldowns[key])) target.cooldowns[key] *= .5;
+      target.metrics.justCuts = (target.metrics.justCuts || 0) + 1;
+      this.effects.push({ type: 'justCut', x: target.x, y: target.y, angle: cut.angle, radius: target.radius + 31, ttl: .3, maxTtl: .3, color: cut.sourceKey === 'kogetsu' ? '#e7fbff' : '#c1a7ff' });
+      this.sfx?.play('attacker', { x: target.x, y: target.y, bucket: `just-cut:${target.id}`, cooldown: .04, volume: .54, rate: 1.22 });
+      if (target.human) this.toast('JUST CUT　クールダウン半減');
+      target.justCut = null;
+      return true;
+    }
+
     consumeTrion(p, amount, silent = false) {
       const relief = this.desertReliefState(p);
       const effectiveAmount = amount * relief.multiplier;
@@ -4256,6 +4298,15 @@
       }
       this.performSlash(p, range, damage * (0.82 + p.stats.combat * 0.045), arc, style);
       this.setCooldown(p, hand, trigger.cooldown);
+      if (trigger.id === 'kogetsu' || trigger.id === 'scorpion') {
+        p.justCut = {
+          timer: clamp(.105 + p.stats.technique * .009, .13, .205),
+          hand,
+          slotKey: this.getSlotKey(p, hand),
+          angle: p.aim,
+          sourceKey: trigger.id,
+        };
+      }
       this.revealOnAttack(p, 1.2);
       return true;
     }
@@ -4272,10 +4323,12 @@
         const a = Math.atan2(target.y - p.y, target.x - p.x);
         if (Math.abs(angleDiff(a, p.aim)) > arc / 2) continue;
         const sourceName = DATA.triggers[style]?.name || ATTACK_LABELS[style] || '斬撃';
-        this.damagePlayer(target, damage, p, { x: p.x, y: p.y, type: 'melee', name: sourceName, sourceKey: style, activationId: this.activeActivation?.playerId === p.id ? this.activeActivation.id : null });
-        const knock = 120 + p.stats.combat * 8;
-        target.vx += Math.cos(p.aim) * knock;
-        target.vy += Math.sin(p.aim) * knock;
+        const damaged = this.damagePlayer(target, damage, p, { x: p.x, y: p.y, type: 'melee', name: sourceName, sourceKey: style, activationId: this.activeActivation?.playerId === p.id ? this.activeActivation.id : null });
+        if (damaged) {
+          const knock = 120 + p.stats.combat * 8;
+          target.vx += Math.cos(p.aim) * knock;
+          target.vy += Math.sin(p.aim) * knock;
+        }
       }
     }
 
@@ -4707,7 +4760,7 @@
           fixedTarget,
         ];
       };
-      const base = { angle: launchAngle, speed: c.speed, damage: c.damage * (0.82 + p.stats.trion * .035), radius: 7, life: 1.85, color: '#fff3a6', sourceName: c.name, sourceKey: pending.sourceKey, activationId: pending.activationId };
+      const base = { angle: launchAngle, speed: c.speed, damage: c.damage * (0.82 + p.stats.trion * .035), radius: 7, life: 1.85, color: '#fff3a6', sourceName: c.name, sourceKey: pending.sourceKey, activationId: pending.activationId, rangeProfile: { min: 220, max: 760, kind: 'shooter', id: pending.sourceKey } };
       switch (c.behavior) {
         case 'pierce': this.spawnProjectile(p, 'main', { ...base, penetration: 4, radius: 8, trail: true }); break;
         case 'curveExplode': this.spawnProjectile(p, 'main', { ...base, routePoints: route(85), routeTurn: 3.1, explosive: true, explosionRadius: 145, proximityFuse: 68 }); break;
@@ -4746,6 +4799,9 @@
       const speedMultiplier = opts.speedMultiplier ?? 1;
       const speed = opts.speed * speedMultiplier;
       const damage = opts.damageOverride ?? opts.damage;
+      const sourceKey = opts.sourceKey || this.activeActivation?.triggerId || owner.loadout[hand]?.[owner.selected[hand]] || 'shot';
+      const sourceName = opts.sourceName || this.activeActivation?.name || DATA.triggers[sourceKey]?.name || '射撃';
+      const rangeProfile = opts.rangeProfile || this.getTriggerRangeProfile(DATA.triggers[sourceKey]);
       const projectile = {
         id: `p-${performance.now()}-${Math.random()}`,
         ownerId: owner.id, team: owner.team, hand,
@@ -4782,8 +4838,11 @@
         effectSourceKey: opts.effectSourceKey || null,
         effectSourceName: opts.effectSourceName || null,
         effectActivationId: opts.effectActivationId || null,
-        sourceName: opts.sourceName || this.activeActivation?.name || DATA.triggers[owner.loadout[hand]?.[owner.selected[hand]]]?.name || '射撃',
-        sourceKey: opts.sourceKey || this.activeActivation?.triggerId || owner.loadout[hand]?.[owner.selected[hand]] || 'shot',
+        sourceName,
+        sourceKey,
+        rangeProfile: rangeProfile ? { ...rangeProfile } : null,
+        originX: Number.isFinite(opts.originX) ? opts.originX : owner.x,
+        originY: Number.isFinite(opts.originY) ? opts.originY : owner.y,
         activationId: opts.activationId || (this.activeActivation?.playerId === owner.id ? this.activeActivation.id : null),
         hitRegistered: false,
       };
@@ -4818,6 +4877,10 @@
       p.metrics.longestLife = Math.max(p.metrics.longestLife, p.metrics.currentLife);
 
       for (const key of Object.keys(p.cooldowns)) p.cooldowns[key] = Math.max(0, p.cooldowns[key] - dt);
+      if (p.justCut) {
+        p.justCut.timer -= dt;
+        if (p.justCut.timer <= 0) p.justCut = null;
+      }
       for (const hand of ['main', 'sub']) {
         if (p.modifierReady[hand]) {
           p.modifierReady[hand].timer -= dt;
@@ -5995,13 +6058,13 @@
         if (p.explosive && p.proximityFuse > 0) {
           const nearby = this.players.find((target) => !target.dead && target.id !== p.ownerId && !(target.team === p.team && (this.config.mode === 'team' || this.isDefenseMode)) && Math.hypot(p.x - target.x, p.y - target.y) <= p.proximityFuse + target.radius);
           if (nearby) {
-            this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id });
+            this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
             this.projectiles.splice(i, 1);
             continue;
           }
         }
         if (p.x < 0 || p.y < 0 || p.x > this.world.w || p.y > this.world.h || p.life <= 0) {
-          if (p.explosive && p.life <= 0) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id });
+          if (p.explosive && p.life <= 0) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
           this.projectiles.splice(i, 1);
           continue;
         }
@@ -6018,7 +6081,7 @@
               if (wallOwner?.metrics) wallOwner.metrics.escudoDamagePrevented += prevented;
             }
           }
-          if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id });
+          if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
           this.projectiles.splice(i, 1);
           removed = true;
           break;
@@ -6039,7 +6102,7 @@
           if (facility.hp <= 0 || (facility.team === p.team && (this.config.mode === 'team' || this.isDefenseMode))) continue;
           if (Math.hypot(p.x - facility.x, p.y - facility.y) < p.radius + facility.radius) {
             facility.hp -= Math.max(4, p.damage);
-            if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id });
+            if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
             this.projectiles.splice(i, 1); removed = true; break;
           }
         }
@@ -6049,7 +6112,7 @@
           if(light.hp<=0) continue;
           if (Math.hypot(p.x-light.x,p.y-light.y) < p.radius+light.radius) {
             light.hp-=Math.max(4,p.damage);
-            if(p.explosive) this.explode(p.x,p.y,p.explosionRadius,p.damage,p.ownerId,p.team,null,p.sourceName,{sourceKey:p.sourceKey,activationId:p.activationId,projectileId:p.id});
+            if(p.explosive) this.explode(p.x,p.y,p.explosionRadius,p.damage,p.ownerId,p.team,null,p.sourceName,{sourceKey:p.sourceKey,activationId:p.activationId,projectileId:p.id,rangeProfile:p.rangeProfile,originX:p.originX,originY:p.originY});
             this.projectiles.splice(i,1); removed=true; break;
           }
         }
@@ -6059,7 +6122,7 @@
           if (beacon.team === p.team && (this.config.mode === 'team' || this.isDefenseMode)) continue;
           if (Math.hypot(p.x - beacon.x, p.y - beacon.y) < p.radius + beacon.radius) {
             beacon.hp -= Math.max(4, p.damage);
-            if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id });
+            if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
             this.projectiles.splice(i, 1);
             removed = true;
             break;
@@ -6071,7 +6134,14 @@
           if (target.dead || target.id === p.ownerId || (target.team === p.team && (this.config.mode === 'team' || this.isDefenseMode))) continue;
           if (Math.hypot(p.x - target.x, p.y - target.y) >= p.radius + target.radius) continue;
           const owner = this.players.find((ownerPlayer) => ownerPlayer.id === p.ownerId) || null;
-          if (p.lead) {
+          const hitInfo = {
+            x: p.x, y: p.y, type: 'projectile', shieldPierce: p.shieldPierce,
+            name: p.sourceName, sourceKey: p.sourceKey, activationId: p.activationId,
+            incomingAngle: Math.atan2(-p.vy, -p.vx), rangeProfile: p.rangeProfile,
+            originX: p.originX, originY: p.originY,
+          };
+          const cut = this.tryJustCut(target, owner, hitInfo);
+          if (!cut && p.lead) {
             target.leadWeights += p.leadWeight;
             target.slowTimer = Math.max(target.slowTimer, 7);
             this.effects.push({ type: 'weight', x: target.x, y: target.y, ttl: 7, maxTtl: 7 });
@@ -6080,19 +6150,22 @@
               this.registerEffectApplication(owner, p.effectSourceKey || 'leadBullet', p.effectSourceName || '鉛弾（レッドバレット）', target, 7, p.effectActivationId);
             }
             if (target.human) this.toast(`鉛弾：重し ${target.leadWeights}`);
-          } else {
-            this.markProjectileHit(owner, p.id, p.sourceKey);
-            this.damagePlayer(target, p.damage, owner, { x: p.x, y: p.y, type: 'projectile', shieldPierce: p.shieldPierce, name: p.sourceName, sourceKey: p.sourceKey, activationId: p.activationId });
+          } else if (!cut) {
+            const damaged = this.damagePlayer(target, p.damage, owner, { ...hitInfo, skipJustCut: true });
+            if (damaged) this.markProjectileHit(owner, p.id, p.sourceKey);
           }
-          if (p.mark) {
+          if (!cut && p.mark) {
             target.markedTimer = Math.max(target.markedTimer, p.markDuration);
             if (owner?.metrics) {
               owner.metrics.starmakerMarks += 1; owner.metrics.starmakerRevealSeconds += p.markDuration;
               this.registerEffectApplication(owner, p.effectSourceKey || 'starmaker', p.effectSourceName || 'スタアメーカー', target, p.markDuration, p.effectActivationId);
             }
           }
-          if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, target.id, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id });
-          if (p.penetration > 0) {
+          if (!cut && p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, target.id, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
+          if (cut) {
+            this.projectiles.splice(i, 1);
+            removed = true;
+          } else if (p.penetration > 0) {
             p.penetration -= 1;
             p.damage *= .72;
             p.x += p.vx * .02;
@@ -6142,7 +6215,11 @@
         const d = Math.hypot(target.x - x, target.y - y);
         if (d > radius + target.radius) continue;
         const scale = 1 - clamp(d / radius, 0, .82);
-        this.damagePlayer(target, damage * scale, owner, { x, y, type: 'explosion', name: sourceName, sourceKey: context.sourceKey || sourceName, activationId: context.activationId || null });
+        this.damagePlayer(target, damage * scale, owner, {
+          x, y, type: 'explosion', name: sourceName,
+          sourceKey: context.sourceKey || sourceName, activationId: context.activationId || null,
+          rangeProfile: context.rangeProfile || null, originX: context.originX, originY: context.originY,
+        });
         target.vx += (target.x - x) / Math.max(d, 1) * 190 * scale;
         target.vy += (target.y - y) / Math.max(d, 1) * 190 * scale;
         hitCount += 1;
@@ -6176,7 +6253,13 @@
     }
 
     damagePlayer(target, amount, attacker, info = {}) {
-      if (target.dead || amount <= 0 || target.invulnTimer > 0) return;
+      if (target.dead || amount <= 0 || target.invulnTimer > 0) return false;
+      if (!info.skipJustCut && this.tryJustCut(target, attacker, info)) return false;
+      const rangeMultiplier = this.getRangeDamageMultiplier(target, info);
+      if (rangeMultiplier < 1) {
+        amount *= rangeMultiplier;
+        if (attacker?.metrics) attacker.metrics.rangePenaltyHits = (attacker.metrics.rangePenaltyHits || 0) + 1;
+      }
       if (target.isDefenseEnemy) {
         const sourceAngle = attacker ? Math.atan2(attacker.y - target.y, attacker.x - target.x) : 0;
         if (target.defenseType === 'rabbit' && attacker) {
@@ -6220,7 +6303,7 @@
           }
         }
       }
-      if (blocked) return;
+      if (blocked) return false;
       const effectiveDamage = Math.min(target.hp, amount);
       target.hp -= amount;
       target.metrics.damageTaken += effectiveDamage;
@@ -6247,6 +6330,7 @@
         if (target.isDefenseEnemy) this.defeatDefenseEnemy(target, attacker, info.name || '攻撃');
         else this.bailout(target, attacker, info.name || '攻撃', { kind: 'combat' });
       }
+      return true;
     }
 
     bailout(target, attacker, sourceName, context = {}) {
@@ -6466,6 +6550,48 @@
       }
     }
 
+    getScopeTrigger(p = this.human) {
+      if (!p || p.dead) return null;
+      const selected = ['main', 'sub'].map((hand) => DATA.triggers[p.loadout?.[hand]?.[p.selected?.[hand]]]).filter(Boolean);
+      return selected.find((trigger) => trigger.kind === 'sniper') || selected.find((trigger) => trigger.kind === 'gun') || null;
+    }
+
+    toggleScope() {
+      if (!this.isPlayerCombatant || this.spectating || !this.human || this.human.dead) return;
+      const trigger = this.getScopeTrigger(this.human);
+      if (!trigger) {
+        this.scopeActive = false;
+        this.toast('スコープ対応の銃手・狙撃手トリガーを選択してください');
+        return;
+      }
+      this.scopeActive = !this.scopeActive;
+      this.toast(this.scopeActive ? `${trigger.name}　SCOPE ON` : 'SCOPE OFF');
+    }
+
+    getScopeTargetInfo(p, trigger) {
+      const profile = this.getTriggerRangeProfile(trigger);
+      if (!p || !profile) return null;
+      let best = null;
+      let bestScore = Infinity;
+      const maxScan = Math.max(profile.max * 1.25, profile.max + 240);
+      for (const target of this.players) {
+        if (!this.canDamage(p, target)) continue;
+        const dx = target.x - p.x, dy = target.y - p.y;
+        const d = Math.hypot(dx, dy);
+        if (d > maxScan) continue;
+        const diff = Math.abs(angleDiff(Math.atan2(dy, dx), p.aim));
+        const lateral = Math.sin(diff) * d;
+        if (diff > .16 || lateral > target.radius + 34) continue;
+        if (this.findBlockingWall(p.x, p.y, target.x, target.y, 3)) continue;
+        const score = lateral * 4 + diff * 220 + d * .002;
+        if (score < bestScore) {
+          bestScore = score;
+          best = { target, distance: d, optimal: d >= profile.min && d <= profile.max, profile };
+        }
+      }
+      return best;
+    }
+
     updateCamera(dt) {
       if (this.isPlayerOperator) {
         this.camera.x = lerp(this.camera.x, this.operatorCamera.x - this.viewW / 2, 1 - Math.pow(.0015, dt));
@@ -6473,10 +6599,18 @@
       } else {
         const focus = this.spectating ? (this.getSpectatorTarget() || this.players[0]) : this.human;
         if (!focus) return;
-        const targetX = focus.x - this.viewW / 2;
-        const targetY = focus.y - this.viewH / 2;
-        this.camera.x = lerp(this.camera.x, targetX, 1 - Math.pow(.0008, dt));
-        this.camera.y = lerp(this.camera.y, targetY, 1 - Math.pow(.0008, dt));
+        let targetX = focus.x - this.viewW / 2;
+        let targetY = focus.y - this.viewH / 2;
+        const scopeTrigger = focus === this.human && this.scopeActive ? this.getScopeTrigger(this.human) : null;
+        if (this.scopeActive && !scopeTrigger) this.scopeActive = false;
+        if (scopeTrigger) {
+          const diagonal = Math.hypot(this.viewW, this.viewH);
+          const lead = diagonal * (scopeTrigger.kind === 'sniper' ? .52 : .32);
+          targetX += Math.cos(focus.aim) * lead;
+          targetY += Math.sin(focus.aim) * lead;
+        }
+        this.camera.x = lerp(this.camera.x, targetX, 1 - Math.pow(scopeTrigger ? .006 : .0008, dt));
+        this.camera.y = lerp(this.camera.y, targetY, 1 - Math.pow(scopeTrigger ? .006 : .0008, dt));
       }
       this.camera.x = clamp(this.camera.x, 0, Math.max(0, this.world.w - this.viewW));
       this.camera.y = clamp(this.camera.y, 0, Math.max(0, this.world.h - this.viewH));
@@ -6540,6 +6674,7 @@
       ctx.restore();
       this.drawScreenVignette(ctx);
       this.drawEnvironmentOverlay(ctx);
+      this.drawScopeOverlay(ctx);
     }
 
     drawCubeRect(ctx,x,y,w,h,front='#153848',top='#1e5265',side='#0a2633'){
@@ -7219,6 +7354,12 @@
           ctx.globalAlpha = t;
           ctx.strokeStyle = '#b6f7ff'; ctx.lineWidth = 7;
           ctx.beginPath(); ctx.arc(e.x, e.y, 35, e.angle - .55, e.angle + .55); ctx.stroke();
+        } else if (e.type === 'justCut') {
+          ctx.globalAlpha = t;
+          ctx.strokeStyle = e.color || '#e7fbff'; ctx.lineWidth = 6;
+          ctx.beginPath(); ctx.arc(e.x, e.y, e.radius || 48, e.angle - .78, e.angle + .78); ctx.stroke();
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(e.x, e.y, (e.radius || 48) + (1 - t) * 30, e.angle - .65, e.angle + .65); ctx.stroke();
         } else if (e.type === 'hit') {
           ctx.globalAlpha = t;
           ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3;
@@ -7256,6 +7397,39 @@
         }
         ctx.restore();
       }
+    }
+
+    drawScopeOverlay(ctx) {
+      if (!this.scopeActive || !this.isPlayerCombatant || this.spectating || !this.human || this.human.dead) return;
+      const trigger = this.getScopeTrigger(this.human);
+      if (!trigger) return;
+      const profile = this.getTriggerRangeProfile(trigger);
+      const info = this.getScopeTargetInfo(this.human, trigger);
+      this.scopeTarget = info?.target?.id || null;
+      const color = info ? (info.optimal ? '#84ff95' : '#ffad62') : '#74eaff';
+      const rx = this.input.virtualAim.active ? this.viewW / 2 : clamp(this.input.mouse.x || this.viewW / 2, 42, this.viewW - 42);
+      const ry = this.input.virtualAim.active ? this.viewH / 2 : clamp(this.input.mouse.y || this.viewH / 2, 42, this.viewH - 42);
+      const radius = Math.min(this.viewW, this.viewH) * (trigger.kind === 'sniper' ? .34 : .28);
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,5,10,.2)';
+      ctx.fillRect(0, 0, this.viewW, this.viewH);
+      ctx.strokeStyle = 'rgba(220,250,255,.22)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(rx, ry, radius, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = info?.optimal ? 3 : 2;
+      ctx.beginPath(); ctx.arc(rx, ry, 25, 0, TAU); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(rx - 58, ry); ctx.lineTo(rx - 10, ry); ctx.moveTo(rx + 10, ry); ctx.lineTo(rx + 58, ry); ctx.moveTo(rx, ry - 58); ctx.lineTo(rx, ry - 10); ctx.moveTo(rx, ry + 10); ctx.lineTo(rx, ry + 58); ctx.stroke();
+      ctx.fillStyle = color; ctx.fillRect(rx - 2, ry - 2, 4, 4);
+      ctx.textAlign = 'center';
+      ctx.font = '900 12px Inter, sans-serif';
+      ctx.fillStyle = color;
+      ctx.fillText(info ? (info.optimal ? 'OPTIMAL RANGE' : info.distance < profile.min ? 'TOO CLOSE / 50% DAMAGE' : 'TOO FAR / 50% DAMAGE') : 'NO TARGET', rx, clamp(ry - radius - 13, 82, this.viewH - 58));
+      ctx.font = '800 10px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(226,250,255,.82)';
+      const distanceText = info ? `DIST ${Math.round(info.distance)}　` : '';
+      ctx.fillText(`${trigger.short || trigger.name}　${distanceText}適正 ${profile.min}–${profile.max}`, rx, Math.min(this.viewH - 18, ry + radius + 21));
+      ctx.restore();
     }
 
     drawScreenVignette(ctx) {

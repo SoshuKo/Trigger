@@ -35,8 +35,8 @@
     kogetsu: {
       id: 'kogetsu', name: '弧月', short: '弧月', category: 'attacker', kind: 'melee',
       cost: 3.4, cooldown: 0.46, damage: 28, range: 94,
-      description: '攻撃力・耐久力・間合いのバランスに優れた標準ブレード。鞘に戻してOFFにすれば追加消費なしで再使用できます。',
-      controls: '発動：斬撃',
+      description: '攻撃力・耐久力・間合いのバランスに優れた標準ブレード。斬撃直後のジャスト判定で正面の直接攻撃を切ると、被弾を防ぎ残りクールダウンが半減します。',
+      controls: '発動：斬撃／攻撃直後：ジャスト判定',
     },
     senku: {
       id: 'senku', name: '旋空', short: '旋空', category: 'attacker', kind: 'pairedOption', base: 'kogetsu',
@@ -47,8 +47,8 @@
     scorpion: {
       id: 'scorpion', name: 'スコーピオン', short: 'SCORP', category: 'attacker', kind: 'melee',
       cost: 3.1, cooldown: 0.34, damage: 22, range: 82,
-      description: '軽量で出し入れと変形が自在なブレード。長く伸ばすほど耐久が落ちる性質を、間合いと威力のトレードオフで再現しています。',
-      controls: '発動：斬撃／Shift＋発動：長刃',
+      description: '軽量で出し入れと変形が自在なブレード。斬撃直後のジャスト判定で正面の直接攻撃を切ると、被弾を防ぎ残りクールダウンが半減します。',
+      controls: '発動：斬撃／Shift＋発動：長刃／攻撃直後：ジャスト判定',
     },
     raygust: {
       id: 'raygust', name: 'レイガスト', short: 'RAYG', category: 'attacker', kind: 'melee',
@@ -65,46 +65,46 @@
 
     shooter_asteroid: {
       id: 'shooter_asteroid', name: 'アステロイド（射手）', short: 'AST', category: 'shooter', kind: 'shooter', bullet: 'asteroid',
-      cost: 8, cooldown: 0.59,
-      description: '特殊機能を持たない通常弾。威力と弾速へ多く配分でき、複数弾を正面へ射出します。',
+      cost: 8, cooldown: 0.59, optimalMin: 150, optimalMax: 650,
+      description: '特殊機能を持たない通常弾。威力と弾速へ多く配分でき、複数弾を正面へ射出します。適正距離は150～650です。',
       controls: '発動：分割射撃',
     },
     shooter_meteor: {
       id: 'shooter_meteor', name: 'メテオラ（射手）', short: 'MET', category: 'shooter', kind: 'shooter', bullet: 'meteor',
-      cost: 12, cooldown: 1.12,
-      description: '着弾時に爆発する炸裂弾。Shift＋発動で設置弾に切り替え、射撃や爆発で起爆できます。',
+      cost: 12, cooldown: 1.12, optimalMin: 180, optimalMax: 620,
+      description: '着弾時に爆発する炸裂弾。Shift＋発動で設置弾に切り替え、射撃や爆発で起爆できます。適正距離は180～620です。',
       controls: '発動：炸裂弾／Shift＋発動：設置',
     },
     shooter_viper: {
       id: 'shooter_viper', name: 'バイパー（射手）', short: 'VIP', category: 'shooter', kind: 'shooter', bullet: 'viper',
-      cost: 10, cooldown: 0.78,
-      description: '射出ごとに弾道を設定できる変化弾。技術力が高いほど複雑な経路と高い命中精度を得ます。',
+      cost: 10, cooldown: 0.78, optimalMin: 180, optimalMax: 720,
+      description: '射出ごとに弾道を設定できる変化弾。技術力が高いほど複雑な経路と高い命中精度を得ます。適正距離は180～720です。',
       controls: '発動：変化弾',
     },
     shooter_hound: {
       id: 'shooter_hound', name: 'ハウンド（射手）', short: 'HOUND', category: 'shooter', kind: 'shooter', bullet: 'hound',
-      cost: 10, cooldown: 0.86,
-      description: '敵のトリオン反応を追う誘導弾。照準付近の敵を優先し、技術力に応じて追尾性能が上がります。',
+      cost: 10, cooldown: 0.86, optimalMin: 180, optimalMax: 680,
+      description: '敵のトリオン反応を追う誘導弾。照準付近の敵を優先し、技術力に応じて追尾性能が上がります。適正距離は180～680です。',
       controls: '発動：追尾弾',
     },
 
     egret: {
       id: 'egret', name: 'イーグレット', short: 'EGR', category: 'sniper', kind: 'sniper',
-      cost: 17, cooldown: 2.2, damage: 49, speed: 1280,
-      description: '射程を重視した万能型狙撃銃。トリオン総量が高いほど有効射程が伸びます。',
-      controls: '発動：狙撃',
+      cost: 17, cooldown: 2.2, damage: 49, speed: 1280, optimalMin: 650, optimalMax: 1600,
+      description: '射程を重視した万能型狙撃銃。適正距離は650～1600で、Rキーのスコープから遠方を確認できます。',
+      controls: '発動：狙撃／R：スコープ',
     },
     lightning: {
       id: 'lightning', name: 'ライトニング', short: 'LTN', category: 'sniper', kind: 'sniper',
-      cost: 12, cooldown: 1.18, damage: 27, speed: 1750,
-      description: '軽量で弾速が高く当てやすい狙撃銃。威力は低めですが、トリオン総量に応じてさらに弾速が上がります。',
-      controls: '発動：高速狙撃',
+      cost: 12, cooldown: 1.18, damage: 27, speed: 1750, optimalMin: 520, optimalMax: 1450,
+      description: '軽量で弾速が高く当てやすい狙撃銃。適正距離は520～1450で、Rキーのスコープから遠方を確認できます。',
+      controls: '発動：高速狙撃／R：スコープ',
     },
     ibis: {
       id: 'ibis', name: 'アイビス', short: 'IBIS', category: 'sniper', kind: 'sniper',
-      cost: 25, cooldown: 3.15, damage: 72, speed: 820,
-      description: '威力特化の重量級狙撃銃。弾速は遅いものの、トリオン総量が高いほど破壊力が増します。',
-      controls: '発動：重狙撃',
+      cost: 25, cooldown: 3.15, damage: 72, speed: 820, optimalMin: 480, optimalMax: 1000,
+      description: '威力特化の重量級狙撃銃。適正距離は480～1000で、Rキーのスコープから遠方を確認できます。',
+      controls: '発動：重狙撃／R：スコープ',
     },
 
     leadBullet: {
@@ -184,11 +184,11 @@
   };
 
   const gunStats = {
-    assault: { rate: 0.13, speed: 760, damage: 8.3, spread: 0.045, count: 1, cost: 2.15, range: 1.2 },
-    handgun: { rate: 0.28, speed: 820, damage: 13.5, spread: 0.025, count: 1, cost: 3.2, range: 1.2 },
-    shotgun: { rate: 0.9, speed: 690, damage: 6.4, spread: 0.27, count: 8, cost: 10.5, range: 0.78 },
-    grenade: { rate: 1.18, speed: 500, damage: 30, spread: 0.025, count: 1, cost: 14, range: 0.9, explosive: true },
-    gatling: { rate: 0.075, speed: 720, damage: 5.7, spread: 0.085, count: 1, cost: 1.65, range: 1.08 },
+    assault: { rate: 0.13, speed: 760, damage: 8.3, spread: 0.045, count: 1, cost: 2.15, range: 1.2, optimalMin: 170, optimalMax: 650 },
+    handgun: { rate: 0.28, speed: 820, damage: 13.5, spread: 0.025, count: 1, cost: 3.2, range: 1.2, optimalMin: 110, optimalMax: 460 },
+    shotgun: { rate: 0.9, speed: 690, damage: 6.4, spread: 0.27, count: 8, cost: 10.5, range: 0.78, optimalMin: 45, optimalMax: 260 },
+    grenade: { rate: 1.18, speed: 500, damage: 30, spread: 0.025, count: 1, cost: 14, range: 0.9, explosive: true, optimalMin: 180, optimalMax: 480 },
+    gatling: { rate: 0.075, speed: 720, damage: 5.7, spread: 0.085, count: 1, cost: 1.65, range: 1.08, optimalMin: 190, optimalMax: 620 },
   };
 
   for (const [gun, gunName] of Object.entries(gunNames)) {
@@ -203,8 +203,8 @@
         gun,
         bullet,
         ...gunStats[gun],
-        description: `${gunName}に${bulletName}を設定。射手弾より自由度は低い代わりに扱いやすく、有効射程が約20％長いゲーム設計です。`,
-        controls: gun === 'assault' || gun === 'gatling' ? '長押し：連射' : '発動：射撃',
+        description: `${gunName}に${bulletName}を設定。適正距離は${gunStats[gun].optimalMin}～${gunStats[gun].optimalMax}で、範囲外ではダメージが半減します。`,
+        controls: `${gun === 'assault' || gun === 'gatling' ? '長押し：連射' : '発動：射撃'}／R：スコープ`,
       };
     }
   }

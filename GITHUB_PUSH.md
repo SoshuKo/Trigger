@@ -32,7 +32,7 @@ if ($LASTEXITCODE -ge 8) {
 
 git status
 git add .
-git commit -m "Improve NPC AI and rebalance defense mode"
+git commit -m "Add just cut, range balance, and scopes"
 git push origin main
 ```
 
@@ -61,7 +61,7 @@ git push origin main
 GitHub Pages反映後、次を開きます。
 
 ```text
-https://soshuko.github.io/Trigger/?v=18
+https://soshuko.github.io/Trigger/?v=19
 ```
 
 古いファイルが表示される場合は `Ctrl + Shift + R` で強制再読み込みします。
