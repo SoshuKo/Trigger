@@ -34,7 +34,7 @@
     const bytes = new TextEncoder().encode(`trion-arena:${normalized}`);
     const digest = await crypto.subtle.digest('SHA-256', bytes);
     const hex = [...new Uint8Array(digest)].map((value) => value.toString(16).padStart(2, '0')).join('');
-    return { normalized, email: `u_${hex.slice(0, 48)}@trion-arena.local` };
+    return { normalized, email: `u_${hex.slice(0, 48)}@example.com` };
   }
 
   async function refreshSupabaseIdentity(session, username = '') {

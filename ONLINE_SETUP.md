@@ -1,4 +1,4 @@
-# TRION ARENA オンライン設定 v24
+# TRION ARENA オンライン設定 v25
 
 この版はGitHub Pagesなどの静的ホスティングとSupabaseを使用します。自宅PCの常時起動やポート開放は不要です。
 
@@ -41,12 +41,12 @@ window.TRION_ONLINE_CONFIG = {
 
 ## 4. 公開とキャッシュ
 
-フォルダーの中身をGitHub Pagesへ配置します。ビルドは不要です。現行HTMLの読み込み番号は `v=24` です。
+フォルダーの中身をGitHub Pagesへ配置します。ビルドは不要です。現行HTMLの読み込み番号は `v=25` です。
 
 公開後：
 
 ```text
-https://soshuko.github.io/Trigger/?v=24
+https://soshuko.github.io/Trigger/?v=25
 ```
 
 古い画面が残る場合は `Ctrl + Shift + R`、またはサイトデータ削除を行ってください。
@@ -82,3 +82,8 @@ https://soshuko.github.io/Trigger/?v=24
 - メールを使わないため、パスワードを忘れた場合の自動再設定はありません。
 - 2～8人を推奨します。最大16人ですが、人数が増えると同期頻度が下がります。
 - 試合計算はルームホストのブラウザが担当します。ホストが閉じると進行中の試合は終了します。
+
+
+## v25 登録エラー修正
+
+ユーザー名から生成する内部認証メールを `@example.com` 形式へ変更しました。以前の `@trion-arena.local` はSupabaseのメール形式検証で拒否されるため使用しません。利用者がメールを入力する必要はありません。

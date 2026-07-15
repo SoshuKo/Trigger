@@ -61,7 +61,7 @@ git push origin main
 GitHub Pages反映後、次を開きます。
 
 ```text
-https://soshuko.github.io/Trigger/?v=24
+https://soshuko.github.io/Trigger/?v=25
 ```
 
 古いファイルが表示される場合は `Ctrl + Shift + R` で強制再読み込みします。
