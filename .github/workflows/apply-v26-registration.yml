@@ -1,0 +1,100 @@
+name: Apply v26 registration patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-v26-registration.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch browser registration and cache version
+        shell: python
+        run: |
+          from pathlib import Path
+
+          index = Path('index.html')
+          text = index.read_text(encoding='utf-8')
+          text = text.replace('styles.css?v=25', 'styles.css?v=26')
+          text = text.replace('maxlength="20" autocomplete="username" placeholder="3～20文字"', 'maxlength="18" autocomplete="username" placeholder="3～18文字"')
+          for name in ('online-config', 'trigger-data', 'online', 'community', 'game'):
+              text = text.replace(f'js/{name}.js?v=25', f'js/{name}.js?v=26')
+          index.write_text(text, encoding='utf-8')
+
+          community = Path('js/community.js')
+          text = community.read_text(encoding='utf-8')
+          text = text.replace("{3,20}", "{3,18}").replace('3～20文字', '3～18文字')
+          old = """    const { data, error } = await service.client.auth.signUp({
+              email: account.email,
+              password: String(password),
+              options: { data: { username: account.normalized, display_name: account.normalized } },
+            });
+            if (error) throw error;
+            if (!data.session) throw new Error('Supabaseのメール確認を無効にしてください。Authentication → Providers → EmailでConfirm emailをオフにします。');
+            await refreshSupabaseIdentity(data.session, account.normalized);"""
+          new = """    const endpoint = `${String(CONFIG.supabaseUrl || '').replace(/\\/+$/, '')}/functions/v1/${CONFIG.registrationFunction || 'register-account'}`;
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                apikey: CONFIG.supabaseKey,
+              },
+              body: JSON.stringify({ username: account.normalized, password: String(password), website: '' }),
+            });
+            let result = null;
+            try { result = await response.json(); } catch (_) { result = null; }
+            if (!response.ok) {
+              const message = result?.error || result?.message || (response.status === 429
+                ? '登録試行が多すぎます。しばらくしてから再度お試しください。'
+                : 'ユーザー登録に失敗しました。');
+              throw new Error(message);
+            }
+            let session = null;
+            let loginError = null;
+            for (let attempt = 0; attempt < 4 && !session; attempt++) {
+              if (attempt) await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+              const login = await service.client.auth.signInWithPassword({ email: account.email, password: String(password) });
+              session = login.data?.session || null;
+              loginError = login.error || null;
+            }
+            if (!session) throw new Error(loginError?.message || '登録後のログインに失敗しました。もう一度ログインしてください。');
+            await refreshSupabaseIdentity(session, account.normalized);"""
+          if old not in text:
+              raise SystemExit('Expected signup block was not found; refusing to patch blindly.')
+          community.write_text(text.replace(old, new), encoding='utf-8')
+
+          schema = Path('supabase-schema.sql')
+          migration = Path('supabase-v26-migration.sql').read_text(encoding='utf-8')
+          schema_text = schema.read_text(encoding='utf-8')
+          if '-- v26 community/account migration' not in schema_text:
+              schema.write_text(schema_text.rstrip() + '\n\n' + migration + '\n', encoding='utf-8')
+
+          readme = Path('README.md')
+          r = readme.read_text(encoding='utf-8')
+          note = """## v26 メール送信なしのユーザー登録
+
+- ブラウザの `signUp()` を廃止
+- Supabase Edge Function `register-account` からAdmin APIで登録
+- 確認メールを送信しないため、Email rate limitの影響を受けない
+- 読み込み番号を `v=26` へ更新
+
+"""
+          if not r.startswith('## v26 メール送信なしのユーザー登録'):
+              readme.write_text(note + r, encoding='utf-8')
+
+          Path('.github/workflows/apply-v26-registration.yml').unlink()
+      - name: Commit patched files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Replace email signup with Edge Function registration"
+          git push
