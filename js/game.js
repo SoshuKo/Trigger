@@ -1248,6 +1248,7 @@
       this.scopeDistance = 0;
       this.scopeTargetDistance = 0;
       this.scopeReticle = { x: 0, y: 0 };
+      this.scopeTargetPoint = { x: 0, y: 0 };
       this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [] };
       this.terrainChunkSize = 640;
       this.terrainChunks = new Map();
@@ -6954,6 +6955,8 @@
         this.scopeDistance = initial;
         this.scopeTargetDistance = initial;
         this.updateScopeReticle(this.human);
+        this.scopeTargetPoint.x = this.scopeReticle.x;
+        this.scopeTargetPoint.y = this.scopeReticle.y;
         this.input.mouse.dx = 0;
         this.input.mouse.dy = 0;
         this.input.mouse.wheel = 0;
@@ -6986,29 +6989,56 @@
     updateScopeControl(p, trigger, dt) {
       const limits = this.getScopeDistanceLimits(trigger);
       const mobileTouch = Boolean(this.input.virtualAim.touching);
-      let turnInput = 0;
-      let distanceInput = 0;
+      const target = this.scopeTargetPoint || (this.scopeTargetPoint = { x: this.scopeReticle.x, y: this.scopeReticle.y });
+      const pointerSpeed = trigger.kind === 'sniper' ? 245 : 185;
+      const mouseScale = trigger.kind === 'sniper' ? .72 : .58;
+      const keySpeed = trigger.kind === 'sniper' ? 520 : 360;
 
+      // Move the reticle in screen/world directions directly. This avoids the
+      // orientation-dependent reversal caused by rotating around the player.
       if (mobileTouch) {
-        turnInput += this.input.virtualAim.x * .82;
-        distanceInput += -this.input.virtualAim.y * (trigger.kind === 'sniper' ? 520 : 310);
+        target.x += this.input.virtualAim.x * pointerSpeed * dt;
+        target.y += this.input.virtualAim.y * pointerSpeed * dt;
       } else {
-        this.scopeAim += this.input.mouse.dx * .00165;
-        this.scopeTargetDistance += -this.input.mouse.dy * (trigger.kind === 'sniper' ? 2.1 : 1.35);
-        this.scopeTargetDistance += -this.input.mouse.wheel * (trigger.kind === 'sniper' ? .72 : .48);
+        target.x += this.input.mouse.dx * mouseScale;
+        target.y += this.input.mouse.dy * mouseScale;
       }
 
-      if (this.input.isDown('ArrowLeft')) turnInput -= .72;
-      if (this.input.isDown('ArrowRight')) turnInput += .72;
-      if (this.input.isDown('ArrowUp')) distanceInput += trigger.kind === 'sniper' ? 480 : 280;
-      if (this.input.isDown('ArrowDown')) distanceInput -= trigger.kind === 'sniper' ? 480 : 280;
+      if (this.input.isDown('ArrowLeft')) target.x -= keySpeed * dt;
+      if (this.input.isDown('ArrowRight')) target.x += keySpeed * dt;
+      if (this.input.isDown('ArrowUp')) target.y -= keySpeed * dt;
+      if (this.input.isDown('ArrowDown')) target.y += keySpeed * dt;
 
-      this.scopeAim += turnInput * dt;
-      this.scopeTargetDistance = clamp(this.scopeTargetDistance + distanceInput * dt, limits.min, limits.max);
-      const follow = 1 - Math.exp(-(trigger.kind === 'sniper' ? 2.15 : 2.8) * dt);
-      this.scopeDistance = lerp(this.scopeDistance || this.scopeTargetDistance, this.scopeTargetDistance, follow);
+      // The wheel only changes distance along the current sight line.
+      const tx = target.x - p.x;
+      const ty = target.y - p.y;
+      const targetLength = Math.hypot(tx, ty) || 1;
+      if (!mobileTouch && this.input.mouse.wheel) {
+        const wheelDistance = -this.input.mouse.wheel * (trigger.kind === 'sniper' ? .82 : .55);
+        const nextLength = clamp(targetLength + wheelDistance, limits.min, limits.max);
+        target.x = p.x + tx / targetLength * nextLength;
+        target.y = p.y + ty / targetLength * nextLength;
+      }
+
+      let dx = target.x - p.x;
+      let dy = target.y - p.y;
+      let distance = Math.hypot(dx, dy);
+      if (distance < .001) {
+        dx = Math.cos(this.scopeAim || p.aim);
+        dy = Math.sin(this.scopeAim || p.aim);
+        distance = 1;
+      }
+      const clampedDistance = clamp(distance, limits.min, limits.max);
+      target.x = clamp(p.x + dx / distance * clampedDistance, 0, this.world.w);
+      target.y = clamp(p.y + dy / distance * clampedDistance, 0, this.world.h);
+
+      const follow = 1 - Math.exp(-(trigger.kind === 'sniper' ? 4.1 : 5.0) * dt);
+      this.scopeReticle.x = lerp(this.scopeReticle.x, target.x, follow);
+      this.scopeReticle.y = lerp(this.scopeReticle.y, target.y, follow);
+      this.scopeAim = Math.atan2(this.scopeReticle.y - p.y, this.scopeReticle.x - p.x);
+      this.scopeDistance = Math.hypot(this.scopeReticle.x - p.x, this.scopeReticle.y - p.y);
+      this.scopeTargetDistance = clampedDistance;
       p.aim = this.scopeAim;
-      this.updateScopeReticle(p);
     }
 
     getScopeTargetInfo(p, trigger) {
