@@ -29,8 +29,8 @@
   const BASE_PICKUP_COUNT = 320;
   const TIME_PHASES = ['morning', 'day', 'night'];
   const WEATHER_TYPES = ['clear', 'cloudy', 'rain'];
-  const MAP_IDS = ['city', 'desert'];
-  const MAP_LABELS = { city: '市街', desert: '砂漠' };
+  const MAP_IDS = ['city', 'desert', 'snowShrine'];
+  const MAP_LABELS = { city: '市街', desert: '砂漠', snowShrine: '雪山神殿' };
   const MODE_LABELS = { solo: '個人戦', team: 'チーム戦', defense: '防衛戦' };
   const isSquadModeValue = (mode) => mode === 'team' || mode === 'defense';
   const TIME_LABELS = { morning: '朝', day: '昼', night: '夜' };
@@ -833,10 +833,14 @@
     const rule = $('#mapRuleText');
     if (help) help.textContent = mapId === 'desert'
       ? '古代要塞、崖、流砂、砂丘、オアシス、松明、ガス田がある乾燥地帯です。雨は降りません。'
-      : '道路・河川・林・ビルが混在する市街戦マップです。';
+      : mapId === 'snowShrine'
+        ? '寝殿造の廊下と大部屋が雪庭を囲む和風神殿です。障子、酒樽、人魂、神像が配置されています。'
+        : '道路・河川・林・ビルが混在する市街戦マップです。';
     if (rule && setup.mode !== 'defense') rule.textContent = mapId === 'desert'
       ? '砂漠では昼は日陰・オアシス、夜は火のそばで環境によるトリオン消費増加を解除できます。ガス田付近で爆発攻撃を使うと大爆発します。'
-      : '撃破・トリオン粒子回収でポイント獲得。時間終了時の個人／チームスコアで順位を決定します。';
+      : mapId === 'snowShrine'
+        ? '雪庭ではトリオン消費が34%増加します。障子と人魂は再生し、酒樽は爆発攻撃で誘爆します。東西の神像は一定間隔でトリオンを分けます。'
+        : '撃破・トリオン粒子回収でポイント獲得。時間終了時の個人／チームスコアで順位を決定します。';
   }
 
   function syncSetupUI() {
@@ -1267,7 +1271,7 @@
       this.scopeTargetDistance = 0;
       this.scopeReticle = { x: 0, y: 0 };
       this.scopeTargetPoint = { x: 0, y: 0 };
-      this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [] };
+      this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [], shrineGardens: [], shrineRooms: [], shrineCorridors: [], shrineCourts: [], shrineStatues: [], torii: [], frozenPonds: [], snowDrifts: [] };
       this.terrainChunkSize = 640;
       this.terrainChunks = new Map();
       this.maxTerrainChunks = this.onlineMirror ? 12 : 24;
@@ -1340,7 +1344,7 @@
       this.logFinalized = false;
       this.finalLog = null;
       this.battleEvents = [];
-      this.lifecycleStats = { placedDespawned: 0, terrainDestroyed: 0, terrainRespawned: 0, installationsDestroyed: 0, installationsRespawned: 0, lightsDestroyed: 0, lightsRespawned: 0, gasExplosions: 0 };
+      this.lifecycleStats = { placedDespawned: 0, terrainDestroyed: 0, terrainRespawned: 0, installationsDestroyed: 0, installationsRespawned: 0, lightsDestroyed: 0, lightsRespawned: 0, gasExplosions: 0, sakeExplosions: 0, spiritsDestroyed: 0, spiritsRespawned: 0, statueBlessings: 0 };
       this.matchId = `match-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
       this.startedAt = new Date().toISOString();
       this.resizeQueued = false;
@@ -2415,6 +2419,29 @@
       const shade=this.isInDesertShade(p), oasis=this.isInOasis(p), relieved=shade||oasis;
       return { relieved, multiplier:relieved?1:1.38, label:oasis?'オアシス':shade?'日陰':'灼熱負荷 +38%' };
     }
+    shrineGardenState(p){
+      if(this.mapId!=='snowShrine') return { active:false, multiplier:1, label:'' };
+      const garden=this.terrain.shrineGardens.find(zone=>this.isPointInRect(p.x,p.y,zone));
+      if(!garden) return { active:false, multiplier:1, label:'' };
+      return { active:true, multiplier:garden.trionMultiplier||1.34, label:'雪庭・トリオン消費 +34%' };
+    }
+    updateShrineBlessings(p,dt){
+      if(this.mapId!=='snowShrine'||p.dead||p.isDefenseEnemy) return;
+      p.shrineStatueCooldowns ||= {};
+      for(const key of Object.keys(p.shrineStatueCooldowns)) p.shrineStatueCooldowns[key]=Math.max(0,p.shrineStatueCooldowns[key]-dt);
+      for(const statue of this.terrain.shrineStatues){
+        const distance=Math.hypot(p.x-statue.x,p.y-statue.y);
+        if(distance>statue.aura||p.trion>=p.maxTrion*.94||(p.shrineStatueCooldowns[statue.id]||0)>0) continue;
+        const restored=Math.min(statue.restore||12,p.maxTrion-p.trion);
+        if(restored<=.1) continue;
+        p.trion+=restored;
+        p.shrineStatueCooldowns[statue.id]=18;
+        this.lifecycleStats.statueBlessings+=1;
+        this.effects.push({type:'shrineBlessing',x:statue.x,y:statue.y,x2:p.x,y2:p.y,color:statue.color,ttl:.7,maxTtl:.7});
+        this.logEvent('statue_blessing',`${statue.label} → ${p.name} +${Math.round(restored)} TRION`,false);
+        if(p.human) this.toast(`${statue.label}からトリオンを分けてもらった`);
+      }
+    }
     nearestDesertReliefPoint(p){
       if(this.mapId!=='desert') return null;
       const points=[];
@@ -2472,6 +2499,13 @@
           if(forward<0){ p.vx-=cliff.dirX*forward*1.35; p.vy-=cliff.dirY*forward*1.35; }
           p.vx+=cliff.dirX*42*dt; p.vy+=cliff.dirY*42*dt;
           factor*=.92;
+        }
+      }
+      if(this.mapId==='snowShrine'){
+        if(this.terrain.snowDrifts.some(r=>this.isPointInRect(p.x,p.y,r))) factor*=.84;
+        if(this.terrain.frozenPonds.some(r=>this.isPointInRect(p.x,p.y,r))){
+          factor*=1.08;
+          p.vx*=1.006; p.vy*=1.006;
         }
       }
       p.groundFrictionBase = this.environment.weather==='rain' ? (onRoad||onPlaza ? .48 : .22) : .0008;
@@ -2905,7 +2939,133 @@
 
     generateArena() {
       if (this.mapId === 'desert') this.generateDesertArena();
+      else if (this.mapId === 'snowShrine') this.generateSnowShrineArena();
       else this.generateCityArena();
+    }
+
+    generateSnowShrineArena() {
+      const addWall = (id, x, y, w, h, type = 'templeWall', hp = 520, options = {}) => {
+        const wall = { id, x, y, w, h, type, hp, maxHp: hp, ttl: Infinity, ...options };
+        this.walls.push(wall);
+        return wall;
+      };
+      const addRoom = (id, x, y, w, h, label, motif = 'seigaiha') => {
+        const room = { id, x, y, w, h, label, motif };
+        this.terrain.shrineRooms.push(room);
+        this.terrain.buildings.push({ ...room, shrineBuilding: true });
+        return room;
+      };
+      const addCorridor = (id, x, y, w, h, motif = 'asanoha') => {
+        const corridor = { id, x, y, w, h, motif };
+        this.terrain.shrineCorridors.push(corridor);
+        this.terrain.roads.push({ ...corridor, shrineCorridor: true });
+        return corridor;
+      };
+      const addShojiLine = (id, x, y, length, vertical = false, panels = 5) => {
+        const gap = 10;
+        const thickness = 18;
+        const panelLength = (length - gap * (panels - 1)) / panels;
+        for (let i = 0; i < panels; i++) {
+          const px = vertical ? x : x + i * (panelLength + gap);
+          const py = vertical ? y + i * (panelLength + gap) : y;
+          addWall(`${id}-${i}`, px, py, vertical ? thickness : panelLength, vertical ? panelLength : thickness, 'shoji', 105, { respawnable: true, respawnDelay: [20, 32], shrinePanel: true });
+        }
+      };
+
+      // Main snowy garden and the shinden-style halls around it.
+      this.terrain.shrineGardens.push({ id: 'snow-garden-main', x: 1980, y: 1070, w: 2440, h: 2250, label: '雪庭', trionMultiplier: 1.34 });
+      this.terrain.shrineCourts.push({ id: 'south-court', x: 2290, y: 3450, w: 1820, h: 610, label: '南庭' });
+      this.terrain.frozenPonds.push({ id: 'frozen-pond', x: 2830, y: 1770, w: 760, h: 520 });
+      this.terrain.snowDrifts.push(
+        { id: 'drift-0', x: 2140, y: 1320, w: 420, h: 180 },
+        { id: 'drift-1', x: 3820, y: 2710, w: 390, h: 210 },
+        { id: 'drift-2', x: 2440, y: 2860, w: 520, h: 190 },
+        { id: 'drift-3', x: 3610, y: 1240, w: 430, h: 170 }
+      );
+
+      addRoom('north-main-hall', 1760, 180, 2880, 720, '正殿', 'shippo');
+      addRoom('west-hall', 250, 620, 1480, 3020, '西殿', 'asanoha');
+      addRoom('east-hall', 4670, 620, 1480, 3020, '東殿', 'seigaiha');
+      addRoom('south-hall', 2130, 3540, 2140, 650, '拝殿', 'kikkou');
+      addCorridor('north-corridor', 1670, 900, 3060, 170, 'asanoha');
+      addCorridor('west-corridor', 1730, 900, 250, 2530, 'seigaiha');
+      addCorridor('east-corridor', 4420, 900, 250, 2530, 'seigaiha');
+      addCorridor('south-corridor', 1730, 3320, 2940, 170, 'asanoha');
+      addCorridor('west-cross', 250, 1950, 1730, 180, 'kikkou');
+      addCorridor('east-cross', 4420, 1950, 1730, 180, 'kikkou');
+
+      // Sturdy outer walls. Gates remain open at corridor junctions.
+      const hallWall = 34;
+      const outer = [
+        ['north-top',1760,180,2880,hallWall],['north-left',1760,180,hallWall,720],['north-right',4606,180,hallWall,720],
+        ['north-bottom-a',1760,866,980,hallWall],['north-bottom-b',3660,866,980,hallWall],
+        ['west-left',250,620,hallWall,3020],['west-top',250,620,1480,hallWall],['west-bottom',250,3606,1480,hallWall],
+        ['west-right-a',1696,620,hallWall,1080],['west-right-b',1696,2350,hallWall,1290],
+        ['east-right',6116,620,hallWall,3020],['east-top',4670,620,1480,hallWall],['east-bottom',4670,3606,1480,hallWall],
+        ['east-left-a',4670,620,hallWall,1080],['east-left-b',4670,2350,hallWall,1290],
+        ['south-left',2130,3540,hallWall,650],['south-right',4236,3540,hallWall,650],['south-bottom',2130,4156,2140,hallWall],
+      ];
+      outer.forEach(([id,x,y,w,h]) => addWall(`temple-${id}`,x,y,w,h,'templeWall',570,{respawnable:true,respawnDelay:[72,105]}));
+
+      // Shoji partitions: destructible and automatically restored.
+      addShojiLine('shoji-north-a', 1960, 520, 900, false, 6);
+      addShojiLine('shoji-north-b', 3540, 520, 900, false, 6);
+      addShojiLine('shoji-west-a', 820, 920, 760, true, 5);
+      addShojiLine('shoji-west-b', 1120, 2300, 840, true, 6);
+      addShojiLine('shoji-west-c', 520, 1720, 900, false, 6);
+      addShojiLine('shoji-east-a', 5540, 920, 760, true, 5);
+      addShojiLine('shoji-east-b', 5240, 2300, 840, true, 6);
+      addShojiLine('shoji-east-c', 4940, 1720, 900, false, 6);
+      addShojiLine('shoji-south-a', 2360, 3770, 690, true, 5);
+      addShojiLine('shoji-south-b', 4040, 3770, 690, true, 5);
+      addShojiLine('shoji-corridor-west', 1760, 1260, 640, true, 5);
+      addShojiLine('shoji-corridor-east', 4620, 1260, 640, true, 5);
+
+      // Traditional field installations placed as in the existing maps.
+      const facilityPoints = [
+        ['barricade',930,1090],['trap',920,2500],['turret',1320,3180],
+        ['turret',5070,1050],['trap',5480,2540],['barricade',5200,3210],
+        ['barricade',2470,760],['trap',3210,730],['turret',3960,760],
+        ['trap',2520,3840],['turret',3210,3890],['barricade',3910,3840]
+      ];
+      facilityPoints.forEach(([type,x,y],i)=>this.installations.push({id:`shrine-facility-${i}`,type,x,y,radius:24,hp:type==='barricade'?280:205,maxHp:type==='barricade'?280:205,active:false,team:null,work:0,cooldown:0,activeTimer:0,respawnTimer:0,destroyedLogged:false,shrine:true}));
+
+      // Sake barrels only chain-react to explosive/ignition attacks.
+      const barrelPoints = [[520,890],[650,920],[1420,1450],[1380,2840],[4890,900],[5010,930],[5760,1480],[5740,2850],[2490,3900],[3970,3900]];
+      barrelPoints.forEach(([x,y],i)=>this.lightSources.push({id:`sake-barrel-${i}`,kind:'sakeBarrel',x,y,radius:20,hp:68,maxHp:68,lightRadius:0,respawnTimer:0,destroyedLogged:false,ignited:false}));
+
+      // Stone lanterns, shrine lanterns and braziers provide warm visual landmarks.
+      const lanternPoints = [[1880,1040],[4520,1040],[1880,3260],[4520,3260],[2250,1180],[4150,1180],[2250,3130],[4150,3130],[2840,3520],[3560,3520]];
+      lanternPoints.forEach(([x,y],i)=>this.lightSources.push({id:`shrine-lantern-${i}`,kind:'shrineLantern',fire:i>=8,x,y,radius:13,hp:82,maxHp:82,lightRadius:i>=8?265:220,respawnTimer:0,destroyedLogged:false}));
+
+      // Hitodama are real destructible radar decoys. Their roaming bounds keep them inside the estate.
+      const spiritSpecs = [
+        [820,1250,360,720,1450,3050],[1370,2050,500,420,1550,3320],[5150,1280,4800,720,5950,3050],
+        [5580,2480,4800,900,5960,3360],[2380,980,1830,760,4550,1120],[4010,3380,1810,3260,4590,3500],
+        [2400,2200,2020,1110,4380,3290],[3980,1700,2020,1110,4380,3290]
+      ];
+      spiritSpecs.forEach(([x,y,minX,minY,maxX,maxY],i)=>this.beacons.push({id:`hitodama-${i}`,shrineSpirit:true,kind:'hitodama',x,y,spawnX:x,spawnY:y,minX,minY,maxX,maxY,radius:11,hp:42,maxHp:42,ttl:Infinity,respawnTimer:0,active:true,team:null,vx:rand(-24,24),vy:rand(-24,24),exposedTeams:{}}));
+
+      this.terrain.shrineStatues.push(
+        { id:'statue-nekomata', kind:'nekomata', label:'西殿の猫又', x:1030, y:2050, radius:66, aura:155, restore:12, color:'#d5a865' },
+        { id:'statue-kitsune', kind:'whiteFox', label:'東殿の白狐', x:5370, y:2050, radius:66, aura:155, restore:12, color:'#edf7ff' }
+      );
+      this.terrain.torii.push(
+        {id:'torii-south-main',x:3200,y:4260,w:420,h:120},
+        {id:'torii-garden-west',x:1840,y:2100,w:180,h:90},
+        {id:'torii-garden-east',x:4380,y:2100,w:180,h:90}
+      );
+
+      // Garden decorations and stone borders double as low cover.
+      const stoneBorders = [
+        [2010,1060,2380,26],[2010,3300,2380,26],[1970,1110,26,2180],[4404,1110,26,2180],
+        [2740,1700,940,24],[2740,2290,940,24]
+      ];
+      stoneBorders.forEach((r,i)=>addWall(`garden-stone-${i}`,r[0],r[1],r[2],r[3],'shrineStone',250,{respawnable:true,respawnDelay:[48,72]}));
+
+      for (let i = 0; i < BASE_PICKUP_COUNT; i++) this.pickups.push(this.makePickup());
+      this.pickupStats.baseSpawned = BASE_PICKUP_COUNT;
+      this.pickupStats.peakTotal = this.pickups.length;
     }
 
     generateDesertArena() {
@@ -3061,6 +3221,13 @@
     updateLightSources(dt){
       for(let i=this.lightSources.length-1;i>=0;i--){
         const light=this.lightSources[i];
+        if(light.kind==='sakeBarrel'){
+          if(light.hp>0){ light.ignited=false; continue; }
+          if(!light.destroyedLogged){ light.destroyedLogged=true; light.respawnTimer=rand(52,76); this.lifecycleStats.lightsDestroyed += 1; this.logEvent('sake_barrel_destroyed',light.id,false); }
+          light.respawnTimer-=dt;
+          if(light.respawnTimer<=0){ light.hp=light.maxHp; light.respawnTimer=0; light.destroyedLogged=false; light.ignited=false; this.lifecycleStats.lightsRespawned += 1; this.logEvent('sake_barrel_respawn',light.id,false); }
+          continue;
+        }
         if(light.temporary){
           light.ttl-=dt;
           if(light.ttl<=0){this.lightSources.splice(i,1);continue;}
@@ -3072,6 +3239,18 @@
         light.respawnTimer-=dt;
         if(light.respawnTimer<=0){ light.hp=light.maxHp; light.respawnTimer=0; light.destroyedLogged=false; this.lifecycleStats.lightsRespawned += 1; this.logEvent('light_respawn',light.id); }
       }
+    }
+
+    igniteSakeBarrel(barrel, ownerId, team) {
+      if(!barrel||barrel.kind!=='sakeBarrel'||barrel.hp<=0||barrel.ignited) return;
+      barrel.ignited=true;
+      barrel.hp=0;
+      barrel.destroyedLogged=true;
+      barrel.respawnTimer=rand(52,76);
+      this.lifecycleStats.sakeExplosions+=1;
+      this.effects.push({type:'sakeBurst',x:barrel.x,y:barrel.y,radius:185,ttl:.65,maxTtl:.65});
+      this.logEvent('sake_barrel_explosion',barrel.id);
+      this.explode(barrel.x,barrel.y,185,86,ownerId,team,null,'酒樽爆発',{sourceKey:'sakeBarrelExplosion',sakeChain:true});
     }
 
     updateGasFields(dt){
@@ -4420,7 +4599,8 @@
 
     consumeTrion(p, amount, silent = false) {
       const relief = this.desertReliefState(p);
-      const effectiveAmount = amount * relief.multiplier;
+      const snow = this.shrineGardenState(p);
+      const effectiveAmount = amount * relief.multiplier * snow.multiplier;
       if (p.trion + 0.001 < effectiveAmount) {
         if (p.human && !silent) this.toast('トリオン不足');
         return false;
@@ -5234,9 +5414,13 @@
       if (p.slowTimer <= 0) p.slowFactor = 1;
 
       const desertRelief = this.desertReliefState(p);
+      const shrineGarden = this.shrineGardenState(p);
       p.desertRelieved = desertRelief.relieved;
       p.desertTrionMultiplier = desertRelief.multiplier;
       p.desertReliefLabel = desertRelief.label;
+      p.shrineGardenDebuff = shrineGarden.active;
+      p.shrineGardenLabel = shrineGarden.label;
+      this.updateShrineBlessings(p,dt);
       if (!p.human && p.trion < p.maxTrion * .22 && (p.toggles.bagworm || p.toggles.bagwormTag || p.toggles.chameleon)) {
         p.toggles.bagworm = false;
         p.toggles.bagwormTag = false;
@@ -5247,7 +5431,7 @@
       if (p.toggles.bagworm) drain += DATA.triggers.bagworm.drain;
       if (p.toggles.bagwormTag) drain += DATA.triggers.bagwormTag.drain;
       if (p.toggles.chameleon) drain += DATA.triggers.chameleon.drain;
-      drain *= desertRelief.multiplier;
+      drain *= desertRelief.multiplier * shrineGarden.multiplier;
       if (p.toggles.bagworm || p.toggles.bagwormTag) p.metrics.bagwormHiddenSeconds += dt;
       if (p.toggles.chameleon) p.metrics.chameleonHiddenSeconds += dt;
       if (drain > 0) {
@@ -6143,6 +6327,7 @@
         if (Number.isFinite(score)) candidates.push({ target: other, type: 'player', score });
       }
       for (const beacon of this.beacons) {
+        if(beacon.hp<=0||beacon.active===false||beacon.ttl<=0) continue;
         if (beacon.team === p.team && (this.config.mode === 'team' || this.isDefenseMode)) continue;
         candidates.push({ target: beacon, type: 'beacon', score: this.scoreAITargetCandidate(p, beacon, 'beacon') });
       }
@@ -6183,7 +6368,7 @@
 
     resolveAITarget(p) {
       if (!p.ai.target) return null;
-      if (p.ai.targetType === 'beacon') return this.beacons.find((beacon) => beacon.id === p.ai.target) || null;
+      if (p.ai.targetType === 'beacon') return this.beacons.find((beacon) => beacon.id === p.ai.target && beacon.hp > 0 && beacon.active !== false) || null;
       const target = this.players.find((other) => other.id === p.ai.target);
       return target && !target.dead ? target : null;
     }
@@ -6503,7 +6688,8 @@
         for (const light of this.lightSources) {
           if(light.hp<=0) continue;
           if (Math.hypot(p.x-light.x,p.y-light.y) < p.radius+light.radius) {
-            light.hp-=Math.max(4,p.damage);
+            if(light.kind==='sakeBarrel'&&p.explosive) this.igniteSakeBarrel(light,p.ownerId,p.team);
+            else light.hp-=Math.max(4,p.damage)*(light.kind==='sakeBarrel'?.35:1);
             if(p.explosive) this.explode(p.x,p.y,p.explosionRadius,p.damage,p.ownerId,p.team,null,p.sourceName,{sourceKey:p.sourceKey,activationId:p.activationId,projectileId:p.id,rangeProfile:p.rangeProfile,originX:p.originX,originY:p.originY});
             this.projectiles.splice(i,1); removed=true; break;
           }
@@ -6599,6 +6785,10 @@
         const ignitionTargets = this.terrain.gasFields.filter((gas) => gas.active && Math.hypot(gas.x - x, gas.y - y) <= radius + gas.radius + 45);
         for (const gas of ignitionTargets) this.igniteGasField(gas, ownerId, team);
       }
+      if (this.mapId === 'snowShrine' && !context.sakeChain) {
+        const barrels = this.lightSources.filter((light) => light.kind==='sakeBarrel'&&light.hp>0&&Math.hypot(light.x-x,light.y-y)<=radius+light.radius+28);
+        for(const barrel of barrels) this.igniteSakeBarrel(barrel,ownerId,team);
+      }
       this.effects.push({ type: 'explosion', x, y, radius, ttl: .44, maxTtl: .44 });
       const owner = this.players.find((player) => player.id === ownerId) || null;
       let hitCount = 0;
@@ -6690,7 +6880,7 @@
         if (fullGuard || inArc) {
           const movementPenalty = Math.hypot(target.vx, target.vy) > target.speed * .25 ? .74 : 1;
           const shieldStrength = shields.reduce((sum, shield) => sum + shield.strength, 0) * movementPenalty;
-          const trionCost = amount * .12 / Math.max(shieldStrength, .4);
+          const trionCost = amount * .12 / Math.max(shieldStrength, .4) * this.desertReliefState(target).multiplier * this.shrineGardenState(target).multiplier;
           if (target.trion >= trionCost) {
             target.trion -= trionCost;
             target.metrics.trionSpent += trionCost;
@@ -6785,10 +6975,19 @@
       for (let i = this.walls.length - 1; i >= 0; i--) {
         const wall = this.walls[i];
         if (wall.type === 'building') continue;
+        if(wall.type==='shoji'&&wall.respawnable){
+          if(wall.hp<=0){
+            if(!wall.destroyedLogged){wall.destroyedLogged=true;wall.respawnTimer=Array.isArray(wall.respawnDelay)?rand(wall.respawnDelay[0],wall.respawnDelay[1]):26;this.lifecycleStats.terrainDestroyed+=1;this.logEvent('terrain_destroyed',`shoji:${wall.id}`,false);}
+            wall.respawnTimer-=dt;
+            const cx=wall.x+wall.w/2,cy=wall.y+wall.h/2;
+            if(wall.respawnTimer<=0&&!this.players.some(p=>!p.dead&&Math.hypot(p.x-cx,p.y-cy)<Math.max(65,Math.max(wall.w,wall.h)*.62))){wall.hp=wall.maxHp;wall.destroyedLogged=false;wall.respawnTimer=0;this.lifecycleStats.terrainRespawned+=1;this.logEvent('terrain_respawn',`shoji:${wall.id}`,false);}
+          }
+          continue;
+        }
         wall.ttl -= dt;
         if (wall.ttl <= 0 || wall.hp <= 0) {
           const destroyed=wall.hp<=0;
-          if(destroyed&&['tree','buildingWall','fortressWall','bridge','barricade'].includes(wall.type)){ this.lifecycleStats.terrainDestroyed += 1; this.logEvent('terrain_destroyed',`${wall.type}:${wall.id}`,false); }
+          if(destroyed&&['tree','buildingWall','fortressWall','bridge','barricade','shoji','templeWall','shrineStone'].includes(wall.type)){ this.lifecycleStats.terrainDestroyed += 1; this.logEvent('terrain_destroyed',`${wall.type}:${wall.id}`,false); }
           if(!destroyed&&wall.ttl<=0&&!wall.respawnable) this.lifecycleStats.placedDespawned += 1;
           if(destroyed&&wall.respawnable){
             const delay=Array.isArray(wall.respawnDelay)?rand(wall.respawnDelay[0],wall.respawnDelay[1]):60;
@@ -6818,6 +7017,23 @@
       }
       for (let i = this.beacons.length - 1; i >= 0; i--) {
         const beacon = this.beacons[i];
+        if(beacon.shrineSpirit){
+          beacon.maxHp=beacon.maxHp||42;
+          beacon.exposedTeams||={};
+          if(beacon.hp<=0){
+            if(beacon.active!==false){ beacon.active=false; beacon.respawnTimer=rand(28,42); this.lifecycleStats.spiritsDestroyed+=1; this.logEvent('hitodama_destroyed',beacon.id,false); }
+            beacon.respawnTimer-=dt;
+            if(beacon.respawnTimer<=0){ beacon.hp=beacon.maxHp; beacon.active=true; beacon.x=beacon.spawnX; beacon.y=beacon.spawnY; beacon.vx=rand(-24,24); beacon.vy=rand(-24,24); beacon.exposedTeams={}; this.lifecycleStats.spiritsRespawned+=1; this.logEvent('hitodama_respawn',beacon.id,false); }
+            continue;
+          }
+          beacon.vx=Number.isFinite(beacon.vx)?beacon.vx:rand(-24,24);
+          beacon.vy=Number.isFinite(beacon.vy)?beacon.vy:rand(-24,24);
+          beacon.x+=beacon.vx*dt; beacon.y+=beacon.vy*dt;
+          if(beacon.x<beacon.minX||beacon.x>beacon.maxX){beacon.vx*=-1;beacon.x=clamp(beacon.x,beacon.minX,beacon.maxX);}
+          if(beacon.y<beacon.minY||beacon.y>beacon.maxY){beacon.vy*=-1;beacon.y=clamp(beacon.y,beacon.minY,beacon.maxY);}
+          if(Math.random()<.012){beacon.vx=rand(-34,34);beacon.vy=rand(-34,34);}
+          continue;
+        }
         beacon.ttl -= dt;
         beacon.vx = Number.isFinite(beacon.vx) ? beacon.vx : rand(-32, 32);
         beacon.vy = Number.isFinite(beacon.vy) ? beacon.vy : rand(-32, 32);
@@ -7159,6 +7375,7 @@
       this.drawWalls(ctx);
       this.drawInstallations(ctx);
       this.drawDesertFeatures(ctx);
+      this.drawSnowShrineFeatures(ctx);
       this.drawLightSources(ctx);
       this.drawDefenseFlag(ctx);
       this.drawDefenseHazards(ctx);
@@ -7225,7 +7442,88 @@
 
     renderTerrainChunk(chunk) {
       if (this.mapId === 'desert') this.renderDesertTerrainChunk(chunk);
+      else if (this.mapId === 'snowShrine') this.renderSnowShrineTerrainChunk(chunk);
       else this.renderCityTerrainChunk(chunk);
+    }
+
+    drawJapanesePattern(ctx, rect, motif='asanoha') {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(rect.x,rect.y,rect.w,rect.h); ctx.clip();
+      ctx.strokeStyle='rgba(111,38,52,.18)'; ctx.lineWidth=2;
+      const step=motif==='seigaiha'?42:motif==='kikkou'?48:40;
+      for(let y=rect.y-step;y<rect.y+rect.h+step;y+=step){
+        for(let x=rect.x-step;x<rect.x+rect.w+step;x+=step){
+          if(motif==='seigaiha'){
+            ctx.beginPath();ctx.arc(x,y,step*.45,Math.PI,TAU);ctx.stroke();
+            ctx.beginPath();ctx.arc(x,y,step*.28,Math.PI,TAU);ctx.stroke();
+          }else if(motif==='kikkou'){
+            ctx.beginPath();for(let i=0;i<6;i++){const a=i/6*TAU,px=x+Math.cos(a)*step*.34,py=y+Math.sin(a)*step*.34;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py)}ctx.closePath();ctx.stroke();
+          }else if(motif==='shippo'){
+            ctx.beginPath();ctx.arc(x,y,step*.28,0,TAU);ctx.stroke();ctx.beginPath();ctx.arc(x+step*.28,y,step*.28,0,TAU);ctx.stroke();
+          }else{
+            ctx.beginPath();ctx.moveTo(x-step*.36,y);ctx.lineTo(x,y-step*.36);ctx.lineTo(x+step*.36,y);ctx.lineTo(x,y+step*.36);ctx.closePath();ctx.stroke();
+            ctx.beginPath();ctx.moveTo(x-step*.36,y-step*.36);ctx.lineTo(x+step*.36,y+step*.36);ctx.moveTo(x+step*.36,y-step*.36);ctx.lineTo(x-step*.36,y+step*.36);ctx.stroke();
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    renderSnowShrineTerrainChunk(chunk) {
+      const ctx=chunk.canvas.getContext('2d',{alpha:false});
+      ctx.imageSmoothingEnabled=false;
+      ctx.save();ctx.translate(-chunk.x,-chunk.y);ctx.beginPath();ctx.rect(chunk.x,chunk.y,chunk.width,chunk.height);ctx.clip();
+      const x0=chunk.x,y0=chunk.y,x1=x0+chunk.width,y1=y0+chunk.height;
+      const snow=['#dce8ee','#e8f1f5','#cfdde5','#f3f7f9'];
+      ctx.fillStyle='#d9e6ec';ctx.fillRect(x0,y0,chunk.width,chunk.height);
+      for(let y=Math.floor(y0/32)*32;y<y1;y+=32)for(let x=Math.floor(x0/32)*32;x<x1;x+=32){
+        const index=((x/32|0)*5+(y/32|0)*3)%snow.length;ctx.fillStyle=snow[index];ctx.fillRect(x,y,32,32);
+        ctx.fillStyle='rgba(104,135,150,.09)';ctx.fillRect(x+5,y+23,18,3);
+      }
+      for(const garden of this.terrain.shrineGardens){
+        if(garden.x>x1||garden.x+garden.w<x0||garden.y>y1||garden.y+garden.h<y0)continue;
+        ctx.fillStyle='#eaf3f6';ctx.fillRect(garden.x,garden.y,garden.w,garden.h);
+        ctx.strokeStyle='rgba(119,143,153,.34)';ctx.lineWidth=3;ctx.strokeRect(garden.x+6,garden.y+6,garden.w-12,garden.h-12);
+        for(let y=garden.y+40;y<garden.y+garden.h;y+=88){ctx.strokeStyle='rgba(113,139,150,.08)';ctx.beginPath();ctx.moveTo(garden.x+18,y);ctx.bezierCurveTo(garden.x+garden.w*.32,y-22,garden.x+garden.w*.66,y+22,garden.x+garden.w-18,y);ctx.stroke();}
+      }
+      for(const drift of this.terrain.snowDrifts){
+        if(drift.x>x1||drift.x+drift.w<x0||drift.y>y1||drift.y+drift.h<y0)continue;
+        const g=ctx.createRadialGradient(drift.x+drift.w*.5,drift.y+drift.h*.45,10,drift.x+drift.w*.5,drift.y+drift.h*.5,Math.max(drift.w,drift.h)*.55);
+        g.addColorStop(0,'rgba(255,255,255,.96)');g.addColorStop(1,'rgba(178,204,216,.18)');ctx.fillStyle=g;ctx.fillRect(drift.x,drift.y,drift.w,drift.h);
+      }
+      for(const pond of this.terrain.frozenPonds){
+        if(pond.x>x1||pond.x+pond.w<x0||pond.y>y1||pond.y+pond.h<y0)continue;
+        ctx.fillStyle='#a9d5e6';ctx.fillRect(pond.x,pond.y,pond.w,pond.h);
+        ctx.strokeStyle='rgba(238,252,255,.78)';ctx.lineWidth=4;ctx.strokeRect(pond.x+5,pond.y+5,pond.w-10,pond.h-10);
+        ctx.strokeStyle='rgba(85,149,174,.34)';ctx.lineWidth=2;
+        for(let i=0;i<12;i++){const sx=pond.x+40+(i*83)%Math.max(80,pond.w-80),sy=pond.y+30+(i*47)%Math.max(60,pond.h-60);ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx+Math.sin(i*2.17)*52,sy+28+(i*19)%47);ctx.stroke();}
+      }
+      for(const court of this.terrain.shrineCourts){
+        if(court.x>x1||court.x+court.w<x0||court.y>y1||court.y+court.h<y0)continue;
+        ctx.fillStyle='#c8d3d7';ctx.fillRect(court.x,court.y,court.w,court.h);
+        this.drawJapanesePattern(ctx,court,'kikkou');
+      }
+      for(const corridor of this.terrain.shrineCorridors){
+        if(corridor.x>x1||corridor.x+corridor.w<x0||corridor.y>y1||corridor.y+corridor.h<y0)continue;
+        ctx.fillStyle='#b88a61';ctx.fillRect(corridor.x,corridor.y,corridor.w,corridor.h);
+        ctx.fillStyle='rgba(245,218,171,.35)';
+        if(corridor.w>corridor.h)for(let x=corridor.x;x<corridor.x+corridor.w;x+=36)ctx.fillRect(x,corridor.y,2,corridor.h);
+        else for(let y=corridor.y;y<corridor.y+corridor.h;y+=36)ctx.fillRect(corridor.x,y,corridor.w,2);
+        this.drawJapanesePattern(ctx,corridor,corridor.motif);
+      }
+      for(const room of this.terrain.shrineRooms){
+        if(room.x>x1||room.x+room.w<x0||room.y>y1||room.y+room.h<y0)continue;
+        ctx.fillStyle='#d8c59b';ctx.fillRect(room.x,room.y,room.w,room.h);
+        for(let y=room.y+8;y<room.y+room.h;y+=48)for(let x=room.x+8;x<room.x+room.w;x+=96){ctx.fillStyle=((x+y)/48|0)%2?'#d2bd90':'#e1cfa8';ctx.fillRect(x,y,88,40);}
+        ctx.strokeStyle='rgba(78,47,31,.3)';ctx.lineWidth=5;ctx.strokeRect(room.x+8,room.y+8,room.w-16,room.h-16);
+        this.drawJapanesePattern(ctx,room,room.motif);
+        ctx.fillStyle='rgba(69,34,32,.7)';ctx.font='900 20px serif';ctx.textAlign='center';ctx.fillText(room.label,room.x+room.w*.5,room.y+36);
+      }
+      for(const torii of this.terrain.torii){
+        if(torii.x+torii.w<x0||torii.x-torii.w>x1||torii.y+torii.h<y0||torii.y-torii.h>y1)continue;
+        ctx.fillStyle='rgba(156,35,39,.18)';ctx.fillRect(torii.x-torii.w*.5,torii.y-torii.h*.15,torii.w,torii.h*.3);
+      }
+      ctx.restore();
     }
 
     renderDesertTerrainChunk(chunk) {
@@ -7392,9 +7690,55 @@
       }
     }
 
+    drawSnowShrineFeatures(ctx){
+      if(this.mapId!=='snowShrine') return;
+      for(const torii of this.terrain.torii){
+        if(!this.inView(torii.x,torii.y,torii.w*.7)) continue;
+        ctx.fillStyle='#9d2731';ctx.fillRect(torii.x-torii.w*.46,torii.y-torii.h*.48,20,torii.h);
+        ctx.fillRect(torii.x+torii.w*.46-20,torii.y-torii.h*.48,20,torii.h);
+        ctx.fillStyle='#bb3540';ctx.fillRect(torii.x-torii.w*.55,torii.y-torii.h*.52,torii.w*1.1,22);
+        ctx.fillStyle='#742028';ctx.fillRect(torii.x-torii.w*.44,torii.y-torii.h*.31,torii.w*.88,16);
+        ctx.fillStyle='#15191c';ctx.fillRect(torii.x-torii.w*.58,torii.y-torii.h*.56,torii.w*1.16,8);
+      }
+      for(const statue of this.terrain.shrineStatues){
+        if(!this.inView(statue.x,statue.y,190)) continue;
+        const pulse=.45+Math.sin(this.elapsed*2.3+(statue.kind==='whiteFox'?1.4:0))*.12;
+        const glow=ctx.createRadialGradient(statue.x,statue.y,18,statue.x,statue.y,statue.aura);
+        glow.addColorStop(0,`${statue.color}${Math.round(pulse*255).toString(16).padStart(2,'0')}`);glow.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(statue.x,statue.y,statue.aura,0,TAU);ctx.fill();
+        ctx.fillStyle='#6c7377';ctx.fillRect(statue.x-42,statue.y+28,84,28);
+        ctx.fillStyle=statue.color;ctx.beginPath();ctx.arc(statue.x,statue.y-2,30,0,TAU);ctx.fill();
+        ctx.fillStyle='#30383c';
+        if(statue.kind==='whiteFox'){
+          ctx.beginPath();ctx.moveTo(statue.x-24,statue.y-22);ctx.lineTo(statue.x-10,statue.y-52);ctx.lineTo(statue.x-2,statue.y-18);ctx.fill();
+          ctx.beginPath();ctx.moveTo(statue.x+24,statue.y-22);ctx.lineTo(statue.x+10,statue.y-52);ctx.lineTo(statue.x+2,statue.y-18);ctx.fill();
+        }else{
+          ctx.beginPath();ctx.moveTo(statue.x-22,statue.y-20);ctx.lineTo(statue.x-12,statue.y-45);ctx.lineTo(statue.x-3,statue.y-17);ctx.fill();
+          ctx.beginPath();ctx.moveTo(statue.x+22,statue.y-20);ctx.lineTo(statue.x+12,statue.y-45);ctx.lineTo(statue.x+3,statue.y-17);ctx.fill();
+          ctx.strokeStyle=statue.color;ctx.lineWidth=8;ctx.beginPath();ctx.arc(statue.x+37,statue.y+4,28,-1.5,1.2);ctx.stroke();
+        }
+        ctx.fillStyle='#201a1b';ctx.fillRect(statue.x-13,statue.y-7,5,5);ctx.fillRect(statue.x+8,statue.y-7,5,5);
+        ctx.font='900 10px serif';ctx.textAlign='center';ctx.fillStyle='rgba(255,255,255,.88)';ctx.fillText(statue.label,statue.x,statue.y+72);
+      }
+      // Local snowfall is restricted to the garden and remains independent of weather settings.
+      const garden=this.terrain.shrineGardens[0];
+      if(garden){
+        ctx.save();ctx.beginPath();ctx.rect(garden.x,garden.y,garden.w,garden.h);ctx.clip();ctx.fillStyle='rgba(255,255,255,.72)';
+        const flakes=this.onlineReducedEffects?34:70;
+        for(let i=0;i<flakes;i++){const x=garden.x+(i*137+this.elapsed*(18+(i%5)*7))%garden.w;const y=garden.y+(i*83+this.elapsed*(42+(i%4)*11))%garden.h;const r=1+(i%3);ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();}
+        ctx.restore();
+      }
+    }
+
     drawLightSources(ctx){
       for(const light of this.lightSources){
-        if(light.hp<=0||!this.inView(light.x,light.y,light.lightRadius+30)) continue;
+        if(light.hp<=0||!this.inView(light.x,light.y,Math.max(55,(light.lightRadius||0)+30))) continue;
+        if(light.kind==='sakeBarrel'){
+          ctx.fillStyle='#6f3d24';ctx.beginPath();ctx.arc(light.x,light.y,19,0,TAU);ctx.fill();
+          ctx.strokeStyle='#c8a568';ctx.lineWidth=4;ctx.beginPath();ctx.arc(light.x,light.y,15,0,TAU);ctx.stroke();
+          ctx.fillStyle='#2c211b';ctx.fillRect(light.x-20,light.y-4,40,7);ctx.fillRect(light.x-20,light.y+8,40,6);
+          ctx.fillStyle='#f4dfb0';ctx.font='900 10px serif';ctx.textAlign='center';ctx.fillText('酒',light.x,light.y+4);
+          continue;
+        }
         if(this.environment.timeOfDay==='night'||light.fire){
           const glow=ctx.createRadialGradient(light.x,light.y,4,light.x,light.y,light.fire?68:55);
           glow.addColorStop(0,light.fire?'rgba(255,191,74,.72)':'rgba(255,241,170,.55)');
@@ -7406,9 +7750,15 @@
           ctx.fillStyle='#ffb13b';ctx.beginPath();ctx.moveTo(light.x,light.y-22);ctx.lineTo(light.x-10,light.y-5);ctx.lineTo(light.x,light.y);ctx.lineTo(light.x+10,light.y-5);ctx.closePath();ctx.fill();
           ctx.fillStyle='#fff1a2';ctx.fillRect(light.x-3,light.y-12,6,9);
         }else{
-          this.drawCubeRect(ctx,light.x-7,light.y-10,14,22,'#59616a','#818b93','#353b42');
-          ctx.fillStyle='#fff1a8';ctx.fillRect(light.x-9,light.y-18,18,10);
-          ctx.strokeStyle='rgba(255,252,210,.9)';ctx.strokeRect(light.x-9,light.y-18,18,10);
+          if(light.kind==='shrineLantern'){
+            ctx.fillStyle='#6e777b';ctx.fillRect(light.x-5,light.y-4,10,25);ctx.fillRect(light.x-14,light.y+18,28,7);
+            ctx.fillStyle='#30383b';ctx.fillRect(light.x-13,light.y-23,26,20);ctx.fillStyle='#ffe6a6';ctx.fillRect(light.x-8,light.y-19,16,12);
+            ctx.fillStyle='#6e1f2b';ctx.fillRect(light.x-16,light.y-27,32,5);
+          }else{
+            this.drawCubeRect(ctx,light.x-7,light.y-10,14,22,'#59616a','#818b93','#353b42');
+            ctx.fillStyle='#fff1a8';ctx.fillRect(light.x-9,light.y-18,18,10);
+            ctx.strokeStyle='rgba(255,252,210,.9)';ctx.strokeRect(light.x-9,light.y-18,18,10);
+          }
         }
       }
     }
@@ -7434,7 +7784,7 @@
         const viewer=this.getHudSubject();
         if(viewer&&!viewer.dead) reveal(viewer.x,viewer.y,75,215,1);
         for(const pickup of this.pickups) if(pickup.active) reveal(pickup.x,pickup.y,8,48+pickup.value*7,.72);
-        for(const light of this.lightSources) if(light.hp>0) reveal(light.x,light.y,55,light.lightRadius,1);
+        for(const light of this.lightSources) if(light.hp>0&&(light.lightRadius||0)>0) reveal(light.x,light.y,55,light.lightRadius,1);
         if(this.isDefenseMode&&this.defenseFlag) reveal(this.defenseFlag.x,this.defenseFlag.y,45,150,.82);
         overlay.globalCompositeOperation='source-over';
       } else if(this.environment.timeOfDay==='morning'){
@@ -7472,10 +7822,16 @@
 
     drawWalls(ctx) {
       for (const wall of this.walls) {
-        if (!this.rectInView(wall)) continue;
+        if (wall.hp<=0||!this.rectInView(wall)) continue;
         const hp = Number.isFinite(wall.maxHp) ? clamp(wall.hp / wall.maxHp, 0, 1) : 1;
-        const palette = wall.type==='tree'?['#285844','#39755a','#17392c']:wall.type==='bridge'?['#6c6557','#8e846f','#4c473d']:wall.type==='fortressWall'?['#8d6b43','#b28d59','#654b31']:wall.type==='buildingWall'?['#263e49','#385965','#172a33']:wall.type==='barricade'?['#375d69','#4d8090','#203b44']:['#2f6973','#448c96','#1c434a'];
+        const palette = wall.type==='tree'?['#285844','#39755a','#17392c']:wall.type==='bridge'?['#6c6557','#8e846f','#4c473d']:wall.type==='fortressWall'?['#8d6b43','#b28d59','#654b31']:wall.type==='buildingWall'?['#263e49','#385965','#172a33']:wall.type==='shoji'?['#eee8d7','#fffdf5','#a87e55']:wall.type==='templeWall'?['#5f2c2e','#8b4448','#351b20']:wall.type==='shrineStone'?['#7c8588','#a5afb2','#535c60']:wall.type==='barricade'?['#375d69','#4d8090','#203b44']:['#2f6973','#448c96','#1c434a'];
         this.drawCubeRect(ctx,wall.x,wall.y,wall.w,wall.h,...palette);
+        if(wall.type==='shoji'){
+          ctx.strokeStyle='rgba(112,79,45,.65)';ctx.lineWidth=2;
+          const cols=Math.max(1,Math.floor(wall.w/34)),rows=Math.max(1,Math.floor(wall.h/34));
+          for(let c=1;c<cols;c++){const gx=wall.x+wall.w*c/cols;ctx.beginPath();ctx.moveTo(gx,wall.y);ctx.lineTo(gx,wall.y+wall.h);ctx.stroke();}
+          for(let r=1;r<rows;r++){const gy=wall.y+wall.h*r/rows;ctx.beginPath();ctx.moveTo(wall.x,gy);ctx.lineTo(wall.x+wall.w,gy);ctx.stroke();}
+        }
         if(Number.isFinite(wall.maxHp)){ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(wall.x,wall.y-6,wall.w,3);ctx.fillStyle=hp>.35?'#72e4bc':'#ff6879';ctx.fillRect(wall.x,wall.y-6,wall.w*hp,3);}
       }
     }
@@ -7509,7 +7865,14 @@
         ctx.strokeRect(trap.x-5,trap.y-5,10,10);
       }
       for (const beacon of this.beacons) {
-        if (!this.inView(beacon.x, beacon.y, 25)) continue;
+        if(beacon.hp<=0||beacon.active===false||!this.inView(beacon.x, beacon.y, 40)) continue;
+        if(beacon.shrineSpirit){
+          const pulse=9+Math.sin(this.elapsed*5+beacon.x*.01)*3;
+          const glow=ctx.createRadialGradient(beacon.x,beacon.y,2,beacon.x,beacon.y,34);glow.addColorStop(0,'rgba(178,255,238,.92)');glow.addColorStop(.4,'rgba(89,210,219,.48)');glow.addColorStop(1,'rgba(65,158,180,0)');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(beacon.x,beacon.y,34,0,TAU);ctx.fill();
+          ctx.fillStyle='#bfffee';ctx.beginPath();ctx.arc(beacon.x,beacon.y,pulse,0,TAU);ctx.fill();
+          ctx.fillStyle='rgba(115,220,222,.7)';ctx.beginPath();ctx.moveTo(beacon.x-6,beacon.y+5);ctx.quadraticCurveTo(beacon.x-14,beacon.y+24,beacon.x+2,beacon.y+30);ctx.quadraticCurveTo(beacon.x+12,beacon.y+19,beacon.x+6,beacon.y+6);ctx.fill();
+          continue;
+        }
         ctx.fillStyle = beacon.defenseDecoy ? '#ffd96a' : '#79d7ff';
         ctx.strokeStyle = beacon.defenseDecoy ? '#fff1b8' : '#d8f7ff';
         ctx.lineWidth = 1.5;
@@ -7859,12 +8222,14 @@
           ctx.translate(e.x, e.y); ctx.rotate(e.angle);
           ctx.strokeRect(-17, -17, 34, 34);
           ctx.strokeRect(-10, -10, 20, 20);
-        } else if (e.type === 'explosion' || e.type === 'gasBurst') {
+        } else if(e.type==='shrineBlessing'){
+          ctx.globalAlpha=t;ctx.strokeStyle=e.color||'#dffcff';ctx.lineWidth=4;ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x2,e.y2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=e.color||'#dffcff';ctx.beginPath();ctx.arc(e.x2,e.y2,18+(1-t)*35,0,TAU);ctx.fill();
+        } else if (e.type === 'explosion' || e.type === 'gasBurst' || e.type === 'sakeBurst') {
           const progress = 1 - t;
-          ctx.globalAlpha = t * (e.type === 'gasBurst' ? .84 : .72);
-          ctx.fillStyle = e.type === 'gasBurst' ? '#d7ef7b' : '#ff9e53';
+          ctx.globalAlpha = t * (e.type === 'gasBurst' ? .84 : e.type === 'sakeBurst' ? .9 : .72);
+          ctx.fillStyle = e.type === 'gasBurst' ? '#d7ef7b' : e.type === 'sakeBurst' ? '#ffb33f' : '#ff9e53';
           ctx.beginPath(); ctx.arc(e.x, e.y, e.radius * (.2 + progress * .8), 0, TAU); ctx.fill();
-          ctx.strokeStyle = e.type === 'gasBurst' ? '#fff8be' : '#fff1b7'; ctx.lineWidth = e.type === 'gasBurst' ? 9 : 5; ctx.stroke();
+          ctx.strokeStyle = e.type === 'gasBurst' ? '#fff8be' : e.type === 'sakeBurst' ? '#fff1a8' : '#fff1b7'; ctx.lineWidth = e.type === 'gasBurst' ? 9 : e.type === 'sakeBurst' ? 7 : 5; ctx.stroke();
         } else if (e.type === 'shieldHit') {
           ctx.globalAlpha = t;
           ctx.strokeStyle = '#b6f7ff'; ctx.lineWidth = 7;
@@ -7979,10 +8344,10 @@
       const h = this.radarCanvas.height;
       const observer = this.getHudSubject() || { id: '', team: this.playerTeam };
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = this.mapId === 'desert' ? '#a88445' : '#06131d'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = this.mapId === 'desert' ? '#a88445' : this.mapId === 'snowShrine' ? '#d7e5eb' : '#06131d'; ctx.fillRect(0, 0, w, h);
       const sx = w / this.world.w;
       const sy = h / this.world.h;
-      ctx.fillStyle=this.mapId === 'desert'?'rgba(120,83,43,.45)':'rgba(75,95,105,.3)'; for(const r of this.terrain.roads) ctx.fillRect(r.x*sx,r.y*sy,r.w*sx,r.h*sy);
+      ctx.fillStyle=this.mapId === 'desert'?'rgba(120,83,43,.45)':this.mapId==='snowShrine'?'rgba(135,91,65,.42)':'rgba(75,95,105,.3)'; for(const r of this.terrain.roads) ctx.fillRect(r.x*sx,r.y*sy,r.w*sx,r.h*sy);
       const river=this.terrain.rivers[0];
       if(river){ctx.strokeStyle='rgba(42,127,157,.55)';ctx.lineWidth=Math.max(2,river.width*sy);ctx.beginPath();for(let x=0;x<=this.world.w;x+=90){const y=this.riverCenterAt(x);if(x===0)ctx.moveTo(x*sx,y*sy);else ctx.lineTo(x*sx,y*sy)}ctx.stroke();}
       if(this.mapId==='desert'){
@@ -7990,17 +8355,24 @@
         ctx.fillStyle='rgba(83,53,28,.55)';for(const cliff of this.terrain.cliffs)ctx.fillRect(cliff.x*sx,cliff.y*sy,Math.max(2,cliff.w*sx),Math.max(2,cliff.h*sy));
         ctx.strokeStyle='rgba(69,91,46,.8)';for(const gas of this.terrain.gasFields){if(!gas.active)continue;ctx.beginPath();ctx.arc(gas.x*sx,gas.y*sy,Math.max(2,gas.radius*sx),0,TAU);ctx.stroke();}
       }
+      if(this.mapId==='snowShrine'){
+        ctx.fillStyle='rgba(245,252,255,.75)';for(const garden of this.terrain.shrineGardens)ctx.fillRect(garden.x*sx,garden.y*sy,garden.w*sx,garden.h*sy);
+        ctx.fillStyle='rgba(130,87,57,.55)';for(const room of this.terrain.shrineRooms)ctx.fillRect(room.x*sx,room.y*sy,room.w*sx,room.h*sy);
+        ctx.fillStyle='rgba(96,171,202,.7)';for(const pond of this.terrain.frozenPonds)ctx.fillRect(pond.x*sx,pond.y*sy,pond.w*sx,pond.h*sy);
+      }
       ctx.strokeStyle = 'rgba(101,232,255,.18)'; ctx.strokeRect(.5, .5, w - 1, h - 1);
       for (const wall of this.walls) {
-        if (!['buildingWall','bridge','barricade'].includes(wall.type)) continue;
-        ctx.fillStyle = wall.type==='bridge'?'rgba(180,160,105,.5)':'rgba(85,145,165,.3)';
+        if(wall.hp<=0) continue;
+        if (!['buildingWall','bridge','barricade','shoji','templeWall','shrineStone'].includes(wall.type)) continue;
+        ctx.fillStyle = wall.type==='bridge'?'rgba(180,160,105,.5)':wall.type==='shoji'?'rgba(235,225,201,.72)':wall.type==='templeWall'?'rgba(118,42,49,.58)':'rgba(85,145,165,.3)';
         ctx.fillRect(wall.x * sx, wall.y * sy, Math.max(1,wall.w * sx), Math.max(1,wall.h * sy));
       }
       for(const facility of this.installations){if(facility.hp<=0)continue;ctx.fillStyle=facility.active?(facility.team===0?'#55eaff':'#ff8871'):'#9daeb4';ctx.fillRect(facility.x*sx-1.5,facility.y*sy-1.5,3,3);}
       for (const beacon of this.beacons) {
+        if(beacon.hp<=0||beacon.active===false) continue;
         const sameTeam = (this.config.mode === 'team' || this.isDefenseMode) && beacon.team === observer.team;
-        ctx.fillStyle = sameTeam ? '#55eaff' : '#ff8871';
-        ctx.fillRect(beacon.x*sx-2,beacon.y*sy-2,4,4);
+        ctx.fillStyle = beacon.shrineSpirit ? '#ff8871' : sameTeam ? '#55eaff' : '#ff8871';
+        const size=beacon.shrineSpirit?5:4;ctx.fillRect(beacon.x*sx-size/2,beacon.y*sy-size/2,size,size);
       }
       if (this.isDefenseMode && this.defenseFlag) {
         ctx.fillStyle = '#4ad9ff'; ctx.fillRect(this.defenseFlag.x * sx - 4, this.defenseFlag.y * sy - 4, 8, 8);
@@ -8057,6 +8429,7 @@
       if (!p) return;
       const statuses = [`${MAP_LABELS[this.mapId]}・${TIME_LABELS[this.environment.timeOfDay]}・${WEATHER_LABELS[this.environment.weather]}`];
       if (this.mapId === 'desert' && p.desertReliefLabel) statuses.push(p.desertReliefLabel);
+      if (this.mapId === 'snowShrine' && p.shrineGardenLabel) statuses.push(p.shrineGardenLabel);
       if (p.operatorOrder) statuses.push(`ORDER ${p.operatorOrder.label || p.operatorOrder.type}`);
       if (this.isPlayerOperator) statuses.push(`COMMAND ${p.name}`);
       if (this.spectating) statuses.push(`VIEW ${p.name}`);

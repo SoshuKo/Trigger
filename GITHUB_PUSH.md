@@ -1,76 +1,94 @@
-# GitHubへ反映するPowerShell手順
+# v29「雪山神殿」をGitHubへ反映する手順
 
-公開用のGitHub Pages版を、既存リポジトリ `https://github.com/SoshuKo/Trigger` の `main` ブランチへ反映する手順です。
+対象リポジトリ：`SoshuKo/Trigger`
 
-ゲームの展開先：
-
-```text
-C:\Users\chiti\OneDrive\デスクトップ\world-trigger-arena
-```
-
-ローカルGitリポジトリ：
+基準にした `main` コミット：
 
 ```text
-C:\Users\chiti\Documents\Trigger
+065fb82dbee7ef4d68aa9552da9edb8494ba8069
 ```
 
-## 更新手順
+推奨コミットメッセージ：
 
-PowerShellで実行します。
+```text
+Add Snow Mountain Shrine map
+```
+
+## 1. ZIPを展開
+
+`world-trigger-arena-github-v29-snow-shrine.zip` をダウンロードフォルダーへ展開します。
+Windows標準機能で展開した場合の例：
+
+```text
+C:\Users\ユーザー名\Downloads\world-trigger-arena-github-v29-snow-shrine\world-trigger-arena
+```
+
+## 2. PowerShellでコピー・コミット・プッシュ
+
+ローカルリポジトリを `$HOME\Documents\Trigger` に置いている場合は、以下をそのまま実行できます。
+展開先が違う場合は `$update` だけ修正してください。
 
 ```powershell
-cd "$HOME\Documents\Trigger"
+$repo = "$HOME\Documents\Trigger"
+$update = "$HOME\Downloads\world-trigger-arena-github-v29-snow-shrine\world-trigger-arena"
 
-git pull --rebase origin main
+if (-not (Test-Path "$repo\.git")) {
+    throw "Gitリポジトリが見つかりません: $repo"
+}
+if (-not (Test-Path "$update\index.html")) {
+    throw "展開した更新ファイルが見つかりません: $update"
+}
 
-robocopy "C:\Users\chiti\OneDrive\デスクトップ\world-trigger-arena" "$HOME\Documents\Trigger" /E /XD .git
+Set-Location $repo
 
-# robocopyは終了コード0～7なら通常成功です。
+git status --short
+git pull --ff-only origin main
+
+robocopy $update $repo /E /XD .git
 if ($LASTEXITCODE -ge 8) {
     throw "robocopyに失敗しました。終了コード: $LASTEXITCODE"
 }
 
 git status
-git add .
-git commit -m "Replace email signup with Edge Function registration"
+git add -A
+git commit -m "Add Snow Mountain Shrine map"
 git push origin main
 ```
 
-変更がない場合、`git commit`では `nothing to commit` と表示されます。その場合はコミットせず終了して構いません。
+`git commit`で `nothing to commit` と表示された場合は、同じ内容が既に反映されています。
 
-## pushがfetch firstで拒否された場合
+## 3. 公開確認
+
+GitHub Pagesの反映後、次を開きます。
+
+```text
+https://soshuko.github.io/Trigger/?v=29
+```
+
+古いファイルが表示される場合は `Ctrl + Shift + R` で強制再読み込みしてください。
+
+## pushが拒否された場合
 
 ```powershell
-cd "$HOME\Documents\Trigger"
+Set-Location "$HOME\Documents\Trigger"
 git pull --rebase origin main
 git push origin main
 ```
 
-競合が起きた場合は、競合ファイルを直してから次を実行します。
+競合が発生した場合は、競合ファイルを修正してから次を実行します。
 
 ```powershell
-git add .
+git add -A
 git rebase --continue
 git push origin main
 ```
 
 `git push --force`は使用しないでください。
 
-## 公開確認
+## 自分のサーバー版
 
-GitHub Pages反映後、次を開きます。
+`world-trigger-arena-server-v29-snow-shrine.zip` は、展開した中身をWebサーバーの公開ディレクトリへ上書きする静的ファイル版です。Git管理用文書やSupabaseの管理ファイルは含みません。
 
-```text
-https://soshuko.github.io/Trigger/?v=28
-```
+## Supabaseについて
 
-古いファイルが表示される場合は `Ctrl + Shift + R` で強制再読み込みします。
-
-## 直接ホスト版について
-
-直接ホスト版はNode.jsサーバーを含むため、GitHub Pagesの公開ルートへ上書きしないでください。ローカルで展開して `START_PUBLIC_HOST.bat` から起動します。ソースをGitHubへ保管する場合は、別リポジトリまたは別ブランチを推奨します。
-
-
-## Supabase更新
-
-今回の版は ``register-account-v2` Edge Functionのデプロイが必要です。GitHubへのpush後、Supabase SQL EditorでSQL全文を実行し、プロジェクトフォルダーで `DEPLOY_EDGE_FUNCTION.ps1` を実行してください。詳しくは `EDGE_FUNCTION_SETUP.md` を参照してください。
+v29はマップ追加だけなので、Supabase SQLの再実行やEdge Functionの再デプロイは不要です。
