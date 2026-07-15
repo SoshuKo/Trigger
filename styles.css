@@ -568,3 +568,5 @@ body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity
   .defense-build-panel { width:154px; bottom:148px; }
   .defense-build-grid button { min-height:36px; }
 }
+
+.hud-slot .ammo{display:block;font-size:9px;line-height:1;color:#9feaff;letter-spacing:.04em;min-height:10px;white-space:nowrap}.hud-slot .ammo.warning{color:#ffb46b}.hud-slot{min-width:72px}

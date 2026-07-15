@@ -36,8 +36,11 @@
   const TIME_LABELS = { morning: '朝', day: '昼', night: '夜' };
   const WEATHER_LABELS = { clear: '晴', cloudy: '曇り', rain: '雨' };
   const MAX_TEMP_PICKUPS = 80;
-  const MAX_BATTLE_EVENTS = 5000;
-  const TARGET_LOCK_SECONDS = { '攻撃手': 1.4, '狙撃手': 2.2, '射手': .8, '銃手': .8, '万能手': .9, '重装手': 1.05, '工作手': 1.2, 'プレイヤー': 1 };
+  const MAX_BATTLE_EVENTS = 9000;
+  const TARGET_LOCK_SECONDS = { '攻撃手': 1.8, '狙撃手': 2.7, '射手': 2.05, '銃手': 2.0, '万能手': 1.85, '重装手': 1.9, '工作手': 2.15, 'プレイヤー': 1.8 };
+  const SHOOTER_CHARGE_BASE = { asteroid: .24, hound: .31, viper: .35, meteor: .43 };
+  const MELEE_CHAIN_MAX = { kogetsu: 3, scorpion: 4, raygust: 3 };
+  const MELEE_CHAIN_STEP = { kogetsu: .16, scorpion: .125, raygust: .19 };
   const ATTACK_LABELS = {
     scorpionLong: 'スコーピオン（長刃）',
     mantis: 'マンティス',
@@ -323,8 +326,25 @@
 
   const CPU_NAMES = ['AZ-01', 'MI-02', 'KA-03', 'SU-04', 'NA-05', 'OU-06', 'IK-07', 'YU-08', 'AR-09', 'NI-10', 'KU-11', 'TS-12', 'KO-13', 'IK-14', 'SA-15', 'KI-16', 'UR-17', 'TO-18', 'EB-19'];
 
+  function balancedCpuTemplateIndex(index, source = setup) {
+    if (!isSquadModeValue(source.mode)) return index % DATA.aiLoadouts.length;
+    const team = cpuTeamForIndex(index, source);
+    let priorInTeam = 0;
+    for (let i = 0; i < index; i++) if (cpuTeamForIndex(i, source) === team) priorInTeam += 1;
+    const occupied = team === 0 && source.playerRole === 'combatant' ? 1 : 0;
+    const slot = priorInTeam + occupied;
+    const patterns = [
+      [0, 2, 3, 4],
+      [5, 2, 1, 4],
+      [6, 0, 3, 2],
+      [0, 5, 1, 4],
+    ];
+    if (Number(source.teamSize || 3) <= 1) return 0;
+    return patterns[team % patterns.length][slot % 4];
+  }
+
   function makeCpuConfig(index) {
-    const template = DATA.aiLoadouts[index % DATA.aiLoadouts.length];
+    const template = DATA.aiLoadouts[balancedCpuTemplateIndex(index)];
     const squadName = GENERIC_SQUAD_NAMES[index % GENERIC_SQUAD_NAMES.length];
     return {
       id: `cpu-${index}`,
@@ -1395,6 +1415,7 @@
           shields: player.shields, toggles: player.toggles, revealTimer: player.revealTimer,
           markedTimer: player.markedTimer, slowTimer: player.slowTimer, slowFactor: player.slowFactor,
           leadWeights: player.leadWeights, pendingComposite: player.pendingComposite,
+          shooterCharges: player.shooterCharges, gunState: player.gunState, meleeChains: player.meleeChains, reloadVisual: player.reloadVisual,
           isDefenseEnemy: Boolean(player.isDefenseEnemy), defenseType: player.defenseType || null,
           isDefenseBoss: Boolean(player.isDefenseBoss), flying: Boolean(player.flying),
           cubedTimer: player.cubedTimer || 0, borborosPhase: player.defenseAI?.phase || null,
@@ -1506,7 +1527,7 @@
         const firstState = !player.onlineSnapshotReady;
         const distance = Math.hypot(Number(state.x || 0) - Number(player.x || 0), Number(state.y || 0) - Number(player.y || 0));
         const mustSnap = firstState || wasDead !== Boolean(state.dead) || distance > 760;
-        for (const key of ['name','team','archetype','squadName','appearance','emblemPixels','stats','loadout','radius','facing','walkFrame','isMoving','maxHp','hp','maxTrion','trion','dead','respawnTimer','invulnTimer','score','kills','deaths','selected','shields','toggles','revealTimer','markedTimer','slowTimer','slowFactor','leadWeights','pendingComposite','isDefenseEnemy','defenseType','isDefenseBoss','flying','cubedTimer']) {
+        for (const key of ['name','team','archetype','squadName','appearance','emblemPixels','stats','loadout','radius','facing','walkFrame','isMoving','maxHp','hp','maxTrion','trion','dead','respawnTimer','invulnTimer','score','kills','deaths','selected','shields','toggles','revealTimer','markedTimer','slowTimer','slowFactor','leadWeights','pendingComposite','shooterCharges','gunState','meleeChains','reloadVisual','isDefenseEnemy','defenseType','isDefenseBoss','flying','cubedTimer']) {
           if (state[key] !== undefined) player[key] = state[key];
         }
         player.onlineTargetX = Number.isFinite(state.x) ? state.x : player.x;
@@ -2274,25 +2295,40 @@
       }
       this.operatorAiTimer -= dt;
       if (this.operatorAiTimer > 0) return;
-      this.operatorAiTimer = rand(6, 10);
+      this.operatorAiTimer = 1;
       for (let team = 0; team < this.teamCount; team++) {
         if (this.isPlayerOperator && team === this.playerTeam) continue;
-        const teamUnits = this.players.filter((p) => p.team === team && !p.dead);
-        for (const p of teamUnits) {
-          if (p.hp < p.maxHp * .28) { p.operatorOrder = { type: 'retreat', ...this.getTeamHome(team), label: 'オペレーター退避指示' }; continue; }
-          if (Math.random() < .2) {
-            const facility = this.findNearestInstallation(p, true);
-            if (facility && Math.hypot(p.x - facility.x, p.y - facility.y) < 900) { p.operatorOrder = { type: 'activate', installationId: facility.id, x: facility.x, y: facility.y, label: '設備起動' }; continue; }
-          }
-          const target = this.findNearestEnemy(p);
-          if (!target) continue;
-          const roll = Math.random();
-          if (roll < .18) p.operatorOrder = { type: 'flank', targetId: target.id, x: target.x + rand(-340, 340), y: target.y + rand(-340, 340), label: '側面展開' };
-          else if (roll < .3) p.operatorOrder = { type: 'defend', ...this.getTeamHome(team), label: '本部防衛' };
-          else p.operatorOrder = { type: 'focus', targetId: target.id, label: '集中攻撃' };
-        }
         const operator = this.operators.find((op) => op.team === team);
-        if (operator) operator.orders += 1;
+        if (!operator) continue;
+        operator.nextOrderAt = Number(operator.nextOrderAt || 0) - 1;
+        if (operator.nextOrderAt > 0) continue;
+        const teamUnits = this.players.filter((p) => p.team === team && !p.dead && !p.isDefenseEnemy);
+        if (!teamUnits.length) { operator.nextOrderAt = rand(10, 18); continue; }
+        const lowUnits = teamUnits.filter((p) => p.hp < p.maxHp * .28);
+        const target = this.findNearestEnemy(teamUnits[0]);
+        let order = null;
+        if (lowUnits.length) order = { type: 'retreat', ...this.getTeamHome(team), label: 'オペレーター退避指示' };
+        else if (target && Math.random() < .18) {
+          const facility = this.findNearestInstallation(teamUnits[0], true);
+          if (facility && Math.hypot(teamUnits[0].x - facility.x, teamUnits[0].y - facility.y) < 900) order = { type: 'activate', installationId: facility.id, x: facility.x, y: facility.y, label: '設備起動' };
+        }
+        if (!order && target) {
+          const roll = Math.random();
+          if (roll < .2) order = { type: 'flank', targetId: target.id, x: target.x + rand(-340, 340), y: target.y + rand(-340, 340), label: '側面展開' };
+          else if (roll < .32) order = { type: 'defend', ...this.getTeamHome(team), label: '本部防衛' };
+          else order = { type: 'focus', targetId: target.id, label: '集中攻撃' };
+        }
+        if (!order) { operator.nextOrderAt = rand(10, 18); continue; }
+        const signature = `${order.type}:${order.targetId || order.installationId || ''}:${Math.round(order.x || 0)}:${Math.round(order.y || 0)}`;
+        if (signature === operator.lastOrderSignature) { operator.nextOrderAt = rand(8, 14); continue; }
+        operator.lastOrderSignature = signature;
+        for (const p of teamUnits) { p.operatorOrder = { ...order }; p.metrics.aiOperatorOrderChanges += 1; }
+        operator.orders += 1;
+        const teamScore = this.teamScores[team] || 0;
+        const bestScore = Math.max(...this.teamScores, 1);
+        const losing = teamScore < bestScore * .72;
+        operator.nextOrderAt = rand(losing ? 7 : 10, losing ? 12 : 18);
+        this.logCombatDetail('operator_ai_order', null, { team, operator: operator.name, order: order.type, targetId: order.targetId || null, losing });
       }
     }
 
@@ -2458,6 +2494,34 @@
       if (this.debugVisible) this.updateDebugPanel(true);
     }
 
+    logCombatDetail(type, player = null, detail = {}, store = true) {
+      const event = {
+        time: Number(this.elapsed.toFixed(3)),
+        type,
+        actorId: player?.id || detail.actorId || null,
+        actorName: player?.name || detail.actorName || null,
+        team: player?.team ?? detail.team ?? null,
+        detail: JSON.parse(JSON.stringify(detail || {})),
+        message: detail.message || `${player?.name || 'SYSTEM'} ${type}`,
+      };
+      if (store) {
+        this.battleEvents.push(event);
+        if (this.battleEvents.length > MAX_BATTLE_EVENTS) this.battleEvents.splice(1, 1);
+      }
+      return event;
+    }
+
+    recordRangeSample(attacker, info, distanceValue, multiplier) {
+      if (!attacker?.metrics) return;
+      const key = info.sourceKey || info.name || 'ranged';
+      const stat = this.ensureTriggerStat(attacker, key, info.name || key);
+      stat.rangeSamples = (stat.rangeSamples || 0) + 1;
+      stat.rangeDistanceTotal = (stat.rangeDistanceTotal || 0) + distanceValue;
+      stat.optimalRangeHits = (stat.optimalRangeHits || 0) + (multiplier >= 1 ? 1 : 0);
+      stat.closePenaltyHits = (stat.closePenaltyHits || 0) + (distanceValue < info.rangeProfile.min ? 1 : 0);
+      stat.farPenaltyHits = (stat.farPenaltyHits || 0) + (distanceValue > info.rangeProfile.max ? 1 : 0);
+    }
+
     logEvent(type, message, store = true) {
       const event = { time: Number(this.elapsed.toFixed(3)), type, message };
       if (store) {
@@ -2487,6 +2551,7 @@
         name, uses: 0, projectiles: 0, projectileHits: 0, hitActivations: 0, uniqueTargetsHit: 0,
         damage: 0, kills: 0, trionSpent: 0, effectApplications: 0, effectDurationSeconds: 0,
         placements: 0, manualActivations: 0, automaticActivations: 0, damageTriggers: 0,
+        rangeSamples: 0, rangeDistanceTotal: 0, optimalRangeHits: 0, closePenaltyHits: 0, farPenaltyHits: 0,
       };
       stat.name = name || stat.name;
       return stat;
@@ -2556,8 +2621,8 @@
       const triggers = {};
       for (const player of this.players) {
         for (const [key, stat] of Object.entries(player.metrics.triggerStats || {})) {
-          const total = triggers[key] ||= { name: stat.name || key, uses: 0, projectiles: 0, projectileHits: 0, hitActivations: 0, uniqueTargetsHit: 0, damage: 0, kills: 0, trionSpent: 0, effectApplications: 0, effectDurationSeconds: 0, placements: 0, automaticActivations: 0, damageTriggers: 0 };
-          for (const field of ['uses', 'projectiles', 'projectileHits', 'hitActivations', 'uniqueTargetsHit', 'damage', 'kills', 'trionSpent', 'effectApplications', 'effectDurationSeconds', 'placements', 'automaticActivations', 'damageTriggers']) total[field] += Number(stat[field] || 0);
+          const total = triggers[key] ||= { name: stat.name || key, uses: 0, projectiles: 0, projectileHits: 0, hitActivations: 0, uniqueTargetsHit: 0, damage: 0, kills: 0, trionSpent: 0, effectApplications: 0, effectDurationSeconds: 0, placements: 0, automaticActivations: 0, damageTriggers: 0, rangeSamples: 0, rangeDistanceTotal: 0, optimalRangeHits: 0, closePenaltyHits: 0, farPenaltyHits: 0 };
+          for (const field of ['uses', 'projectiles', 'projectileHits', 'hitActivations', 'uniqueTargetsHit', 'damage', 'kills', 'trionSpent', 'effectApplications', 'effectDurationSeconds', 'placements', 'automaticActivations', 'damageTriggers', 'rangeSamples', 'rangeDistanceTotal', 'optimalRangeHits', 'closePenaltyHits', 'farPenaltyHits']) total[field] += Number(stat[field] || 0);
         }
       }
       return Object.fromEntries(Object.entries(triggers).map(([key, value]) => [key, {
@@ -2567,6 +2632,8 @@
         damagePerTrion: value.trionSpent ? Number((value.damage / value.trionSpent).toFixed(3)) : 0,
         activationHitRate: value.uses ? Number((value.hitActivations / value.uses).toFixed(4)) : 0,
         projectileHitRate: value.projectiles ? Number((value.projectileHits / value.projectiles).toFixed(4)) : 0,
+        averageHitDistance: value.rangeSamples ? Number((value.rangeDistanceTotal / value.rangeSamples).toFixed(2)) : 0,
+        optimalRangeRate: value.rangeSamples ? Number((value.optimalRangeHits / value.rangeSamples).toFixed(4)) : 0,
       }]));
     }
 
@@ -2574,9 +2641,67 @@
       return this.isUnlimited ? `∞ ${formatTime(this.elapsed)}` : formatTime(this.matchTime);
     }
 
+    buildDetailedFeedbackSummary() {
+      const players = this.players.filter((p) => !p.isDefenseEnemy);
+      const byRole = {};
+      for (const p of players) {
+        const role = byRole[p.archetype] ||= { players:0, score:0, kills:0, deaths:0, damage:0, defense:0, rangeSamples:0, optimalHits:0, targetChanges:0, stuckEscapes:0, oscillationBreaks:0 };
+        role.players += 1; role.score += p.score; role.kills += p.kills; role.deaths += p.deaths;
+        role.damage += p.metrics.damageDealt || 0; role.defense += p.metrics.blockedDamage || 0;
+        role.rangeSamples += (p.metrics.optimalRangeHits || 0) + (p.metrics.rangePenaltyHits || 0);
+        role.optimalHits += p.metrics.optimalRangeHits || 0;
+        role.targetChanges += p.metrics.aiTargetChanges || 0;
+        role.stuckEscapes += p.metrics.aiStuckEscapes || 0;
+        role.oscillationBreaks += p.metrics.aiOscillationBreaks || 0;
+      }
+      for (const role of Object.values(byRole)) {
+        role.averageScore = Number((role.score / Math.max(1, role.players)).toFixed(2));
+        role.averageKills = Number((role.kills / Math.max(1, role.players)).toFixed(3));
+        role.optimalRangeRate = role.rangeSamples ? Number((role.optimalHits / role.rangeSamples).toFixed(4)) : null;
+      }
+      return {
+        byRole,
+        ai: {
+          targetChanges: players.reduce((s,p)=>s+(p.metrics.aiTargetChanges||0),0),
+          targetRetained: players.reduce((s,p)=>s+(p.metrics.aiTargetRetained||0),0),
+          targetChangeReasons: players.reduce((out,p)=>{ for(const [k,v] of Object.entries(p.metrics.aiTargetChangeReasons||{})) out[k]=(out[k]||0)+v; return out; },{}),
+          wallAvoidances: players.reduce((s,p)=>s+(p.metrics.aiWallAvoidances||0),0),
+          stuckEscapes: players.reduce((s,p)=>s+(p.metrics.aiStuckEscapes||0),0),
+          oscillationBreaks: players.reduce((s,p)=>s+(p.metrics.aiOscillationBreaks||0),0),
+          rangeSeconds: {
+            advance:Number(players.reduce((s,p)=>s+(p.metrics.aiRangeAdvanceSeconds||0),0).toFixed(2)),
+            retreat:Number(players.reduce((s,p)=>s+(p.metrics.aiRangeRetreatSeconds||0),0).toFixed(2)),
+            hold:Number(players.reduce((s,p)=>s+(p.metrics.aiRangeHoldSeconds||0),0).toFixed(2)),
+            strafe:Number(players.reduce((s,p)=>s+(p.metrics.aiRangeStrafeSeconds||0),0).toFixed(2)),
+            optimal:Number(players.reduce((s,p)=>s+(p.metrics.aiOptimalRangeSeconds||0),0).toFixed(2)),
+            outside:Number(players.reduce((s,p)=>s+(p.metrics.aiOutOfRangeSeconds||0),0).toFixed(2)),
+          },
+        },
+        weaponSystems: {
+          shooterChargesStarted: players.reduce((s,p)=>s+(p.metrics.shooterChargesStarted||0),0),
+          shooterChargesCompleted: players.reduce((s,p)=>s+(p.metrics.shooterChargesCompleted||0),0),
+          shooterChargeCancelled: players.reduce((s,p)=>s+(p.metrics.shooterChargeCancelled||0),0),
+          shooterSameHandLocks: players.reduce((s,p)=>s+(p.metrics.shooterSameHandLocks||0),0),
+          gunShots: players.reduce((s,p)=>s+(p.metrics.gunShots||0),0),
+          gunReloads: players.reduce((s,p)=>s+(p.metrics.gunReloads||0),0),
+          gunEmptyAttempts: players.reduce((s,p)=>s+(p.metrics.gunEmptyAttempts||0),0),
+          reloadSeconds: Number(players.reduce((s,p)=>s+(p.metrics.reloadSeconds||0),0).toFixed(2)),
+          meleeChainHits: players.reduce((s,p)=>s+(p.metrics.meleeChainHits||0),0),
+          meleeChainsCompleted: players.reduce((s,p)=>s+(p.metrics.meleeChainsCompleted||0),0),
+          raygustShieldSeconds:Number(players.reduce((s,p)=>s+(p.metrics.raygustShieldSeconds||0),0).toFixed(2)),
+        },
+      };
+    }
+
+    buildEventSummary() {
+      const byType = {};
+      for (const event of this.battleEvents) byType[event.type] = (byType[event.type] || 0) + 1;
+      return { total: this.battleEvents.length, limit: MAX_BATTLE_EVENTS, byType };
+    }
+
     buildLog(reason = 'snapshot') {
       return {
-        schemaVersion: 19,
+        schemaVersion: 20,
         matchId: this.matchId,
         startedAt: this.startedAt,
         endedAt: new Date().toISOString(),
@@ -2608,6 +2733,7 @@
         environment: { ...this.environment },
         soundEnabled: this.soundEnabled,
         cpuConfigs: this.config.cpuConfigs || [],
+        teamComposition: this.teamCount ? Array.from({length:this.teamCount},(_,team)=>({ team, roles:this.players.filter(p=>!p.isDefenseEnemy&&p.team===team).map(p=>p.archetype) })) : null,
         map: { id: this.mapId, label: MAP_LABELS[this.mapId], width: this.world.w, height: this.world.h, areaMultiplier: 4, basePickupCount: BASE_PICKUP_COUNT, terrain: Object.fromEntries(Object.entries(this.terrain).map(([key, value]) => [key, Array.isArray(value) ? value.length : 0])), installations: this.installations.length, lightSources: this.lightSources.length },
         lifecycle: { ...this.lifecycleStats, pendingTerrainRespawns: this.worldRespawns.length, activeLights: this.lightSources.filter((light) => light.hp > 0).length },
         pickupStats: { ...this.pickupStats, currentTotal: this.pickups.length, currentTemporary: this.pickups.filter((pickup) => pickup.temporary).length },
@@ -2625,6 +2751,8 @@
         teamScores: this.teamScores.map((score) => Number(score.toFixed(2))),
         humanConfig: { role: this.playerRole, stats: this.config.stats, loadout: this.config.loadout, teamConfig: this.config.teamConfig || null, offBoard: !this.isPlayerCombatant },
         balanceSummary: this.buildBalanceSummary(),
+        detailedFeedback: this.buildDetailedFeedbackSummary(),
+        eventSummary: this.buildEventSummary(),
         players: this.players.map((player) => ({
           id: player.id,
           name: player.name,
@@ -2670,11 +2798,11 @@
     }
 
     logToCsv(log) {
-      const headers = ['matchId', 'difficulty', 'mode', 'unlimited', 'player', 'human', 'team', 'archetype', 'trion', 'technique', 'combat', 'score', 'kills', 'assists', 'supportScore', 'deaths', 'combatDeaths', 'manualBailouts', 'spectateTransitions', 'damageDealt', 'damageTaken', 'blockedDamage', 'triggerActivations', 'attackActivations', 'activationsWithHit', 'activationHitRate', 'projectilesSpawned', 'projectilesHit', 'projectileHitRate', 'projectileHitEvents', 'meleeHits', 'trionSpent', 'pickups', 'pickupTrionGained', 'aliveTime', 'longestLife', 'spiderSlowSeconds', 'dummyBeaconTargetSeconds', 'switchboxTriggers', 'leadBulletSlowSeconds', 'starmakerRevealSeconds', 'effectApplications', 'successfulEffectActivations', 'aiVoluntaryBailouts', 'desertReliefVisits', 'desertReliefDepartures', 'triggerUses', 'triggerDamage', 'triggerStats', 'aiTriggerSelections'];
+      const headers = ['matchId', 'difficulty', 'mode', 'unlimited', 'player', 'human', 'team', 'archetype', 'trion', 'technique', 'combat', 'score', 'kills', 'assists', 'supportScore', 'deaths', 'combatDeaths', 'manualBailouts', 'spectateTransitions', 'damageDealt', 'damageTaken', 'blockedDamage', 'triggerActivations', 'attackActivations', 'activationsWithHit', 'activationHitRate', 'projectilesSpawned', 'projectilesHit', 'projectileHitRate', 'projectileHitEvents', 'meleeHits', 'trionSpent', 'pickups', 'pickupTrionGained', 'aliveTime', 'longestLife', 'spiderSlowSeconds', 'dummyBeaconTargetSeconds', 'switchboxTriggers', 'leadBulletSlowSeconds', 'starmakerRevealSeconds', 'effectApplications', 'successfulEffectActivations', 'aiVoluntaryBailouts', 'desertReliefVisits', 'desertReliefDepartures', 'triggerUses', 'triggerDamage', 'triggerStats', 'aiTriggerSelections', 'aiTargetChanges', 'aiTargetChangeReasons', 'aiOptimalRangeSeconds', 'aiOutOfRangeSeconds', 'aiRangeAdvanceSeconds', 'aiRangeRetreatSeconds', 'aiRangeHoldSeconds', 'aiRangeStrafeSeconds', 'shooterChargesStarted', 'shooterChargesCompleted', 'shooterChargeCancelled', 'shooterSameHandLocks', 'gunShots', 'gunReloads', 'gunEmptyAttempts', 'reloadSeconds', 'meleeChainHits', 'meleeChainsCompleted', 'raygustShieldSeconds'];
       const quote = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
       const rows = log.players.map((player) => {
         const m = player.metrics || {};
-        const values = [log.matchId, log.difficulty, log.mode, log.unlimited, player.name, player.human, player.team, player.archetype, player.stats.trion, player.stats.technique, player.stats.combat, player.score, player.kills, m.assists, m.supportScore, player.deaths, m.combatDeaths, m.manualBailouts, m.spectateTransitions, m.damageDealt, m.damageTaken, m.blockedDamage, m.triggerActivations, m.attackActivations, m.activationsWithHit, m.activationHitRate, m.projectilesSpawned, m.projectilesHit, m.projectileHitRate, m.projectileHits, m.meleeHits, m.trionSpent, m.pickups, m.pickupTrionGained, m.aliveTime, m.longestLife, m.spiderSlowSeconds, m.dummyBeaconTargetSeconds, m.switchboxTriggers, m.leadBulletSlowSeconds, m.starmakerRevealSeconds, m.effectApplications, m.successfulEffectActivations, m.aiVoluntaryBailouts, m.desertReliefVisits, m.desertReliefDepartures, JSON.stringify(m.triggerUses || {}), JSON.stringify(m.triggerDamage || {}), JSON.stringify(m.triggerStats || {}), JSON.stringify(m.aiTriggerSelections || {})];
+        const values = [log.matchId, log.difficulty, log.mode, log.unlimited, player.name, player.human, player.team, player.archetype, player.stats.trion, player.stats.technique, player.stats.combat, player.score, player.kills, m.assists, m.supportScore, player.deaths, m.combatDeaths, m.manualBailouts, m.spectateTransitions, m.damageDealt, m.damageTaken, m.blockedDamage, m.triggerActivations, m.attackActivations, m.activationsWithHit, m.activationHitRate, m.projectilesSpawned, m.projectilesHit, m.projectileHitRate, m.projectileHits, m.meleeHits, m.trionSpent, m.pickups, m.pickupTrionGained, m.aliveTime, m.longestLife, m.spiderSlowSeconds, m.dummyBeaconTargetSeconds, m.switchboxTriggers, m.leadBulletSlowSeconds, m.starmakerRevealSeconds, m.effectApplications, m.successfulEffectActivations, m.aiVoluntaryBailouts, m.desertReliefVisits, m.desertReliefDepartures, JSON.stringify(m.triggerUses || {}), JSON.stringify(m.triggerDamage || {}), JSON.stringify(m.triggerStats || {}), JSON.stringify(m.aiTriggerSelections || {}), m.aiTargetChanges, JSON.stringify(m.aiTargetChangeReasons || {}), m.aiOptimalRangeSeconds, m.aiOutOfRangeSeconds, m.aiRangeAdvanceSeconds, m.aiRangeRetreatSeconds, m.aiRangeHoldSeconds, m.aiRangeStrafeSeconds, m.shooterChargesStarted, m.shooterChargesCompleted, m.shooterChargeCancelled, m.shooterSameHandLocks, m.gunShots, m.gunReloads, m.gunEmptyAttempts, m.reloadSeconds, m.meleeChainHits, m.meleeChainsCompleted, m.raygustShieldSeconds];
         return values.map(quote).join(',');
       });
       return `\uFEFF${headers.join(',')}\n${rows.join('\n')}`;
@@ -3014,7 +3142,7 @@
 
       this.operators = (this.config.mode === 'team' || this.isDefenseMode) ? this.teamMeta.map((meta, team) => {
         const onlineOperator = roster.find((member) => member.role === 'operator' && (this.isDefenseMode || Number(member.team || 0) === team));
-        return { id:`operator-${team}`, name:`${meta.name} OPERATOR`, team, orders:0, playerControlled:Boolean(onlineOperator && onlineOperator.userId === this.localOnlineUserId), onlineUserId:onlineOperator?.userId || null };
+        return { id:`operator-${team}`, name:`${meta.name} OPERATOR`, team, orders:0, nextOrderAt:rand(5 + team * 1.7, 11 + team * 2.2), lastOrderSignature:'', playerControlled:Boolean(onlineOperator && onlineOperator.userId === this.localOnlineUserId), onlineUserId:onlineOperator?.userId || null };
       }) : [];
 
       let cpuSerial = 0;
@@ -3100,6 +3228,8 @@
             name: `${meta.name} OPERATOR`,
             team,
             orders: 0,
+            nextOrderAt: rand(5 + team * 1.7, 11 + team * 2.2),
+            lastOrderSignature: '',
             playerControlled: this.isPlayerOperator && team === this.playerTeam,
           }))
         : [];
@@ -3828,6 +3958,11 @@
         speed: 155 + stats.combat * 8.5,
         selected: { main: 0, sub: 0 },
         cooldowns: {}, cooldownMax: {},
+        shooterCharges: { main: null, sub: null },
+        shooterHandLock: { main: 0, sub: 0 },
+        gunState: {},
+        meleeChains: {},
+        reloadVisual: null,
         justCut: null,
         shields: { main: null, sub: null },
         toggles: { bagworm: false, bagwormTag: false, chameleon: false },
@@ -3853,7 +3988,10 @@
           triggerActivations: 0, attackActions: 0, attackActivations: 0, activationsWithHit: 0, uniqueTargetsHit: 0,
           projectilesFired: 0, projectilesSpawned: 0, projectilesHit: 0, projectileHits: 0, meleeHits: 0,
           damageDealt: 0, damageTaken: 0, blockedDamage: 0, shieldDamagePrevented: 0, shieldBlocks: 0,
-          justCuts: 0, rangePenaltyHits: 0,
+          justCuts: 0, rangePenaltyHits: 0, optimalRangeHits: 0, closeRangePenaltyHits: 0, farRangePenaltyHits: 0,
+          shooterChargesStarted: 0, shooterChargesCompleted: 0, shooterChargeCancelled: 0, shooterSameHandLocks: 0,
+          gunShots: 0, gunReloads: 0, gunEmptyAttempts: 0, reloadSeconds: 0,
+          meleeChainHits: 0, meleeChainsCompleted: 0, raygustShieldSeconds: 0,
           trionSpent: 0, pickups: 0, pickupTrionGained: 0, pickupScore: 0,
           aliveTime: 0, currentLife: 0, longestLife: 0, assists: 0, supportScore: 0,
           combatDeaths: 0, manualBailouts: 0, spectateTransitions: 0, effectApplications: 0, successfulEffectActivations: 0,
@@ -3863,6 +4001,7 @@
           grasshopperBoostImpulse: 0, escudoDamagePrevented: 0,
           aiWallAvoidances: 0, aiWallBreakFallbacks: 0, aiStuckEscapes: 0, aiOscillationBreaks: 0, dummyBeaconIdentifications: 0,
           aiVoluntaryBailouts: 0, desertReliefVisits: 0, desertReliefDepartures: 0,
+          aiTargetChanges: 0, aiTargetRetained: 0, aiTargetChangeReasons: {}, aiRangeAdvanceSeconds: 0, aiRangeRetreatSeconds: 0, aiRangeHoldSeconds: 0, aiRangeStrafeSeconds: 0, aiOptimalRangeSeconds: 0, aiOutOfRangeSeconds: 0, aiOperatorOrderChanges: 0,
           triggerUses: {}, triggerDamage: {}, triggerStats: {}, aiTriggerSelections: {},
         },
         _activationHits: new Map(),
@@ -3886,6 +4025,7 @@
           escapeWaypoint: null, escapeTimer: 0, recentNavPoints: [], navLastGoalDistance: null, failedDetours: 0,
           separationSide: Math.random() < .5 ? -1 : 1,
           beaconMemory: {},
+          lastAttackerId: null, lastTargetSwitchReason: 'initial', engagementPoint: null, engagementPointTimer: 0,
         },
       };
     }
@@ -4002,7 +4142,7 @@
           slot.className = 'hud-slot';
           slot.dataset.hand = hand;
           slot.dataset.index = index;
-          slot.innerHTML = `<span class="key">${key}</span><span class="name">${t.short || t.name}</span><span class="cooldown"><i></i></span>`;
+          slot.innerHTML = `<span class="key">${key}</span><span class="name">${t.short || t.name}</span><span class="ammo"></span><span class="cooldown"><i></i></span>`;
           root.appendChild(slot);
         });
       }
@@ -4166,10 +4306,13 @@
         return;
       }
       if (trigger.id === 'raygust' && shift) {
-        if (held) p.shields[hand] = { type: 'raygust', strength: 1.55 };
+        if (held) {
+          p.shields[hand] = { type: 'raygust', strength: 1.55 };
+          p.metrics.raygustShieldSeconds += dt;
+        }
         return;
       }
-      const automatic = trigger.kind === 'gun' && ['assault', 'gatling'].includes(trigger.gun);
+      const automatic = (trigger.kind === 'gun' && ['assault', 'gatling'].includes(trigger.gun)) || (trigger.kind === 'melee' && ['kogetsu','scorpion','raygust'].includes(trigger.id));
       if (justPressed || (held && automatic)) this.tryUseHand(p, hand, { shift, continuous: !justPressed });
     }
 
@@ -4224,6 +4367,7 @@
       this.effects.push({ type: 'justCut', x: target.x, y: target.y, angle: cut.angle, radius: target.radius + 31, ttl: .3, maxTtl: .3, color: cut.sourceKey === 'kogetsu' ? '#e7fbff' : '#c1a7ff' });
       this.sfx?.play('attacker', { x: target.x, y: target.y, bucket: `just-cut:${target.id}`, cooldown: .04, volume: .54, rate: 1.22 });
       if (target.human) this.toast('JUST CUT　クールダウン半減');
+      this.logCombatDetail('just_cut', target, { attackerId: attacker?.id || null, source: info.sourceKey || info.name || info.type, slotKey: key, cooldownAfter: key ? Number((target.cooldowns[key] || 0).toFixed(3)) : null });
       target.justCut = null;
       return true;
     }
@@ -4240,6 +4384,124 @@
       return true;
     }
 
+    getGunState(p, hand, trigger, slotIndex = p.selected[hand]) {
+      const key = `${hand}:${slotIndex}`;
+      const capacity = Math.max(1, Number(trigger.magazine || 1));
+      let state = p.gunState[key];
+      if (!state || state.triggerId !== trigger.id) state = p.gunState[key] = { triggerId: trigger.id, ammo: capacity, capacity, reloadTimer: 0, reloadMax: Number(trigger.reload || 1.5) };
+      state.capacity = capacity;
+      state.reloadMax = Number(trigger.reload || state.reloadMax || 1.5);
+      return state;
+    }
+
+    beginGunReload(p, hand, trigger, state = this.getGunState(p, hand, trigger)) {
+      if (state.reloadTimer > 0 || state.ammo >= state.capacity) return false;
+      const techniqueFactor = 1 - (p.stats.technique - 2) * .018;
+      state.reloadTimer = Math.max(.55, state.reloadMax * techniqueFactor);
+      state.reloadStartedAt = this.elapsed;
+      state.reloadDuration = state.reloadTimer;
+      p.reloadVisual = { hand, slot: p.selected[hand], triggerId: trigger.id, timer: state.reloadTimer, max: state.reloadTimer };
+      p.metrics.gunReloads += 1;
+      this.logCombatDetail('reload_start', p, { hand, triggerId: trigger.id, ammo: state.ammo, capacity: state.capacity, duration: Number(state.reloadTimer.toFixed(3)) });
+      return true;
+    }
+
+    beginShooterCharge(p, hand, trigger, shift = false) {
+      if ((p.shooterHandLock[hand] || 0) > 0) {
+        p.metrics.shooterSameHandLocks += 1;
+        return false;
+      }
+      if (p.shooterCharges[hand] || !this.cooldownReady(p, hand)) return false;
+      const base = SHOOTER_CHARGE_BASE[trigger.bullet] || .3;
+      const chargeTime = Math.max(.12, base * (1 - (p.stats.technique - 2) * .035));
+      p.shooterCharges[hand] = { hand, slot: p.selected[hand], triggerId: trigger.id, bullet: trigger.bullet, timer: chargeTime, max: chargeTime, shift: Boolean(shift), aim: p.aim };
+      p.shooterHandLock[hand] = chargeTime + .08;
+      p.metrics.shooterChargesStarted += 1;
+      this.logCombatDetail('shooter_charge_start', p, { hand, slot: p.selected[hand], triggerId: trigger.id, chargeTime: Number(chargeTime.toFixed(3)) });
+      return true;
+    }
+
+    updateWeaponStates(p, dt) {
+      for (const hand of ['main', 'sub']) {
+        p.shooterHandLock[hand] = Math.max(0, (p.shooterHandLock[hand] || 0) - dt);
+        const charge = p.shooterCharges[hand];
+        if (charge) {
+          charge.timer -= dt;
+          charge.aim = p.aim;
+          if (charge.timer <= 0) {
+            p.shooterCharges[hand] = null;
+            const previous = p.selected[hand];
+            p.selected[hand] = charge.slot;
+            const fired = this.tryUseHand(p, hand, { shift: charge.shift, resolveCharge: true });
+            p.selected[hand] = previous;
+            if (fired) {
+              p.metrics.shooterChargesCompleted += 1;
+              p.shooterHandLock[hand] = Math.max(p.shooterHandLock[hand], .28);
+              this.logCombatDetail('shooter_charge_fire', p, { hand, slot: charge.slot, triggerId: charge.triggerId });
+            } else {
+              p.metrics.shooterChargeCancelled += 1;
+              this.logCombatDetail('shooter_charge_cancel', p, { hand, slot: charge.slot, triggerId: charge.triggerId, reason: 'trion_or_state' });
+            }
+          }
+        }
+      }
+      let anyReload = null;
+      for (const [key, state] of Object.entries(p.gunState || {})) {
+        if ((state.reloadTimer || 0) <= 0) continue;
+        const elapsed = Math.min(dt, state.reloadTimer);
+        state.reloadTimer = Math.max(0, state.reloadTimer - dt);
+        p.metrics.reloadSeconds += elapsed;
+        anyReload = { key, state };
+        if (state.reloadTimer <= 0) {
+          state.ammo = state.capacity;
+          const [hand, slot] = key.split(':');
+          this.logCombatDetail('reload_complete', p, { hand, slot: Number(slot), triggerId: state.triggerId, ammo: state.ammo });
+        }
+      }
+      if (anyReload) {
+        const [hand, slot] = anyReload.key.split(':');
+        p.reloadVisual = { hand, slot: Number(slot), triggerId: anyReload.state.triggerId, timer: anyReload.state.reloadTimer, max: anyReload.state.reloadDuration || anyReload.state.reloadMax };
+      } else p.reloadVisual = null;
+
+      for (const [key, chain] of Object.entries(p.meleeChains || {})) {
+        chain.timer -= dt;
+        if (chain.timer > 0) continue;
+        if (chain.count > 0 && !chain.recoveryApplied) {
+          const trigger = DATA.triggers[chain.triggerId];
+          const recovery = Number(trigger?.cooldown || .45) * (.72 + chain.count * .1);
+          p.cooldowns[key] = Math.max(p.cooldowns[key] || 0, recovery);
+          p.cooldownMax[key] = Math.max(p.cooldownMax[key] || 0, recovery);
+          chain.recoveryApplied = true;
+          this.logCombatDetail('melee_chain_end', p, { slotKey: key, triggerId: chain.triggerId, hits: chain.count, recovery: Number(recovery.toFixed(3)), reason: 'timeout' });
+        }
+        delete p.meleeChains[key];
+      }
+    }
+
+    applyMeleeChainCooldown(p, hand, trigger) {
+      const key = this.getSlotKey(p, hand);
+      const maxHits = MELEE_CHAIN_MAX[trigger.id] || 1;
+      const step = MELEE_CHAIN_STEP[trigger.id] || .16;
+      const chain = p.meleeChains[key] || { triggerId: trigger.id, count: 0, timer: 0, recoveryApplied: false };
+      chain.count += 1;
+      chain.timer = .48;
+      chain.recoveryApplied = false;
+      p.meleeChains[key] = chain;
+      p.metrics.meleeChainHits += 1;
+      if (chain.count >= maxHits) {
+        const recovery = trigger.cooldown * (1.08 + (maxHits - 1) * .12);
+        p.cooldowns[key] = recovery;
+        p.cooldownMax[key] = recovery;
+        p.metrics.meleeChainsCompleted += 1;
+        this.logCombatDetail('melee_chain_end', p, { slotKey: key, triggerId: trigger.id, hits: chain.count, recovery: Number(recovery.toFixed(3)), reason: 'max_chain' });
+        delete p.meleeChains[key];
+      } else {
+        p.cooldowns[key] = step;
+        p.cooldownMax[key] = step;
+        this.logCombatDetail('melee_chain_step', p, { slotKey: key, triggerId: trigger.id, hit: chain.count, maxHits });
+      }
+    }
+
     tryUseHand(p, hand, options = {}) {
       const trigger = this.getSelectedTrigger(p, hand);
       if (!trigger || trigger.kind === 'empty' || p.dead) return false;
@@ -4247,6 +4509,7 @@
         if (p.human) this.toast('カメレオン中は他トリガーを使用できません');
         return false;
       }
+      if (trigger.kind === 'shooter' && !options.resolveCharge) return this.beginShooterCharge(p, hand, trigger, options.shift);
       if (!this.cooldownReady(p, hand)) return false;
       if (trigger.kind !== 'shield' && !(trigger.id === 'raygust' && options.shift)) p.shields[hand] = null;
 
@@ -4297,7 +4560,8 @@
         p._activeSourceKey = 'scorpionLong';
       }
       this.performSlash(p, range, damage * (0.82 + p.stats.combat * 0.045), arc, style);
-      this.setCooldown(p, hand, trigger.cooldown);
+      if (['kogetsu','scorpion','raygust'].includes(trigger.id)) this.applyMeleeChainCooldown(p, hand, trigger);
+      else this.setCooldown(p, hand, trigger.cooldown);
       if (trigger.id === 'kogetsu' || trigger.id === 'scorpion') {
         p.justCut = {
           timer: clamp(.105 + p.stats.technique * .009, .13, .205),
@@ -4397,7 +4661,7 @@
         for (let i = 0; i < count; i++) {
           const spread = (i - (count - 1) / 2) * (0.065 - technique * .0036);
           this.spawnProjectile(p, hand, {
-            angle: p.aim + spread, speed: 610 + trion * 18, damage: 8.5 + trion * .85,
+            angle: p.aim + spread, speed: 610 + trion * 18, damage: 7.75 + trion * .78,
             radius: 4.2, life: 1.05 + trion * .028, color: '#72e8ff', ...modifiers,
           });
         }
@@ -4438,6 +4702,7 @@
         }
       }
       this.setCooldown(p, hand, trigger.cooldown);
+      this.logCombatDetail('shooter_volley', p, { hand, triggerId: trigger.id, bullet: trigger.bullet, sourceSlot: p.selected[hand], projectileCount: trigger.bullet === 'asteroid' ? 4 + Math.floor(technique / 3) : trigger.bullet === 'hound' ? 4 + Math.floor(trion / 4) : trigger.bullet === 'viper' ? 3 + Math.floor(technique / 4) : 1 });
       this.revealOnAttack(p, 1.25);
       return true;
     }
@@ -4470,7 +4735,16 @@
     }
 
     fireGun(p, hand, trigger) {
+      const state = this.getGunState(p, hand, trigger);
+      if (state.reloadTimer > 0) return false;
+      if (state.ammo <= 0) {
+        p.metrics.gunEmptyAttempts += 1;
+        this.beginGunReload(p, hand, trigger, state);
+        return false;
+      }
       if (!this.consumeTrion(p, trigger.cost, !p.human)) return false;
+      state.ammo -= 1;
+      p.metrics.gunShots += 1;
       const modifiers = this.consumeShotModifier(p, hand);
       const techSpread = trigger.spread * (1.14 - p.stats.technique * .045);
       const target = trigger.bullet === 'hound' ? this.findTargetNearAim(p, 210) : null;
@@ -4511,6 +4785,8 @@
         this.spawnProjectile(p, hand, opts);
       }
       this.setCooldown(p, hand, trigger.rate);
+      if (state.ammo <= 2 || state.ammo % 5 === 0) this.logCombatDetail('gun_ammo_checkpoint', p, { hand, triggerId: trigger.id, gun: trigger.gun, bullet: trigger.bullet, ammoAfter: state.ammo, capacity: state.capacity });
+      if (state.ammo <= 0) this.beginGunReload(p, hand, trigger, state);
       this.revealOnAttack(p, trigger.gun === 'gatling' ? .5 : 1.15);
       return true;
     }
@@ -4544,6 +4820,7 @@
         ...modifiers,
       });
       this.setCooldown(p, hand, trigger.cooldown);
+      this.logCombatDetail('sniper_fire', p, { hand, triggerId: trigger.id, aim: Number(shotAngle.toFixed(4)), optimalMin: trigger.optimalMin, optimalMax: trigger.optimalMax });
       this.revealOnAttack(p, 2.3);
       this.effects.push({ type: 'muzzle', x: p.x, y: p.y, angle: p.aim, ttl: .12, maxTtl: .12 });
       return true;
@@ -4877,6 +5154,7 @@
       p.metrics.longestLife = Math.max(p.metrics.longestLife, p.metrics.currentLife);
 
       for (const key of Object.keys(p.cooldowns)) p.cooldowns[key] = Math.max(0, p.cooldowns[key] - dt);
+      this.updateWeaponStates(p, dt);
       if (p.justCut) {
         p.justCut.timer -= dt;
         if (p.justCut.timer <= 0) p.justCut = null;
@@ -5031,10 +5309,46 @@
       }
     }
 
+    getAIRangeBand(p) {
+      const profiles = [];
+      for (const hand of ['main','sub']) for (const id of p.loadout?.[hand] || []) {
+        const trigger = DATA.triggers[id];
+        const profile = this.getTriggerRangeProfile(trigger);
+        if (profile) profiles.push({ ...profile, triggerId: id });
+      }
+      if (!profiles.length) return null;
+      let relevant = profiles;
+      if (p.archetype === '狙撃手') relevant = profiles.filter((x) => x.kind === 'sniper');
+      else if (p.archetype === '銃手') relevant = profiles.filter((x) => x.kind === 'gun');
+      else if (p.archetype === '射手') relevant = profiles.filter((x) => x.kind === 'shooter');
+      else if (profiles.some((x) => x.kind === 'sniper')) relevant = profiles.filter((x) => x.kind === 'sniper');
+      if (!relevant.length) relevant = profiles;
+      const min = relevant.reduce((sum, x) => sum + x.min, 0) / relevant.length;
+      const max = relevant.reduce((sum, x) => sum + x.max, 0) / relevant.length;
+      return { min, max, preferred: min + (max - min) * (p.archetype === '狙撃手' ? .48 : .46), kind: relevant[0].kind };
+    }
+
+    getAIEngagementPoint(p, target, band, dt) {
+      p.ai.engagementPointTimer = Math.max(0, (p.ai.engagementPointTimer || 0) - dt);
+      const current = p.ai.engagementPoint;
+      if (current && p.ai.engagementPointTimer > 0 && current.targetId === target.id) return current;
+      const desired = band?.preferred || 330;
+      const angleFromTarget = Math.atan2(p.y - target.y, p.x - target.x);
+      const side = p.ai.strafe || 1;
+      const offset = side * rand(-.22, .22);
+      p.ai.engagementPoint = {
+        targetId: target.id,
+        x: clamp(target.x + Math.cos(angleFromTarget + offset) * desired, 55, this.world.w - 55),
+        y: clamp(target.y + Math.sin(angleFromTarget + offset) * desired, 55, this.world.h - 55),
+      };
+      p.ai.engagementPointTimer = rand(1.35, 2.35);
+      return p.ai.engagementPoint;
+    }
+
     getTargetLockDuration(p) {
       const base = TARGET_LOCK_SECONDS[p.archetype] || 1;
-      const scale = this.config.difficulty === 'weak' ? 1.15 : this.config.difficulty === 'normal' ? 1.05 : 1;
-      return base * scale * rand(.9, 1.12);
+      const scale = this.config.difficulty === 'weak' ? 1.12 : this.config.difficulty === 'normal' ? 1.04 : 1;
+      return clamp(base * scale * rand(.92, 1.12), 1.5, 3.2);
     }
 
     updateAIConcealment(p, target, distanceToTarget, dt) {
@@ -5126,7 +5440,7 @@
       const recentlyHit = this.elapsed - (p.lastDamageAt || -999) < 3;
       const hasOrder = Boolean(p.operatorOrder);
       const concealmentActive = p.toggles.bagworm || p.toggles.bagwormTag || p.toggles.chameleon;
-      const urgent = trionRatio < .075;
+      const urgent = trionRatio < .11;
 
       p.ai.desertReliefOccupancyTimer = p.desertRelieved ? (p.ai.desertReliefOccupancyTimer || 0) + dt : 0;
       p.ai.desertReliefStayTimer = Math.max(0, (p.ai.desertReliefStayTimer || 0) - dt);
@@ -5136,18 +5450,18 @@
         p.ai.desertRecoveryActive = false;
         p.ai.desertRecoveryTimer = 0;
         p.ai.desertRecoveryPoint = null;
-        p.ai.desertReliefStayTimer = urgent ? rand(1.4, 2.4) : rand(.45, 1.15);
-        p.ai.desertRecoveryCooldown = urgent ? rand(9, 13) : rand(15, 23);
+        p.ai.desertReliefStayTimer = urgent ? rand(.9, 1.5) : rand(.45, 1.1);
+        p.ai.desertRecoveryCooldown = rand(20, 25);
         p.ai.desertDeparturePoint = this.getDesertDeparturePoint(p, target);
         p.ai.desertDepartureTimer = rand(3.2, 5.2);
         p.metrics.desertReliefVisits = (p.metrics.desertReliefVisits || 0) + 1;
       }
 
-      const overstayed = p.desertRelieved && p.ai.desertReliefOccupancyTimer > (urgent ? 4.8 : 3.2);
+      const overstayed = p.desertRelieved && (p.ai.desertReliefOccupancyTimer > 1.5 || trionRatio >= .4);
       if (overstayed && !recentlyHit && !threatened && !hasOrder && targetDistance > 270 && !p.ai.desertDeparturePoint) {
         p.ai.desertDeparturePoint = this.getDesertDeparturePoint(p, target);
         p.ai.desertDepartureTimer = rand(3.2, 5.4);
-        p.ai.desertRecoveryCooldown = Math.max(p.ai.desertRecoveryCooldown || 0, rand(14, 22));
+        p.ai.desertRecoveryCooldown = Math.max(p.ai.desertRecoveryCooldown || 0, rand(20, 25));
         p.metrics.desertReliefDepartures = (p.metrics.desertReliefDepartures || 0) + 1;
       }
 
@@ -5163,7 +5477,7 @@
         p.ai.desertDeparturePoint = null;
       }
 
-      const stopRecovery = trionRatio > .28 || recentlyHit || threatened || hasOrder || targetDistance < 390;
+      const stopRecovery = trionRatio >= .4 || recentlyHit || threatened || hasOrder || targetDistance < 500;
       if (p.ai.desertRecoveryActive && stopRecovery) {
         p.ai.desertRecoveryActive = false;
         p.ai.desertRecoveryTimer = 0;
@@ -5184,8 +5498,8 @@
       const canStart = !p.desertRelieved
         && !concealmentActive
         && p.ai.desertRecoveryCooldown <= 0
-        && trionRatio < (urgent ? .11 : .165)
-        && targetDistance > (urgent ? 380 : 680)
+        && trionRatio < .22
+        && targetDistance > 500
         && !recentlyHit
         && !threatened
         && !hasOrder;
@@ -5377,13 +5691,16 @@
       }
     }
 
-    chooseAIMovementMode(p, distanceToTarget, preferred, role, lowHeavyResources, hasSniper, dt) {
+    chooseAIMovementMode(p, distanceToTarget, preferred, role, lowHeavyResources, hasSniper, dt, rangeBand = null) {
       p.ai.movementModeTimer = Math.max(0, (p.ai.movementModeTimer || 0) - dt);
       p.ai.strafeTimer = Math.max(0, (p.ai.strafeTimer || 0) - dt);
       if (p.ai.strafeTimer <= 0) { p.ai.strafeTimer = rand(1.7, 3.3); if (Math.random() < .42) p.ai.strafe *= -1; }
       let desired = p.ai.movementMode || 'advance';
       if (lowHeavyResources) desired = 'retreat';
       else if (role === '工作手' && distanceToTarget < 295) desired = 'retreat';
+      else if (rangeBand && distanceToTarget < rangeBand.min * .92) desired = 'retreat';
+      else if (rangeBand && distanceToTarget > rangeBand.max * 1.03) desired = 'advance';
+      else if (rangeBand && distanceToTarget >= rangeBand.min && distanceToTarget <= rangeBand.max) desired = hasSniper ? 'hold' : 'strafe';
       else if (distanceToTarget < preferred * .61) desired = 'retreat';
       else if (distanceToTarget > preferred * 1.42) desired = 'advance';
       else if (distanceToTarget > preferred * .8 && distanceToTarget < preferred * 1.2) desired = hasSniper ? 'hold' : 'strafe';
@@ -5646,10 +5963,17 @@
       this.updateAIConcealment(p, target, d, dt);
       const threatened = this.projectileThreat(p);
       const lowHeavyResources = role === '重装手' && (p.trion < p.maxTrion * .35 || p.hp < p.maxHp * .35);
-      const preferred = role === '重装手' ? 145 : role === '工作手' ? 390 : hasSniper ? 690 : hasMelee ? 105 : 330;
+      const rangeBand = this.getAIRangeBand(p);
+      const preferred = role === '重装手' ? 145 : role === '工作手' ? 390 : rangeBand?.preferred || (hasSniper ? 860 : hasMelee ? 105 : 330);
+      if (rangeBand) {
+        if (d >= rangeBand.min && d <= rangeBand.max) p.metrics.aiOptimalRangeSeconds += dt;
+        else p.metrics.aiOutOfRangeSeconds += dt;
+      }
       let moveAngle = targetAngle;
       let movementScale = 1;
-      const movementMode = this.chooseAIMovementMode(p, d, preferred, role, lowHeavyResources, hasSniper, dt);
+      const movementMode = this.chooseAIMovementMode(p, d, preferred, role, lowHeavyResources, hasSniper, dt, rangeBand);
+      const movementMetric = { advance:'aiRangeAdvanceSeconds', retreat:'aiRangeRetreatSeconds', hold:'aiRangeHoldSeconds', strafe:'aiRangeStrafeSeconds' }[movementMode];
+      if (movementMetric) p.metrics[movementMetric] += dt;
       if (movementMode === 'retreat') moveAngle += Math.PI;
       else if (movementMode === 'strafe') moveAngle += p.ai.strafe * Math.PI / 2;
       else if (movementMode === 'hold') movementScale = .16;
@@ -5665,9 +5989,10 @@
           movementScale = 1.18;
         }
       }
-      const navGoalDistance = Math.max(180, Math.min(420, d));
-      let navGoalX = p.x + Math.cos(moveAngle) * navGoalDistance;
-      let navGoalY = p.y + Math.sin(moveAngle) * navGoalDistance;
+      const engagementPoint = rangeBand && !directive ? this.getAIEngagementPoint(p, target, rangeBand, dt) : null;
+      const navGoalDistance = Math.max(180, Math.min(520, d));
+      let navGoalX = engagementPoint && ['advance','retreat','hold'].includes(movementMode) ? engagementPoint.x : p.x + Math.cos(moveAngle) * navGoalDistance;
+      let navGoalY = engagementPoint && ['advance','retreat','hold'].includes(movementMode) ? engagementPoint.y : p.y + Math.sin(moveAngle) * navGoalDistance;
       if (directive && Number.isFinite(directive.x) && Number.isFinite(directive.y)) { navGoalX = directive.x; navGoalY = directive.y; }
       moveAngle = this.getAINavigationAngle(p, navGoalX, navGoalY, moveAngle, dt, movementScale);
       moveAngle = this.stabilizeAIMovementAngle(p, moveAngle, navGoalX, navGoalY, dt, movementScale);
@@ -5778,19 +6103,28 @@
       candidates.sort((a, b) => a.score - b.score);
       const current = this.resolveAITarget(p);
       const currentEntry = current ? { target: current, type: p.ai.targetType, score: this.scoreAITargetCandidate(p, current, p.ai.targetType) } : null;
-      const immediateThreat = candidates.find((item) => item.type === 'player' && item.score < 145);
+      const attackedBy = this.elapsed - (p.lastDamageAt || -999) < 2.4 ? candidates.find((item) => item.type === 'player' && item.target.id === p.ai.lastAttackerId) : null;
+      const immediateThreat = candidates.find((item) => item.type === 'player' && item.score < 118);
       const choicePool = candidates.slice(0, this.config.difficulty === 'weak' ? 3 : 2);
-      let choice = immediateThreat || weightedChoice(choicePool, (item) => 1 / Math.max(1, item.score));
+      let choice = attackedBy || immediateThreat || weightedChoice(choicePool, (item) => 1 / Math.max(1, item.score));
+      let switchReason = force ? 'forced_or_missing' : attackedBy ? 'attacked_by' : immediateThreat ? 'immediate_threat' : 'score';
       if (!force && currentEntry && choice?.target.id !== currentEntry.target.id) {
-        const meaningfullyBetter = choice.score < currentEntry.score * .7;
-        if (!meaningfullyBetter && !immediateThreat) choice = currentEntry;
+        const currentLost = !Number.isFinite(currentEntry.score);
+        const meaningfullyBetter = choice.score < currentEntry.score * .55;
+        if (!currentLost && !meaningfullyBetter && !attackedBy && !immediateThreat) { choice = currentEntry; switchReason = 'retained'; }
       }
       const oldTarget = p.ai.target;
       const oldType = p.ai.targetType;
       p.ai.target = choice?.target.id || null;
       p.ai.targetType = choice?.type || 'player';
       const switched = oldTarget && oldTarget !== p.ai.target;
-      if (switched) p.metrics.aiTargetChanges = (p.metrics.aiTargetChanges || 0) + 1;
+      if (switched) {
+        p.metrics.aiTargetChanges = (p.metrics.aiTargetChanges || 0) + 1;
+        p.metrics.aiTargetChangeReasons[switchReason] = (p.metrics.aiTargetChangeReasons[switchReason] || 0) + 1;
+        p.ai.lastTargetSwitchReason = switchReason;
+        p.ai.engagementPoint = null; p.ai.engagementPointTimer = 0;
+        this.logCombatDetail('ai_target_change', p, { from: oldTarget, to: p.ai.target, fromType: oldType, toType: p.ai.targetType, reason: switchReason });
+      } else if (currentEntry) p.metrics.aiTargetRetained += 1;
       if (!oldTarget || switched) {
         p.ai.targetAge = 0;
         p.ai.aimNoiseTimer = 0;
@@ -5826,6 +6160,11 @@
 
     slotReady(p, hand, index, trigger) {
       const cooldown = p.cooldowns[`${hand}:${index}`] || 0;
+      if (trigger.kind === 'gun') {
+        const state = this.getGunState(p, hand, trigger, index);
+        if (state.reloadTimer > 0 || state.ammo <= 0) return false;
+      }
+      if (trigger.kind === 'shooter' && ((p.shooterHandLock?.[hand] || 0) > 0 || p.shooterCharges?.[hand])) return false;
       return cooldown <= 0 && p.trion + .001 >= Number(trigger.cost || 0);
     }
 
@@ -5878,6 +6217,12 @@
             score = (p.archetype === '重装手' ? 7.8 : 3.7) - Math.abs(d - 175) / 85;
           }
           if (!Number.isFinite(score)) return;
+          const rangeProfile = this.getTriggerRangeProfile(trigger);
+          if (rangeProfile) {
+            const inRange = d >= rangeProfile.min && d <= rangeProfile.max;
+            score += inRange ? 2.25 : -3.4;
+            if (trigger.kind === 'sniper' && d < rangeProfile.min) score -= 3.6;
+          }
           score *= repeatPenalty(id);
           score += rand(-.32, .32) * profile.aimError;
           candidates.push({ hand, index, trigger, score });
@@ -6256,10 +6601,16 @@
       if (target.dead || amount <= 0 || target.invulnTimer > 0) return false;
       if (!info.skipJustCut && this.tryJustCut(target, attacker, info)) return false;
       const rangeMultiplier = this.getRangeDamageMultiplier(target, info);
-      if (rangeMultiplier < 1) {
-        amount *= rangeMultiplier;
-        if (attacker?.metrics) attacker.metrics.rangePenaltyHits = (attacker.metrics.rangePenaltyHits || 0) + 1;
+      if (info.rangeProfile && Number.isFinite(info.originX) && Number.isFinite(info.originY) && attacker?.metrics) {
+        const shotDistance = Math.hypot(target.x - info.originX, target.y - info.originY);
+        if (rangeMultiplier < 1) {
+          attacker.metrics.rangePenaltyHits = (attacker.metrics.rangePenaltyHits || 0) + 1;
+          if (shotDistance < info.rangeProfile.min) attacker.metrics.closeRangePenaltyHits += 1;
+          else attacker.metrics.farRangePenaltyHits += 1;
+        } else attacker.metrics.optimalRangeHits += 1;
+        this.recordRangeSample(attacker, info, shotDistance, rangeMultiplier);
       }
+      if (rangeMultiplier < 1) amount *= rangeMultiplier;
       if (target.isDefenseEnemy) {
         const sourceAngle = attacker ? Math.atan2(attacker.y - target.y, attacker.x - target.x) : 0;
         if (target.defenseType === 'rabbit' && attacker) {
@@ -6280,6 +6631,7 @@
         }
       }
       target.lastDamageAt = this.elapsed;
+      if (target.ai && attacker?.id) { target.ai.lastAttackerId = attacker.id; target.ai.lastHostileContactAt = this.elapsed; }
       if (target.ai && attacker && attacker.id !== target.id) target.ai.lastHostileContactAt = this.elapsed;
       const attackAngle = Math.atan2(info.y - target.y, info.x - target.x);
       const shields = Object.values(target.shields).filter(Boolean);
@@ -6573,7 +6925,7 @@
       if (!p || !profile) return null;
       let best = null;
       let bestScore = Infinity;
-      const maxScan = Math.max(profile.max * 1.25, profile.max + 240);
+      const maxScan = Math.max(profile.max * (trigger.kind === 'sniper' ? 1.75 : 1.35), profile.max + (trigger.kind === 'sniper' ? 900 : 320));
       for (const target of this.players) {
         if (!this.canDamage(p, target)) continue;
         const dx = target.x - p.x, dy = target.y - p.y;
@@ -6605,7 +6957,7 @@
         if (this.scopeActive && !scopeTrigger) this.scopeActive = false;
         if (scopeTrigger) {
           const diagonal = Math.hypot(this.viewW, this.viewH);
-          const lead = diagonal * (scopeTrigger.kind === 'sniper' ? .52 : .32);
+          const lead = diagonal * (scopeTrigger.kind === 'sniper' ? 1.35 : .5);
           targetX += Math.cos(focus.aim) * lead;
           targetY += Math.sin(focus.aim) * lead;
         }
@@ -7119,6 +7471,25 @@
       ctx.fillRect(x + 18, y + 27 + Math.max(0, -step), 4, 4);
       ctx.strokeStyle = p.human ? 'rgba(255,255,255,.9)' : 'rgba(0,0,0,.28)';
       ctx.strokeRect(x + 8.5, y + 13.5, 16, 14);
+      const charges = Object.values(p.shooterCharges || {}).filter(Boolean);
+      for (const charge of charges) {
+        const progress = 1 - clamp(charge.timer / Math.max(.001, charge.max), 0, 1);
+        const cubeColor = charge.bullet === 'meteor' ? '#ffb55e' : charge.bullet === 'viper' ? '#c88cff' : charge.bullet === 'hound' ? '#7dffb8' : '#72e8ff';
+        for (let i = 0; i < 4; i++) {
+          const a = i / 4 * TAU + this.elapsed * 2.8;
+          const r = 21 + progress * 9;
+          ctx.fillStyle = cubeColor;
+          ctx.globalAlpha = alpha * (.45 + progress * .45);
+          ctx.fillRect(Math.round(x + 16 + Math.cos(a) * r - 3), Math.round(y + 17 + Math.sin(a) * r - 3), 6, 6);
+        }
+      }
+      if (p.reloadVisual) {
+        const progress = 1 - clamp(p.reloadVisual.timer / Math.max(.001, p.reloadVisual.max), 0, 1);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = 'rgba(4,10,15,.82)'; ctx.fillRect(x + 4, y - 7, 24, 4);
+        ctx.fillStyle = '#ffd369'; ctx.fillRect(x + 4, y - 7, 24 * progress, 4);
+        ctx.fillStyle = '#dcecff'; ctx.fillRect(x + 25, y + 16 + Math.sin(this.elapsed * 14) * 2, 7, 3);
+      }
       ctx.restore();
     }
 
@@ -7540,6 +7911,11 @@
       if ((p.defensePoisonTimer || 0) > 0) statuses.push(`GAS ${(p.defensePoisonTimer || 0).toFixed(1)}s`);
       if (this.isDefenseMode && this.defenseFlag && Math.hypot(p.x - this.defenseFlag.x, p.y - this.defenseFlag.y) < 130) statuses.push('F：TRION → FLAG');
       if (p.pendingComposite) statuses.push(`COMBINE ${Math.ceil((1 - p.pendingComposite.timer / p.pendingComposite.total) * 100)}%`);
+      for (const hand of ['main', 'sub']) {
+        const charge = p.shooterCharges?.[hand];
+        if (charge) statuses.push(`TRION CUBE ${hand.toUpperCase()} ${Math.round((1 - charge.timer / Math.max(.001, charge.max)) * 100)}%`);
+      }
+      if (p.reloadVisual) statuses.push(`RELOAD ${String(p.reloadVisual.hand).toUpperCase()} ${Math.max(0,p.reloadVisual.timer).toFixed(1)}s`);
       for (const hand of ['main', 'sub']) if (p.modifierReady[hand]) statuses.push(`${p.modifierReady[hand].type === 'lead' ? 'LEAD' : 'STAR'}→${hand.toUpperCase()}`);
       $('#statusList').innerHTML = statuses.map((status) => `<span class="status-chip">${status}</span>`).join('');
     }
@@ -7555,6 +7931,19 @@
           const remaining = p.cooldowns[key] || 0;
           const max = p.cooldownMax[key] || 1;
           slot.querySelector('.cooldown i').style.width = `${clamp(remaining / max, 0, 1) * 100}%`;
+          const ammo = slot.querySelector('.ammo');
+          const trigger = DATA.triggers[id];
+          if (ammo) {
+            if (trigger?.kind === 'gun') {
+              const state = this.getGunState(p, hand, trigger, index);
+              ammo.textContent = state.reloadTimer > 0 ? `RELOAD ${state.reloadTimer.toFixed(1)}` : `${state.ammo}/${state.capacity}`;
+              ammo.classList.toggle('warning', state.ammo <= Math.max(2, state.capacity * .18));
+            } else if (trigger?.kind === 'shooter' && p.shooterCharges?.[hand]?.slot === index) {
+              const charge = p.shooterCharges[hand];
+              ammo.textContent = `CUBE ${Math.round((1 - charge.timer / Math.max(.001, charge.max)) * 100)}%`;
+              ammo.classList.remove('warning');
+            } else ammo.textContent = '';
+          }
         });
       }
       $$('[data-mobile-key^="Digit"]').forEach((button) => {

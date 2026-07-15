@@ -90,19 +90,19 @@
 
     egret: {
       id: 'egret', name: 'イーグレット', short: 'EGR', category: 'sniper', kind: 'sniper',
-      cost: 17, cooldown: 2.2, damage: 49, speed: 1280, optimalMin: 650, optimalMax: 1600,
+      cost: 17, cooldown: 2.2, damage: 49, speed: 1280, optimalMin: 500, optimalMax: 1900,
       description: '射程を重視した万能型狙撃銃。適正距離は650～1600で、Rキーのスコープから遠方を確認できます。',
       controls: '発動：狙撃／R：スコープ',
     },
     lightning: {
       id: 'lightning', name: 'ライトニング', short: 'LTN', category: 'sniper', kind: 'sniper',
-      cost: 12, cooldown: 1.18, damage: 27, speed: 1750, optimalMin: 520, optimalMax: 1450,
+      cost: 12, cooldown: 1.18, damage: 27, speed: 1750, optimalMin: 420, optimalMax: 1750,
       description: '軽量で弾速が高く当てやすい狙撃銃。適正距離は520～1450で、Rキーのスコープから遠方を確認できます。',
       controls: '発動：高速狙撃／R：スコープ',
     },
     ibis: {
       id: 'ibis', name: 'アイビス', short: 'IBIS', category: 'sniper', kind: 'sniper',
-      cost: 25, cooldown: 3.15, damage: 72, speed: 820, optimalMin: 480, optimalMax: 1000,
+      cost: 25, cooldown: 3.15, damage: 72, speed: 820, optimalMin: 380, optimalMax: 1250,
       description: '威力特化の重量級狙撃銃。適正距離は480～1000で、Rキーのスコープから遠方を確認できます。',
       controls: '発動：重狙撃／R：スコープ',
     },
@@ -184,11 +184,11 @@
   };
 
   const gunStats = {
-    assault: { rate: 0.13, speed: 760, damage: 8.3, spread: 0.045, count: 1, cost: 2.15, range: 1.2, optimalMin: 170, optimalMax: 650 },
-    handgun: { rate: 0.28, speed: 820, damage: 13.5, spread: 0.025, count: 1, cost: 3.2, range: 1.2, optimalMin: 110, optimalMax: 460 },
-    shotgun: { rate: 0.9, speed: 690, damage: 6.4, spread: 0.27, count: 8, cost: 10.5, range: 0.78, optimalMin: 45, optimalMax: 260 },
-    grenade: { rate: 1.18, speed: 500, damage: 30, spread: 0.025, count: 1, cost: 14, range: 0.9, explosive: true, optimalMin: 180, optimalMax: 480 },
-    gatling: { rate: 0.075, speed: 720, damage: 5.7, spread: 0.085, count: 1, cost: 1.65, range: 1.08, optimalMin: 190, optimalMax: 620 },
+    assault: { rate: 0.13, speed: 760, damage: 8.3, spread: 0.045, count: 1, cost: 2.15, range: 1.2, optimalMin: 170, optimalMax: 650, magazine: 30, reload: 1.72 },
+    handgun: { rate: 0.28, speed: 820, damage: 13.5, spread: 0.025, count: 1, cost: 3.2, range: 1.2, optimalMin: 110, optimalMax: 460, magazine: 12, reload: 1.28 },
+    shotgun: { rate: 0.9, speed: 690, damage: 6.4, spread: 0.27, count: 8, cost: 10.5, range: 0.78, optimalMin: 45, optimalMax: 260, magazine: 6, reload: 2.05 },
+    grenade: { rate: 1.18, speed: 500, damage: 30, spread: 0.025, count: 1, cost: 14, range: 0.9, explosive: true, optimalMin: 180, optimalMax: 480, magazine: 4, reload: 2.45 },
+    gatling: { rate: 0.075, speed: 720, damage: 5.7, spread: 0.085, count: 1, cost: 1.65, range: 1.08, optimalMin: 190, optimalMax: 620, magazine: 56, reload: 2.75 },
   };
 
   for (const [gun, gunName] of Object.entries(gunNames)) {
@@ -203,8 +203,10 @@
         gun,
         bullet,
         ...gunStats[gun],
-        description: `${gunName}に${bulletName}を設定。適正距離は${gunStats[gun].optimalMin}～${gunStats[gun].optimalMax}で、範囲外ではダメージが半減します。`,
-        controls: `${gun === 'assault' || gun === 'gatling' ? '長押し：連射' : '発動：射撃'}／R：スコープ`,
+        magazine: Math.max(2, Math.round(gunStats[gun].magazine * ({ asteroid: 1, hound: .8, viper: .85, meteor: .5 }[bullet] || 1))),
+        reload: gunStats[gun].reload * ({ asteroid: 1, hound: 1.08, viper: 1.12, meteor: 1.25 }[bullet] || 1),
+        description: `${gunName}に${bulletName}を設定。装弾数${Math.max(2, Math.round(gunStats[gun].magazine * ({ asteroid: 1, hound: .8, viper: .85, meteor: .5 }[bullet] || 1)))}。適正距離は${gunStats[gun].optimalMin}～${gunStats[gun].optimalMax}で、範囲外ではダメージが半減します。`,
+        controls: `${gun === 'assault' || gun === 'gatling' ? '長押し：連射' : '発動：射撃'}／弾切れ：自動リロード／R：スコープ`,
       };
     }
   }
