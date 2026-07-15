@@ -952,12 +952,12 @@
       this.virtualKeys = new Set();
       this.virtualJustKeys = new Set();
       this.virtualMove = { x: 0, y: 0 };
-      this.virtualAim = { x: 1, y: 0, active: false };
+      this.virtualAim = { x: 1, y: 0, active: false, touching: false };
       this.virtualMain = false;
       this.virtualSub = false;
       this.virtualMainJust = false;
       this.virtualSubJust = false;
-      this.mouse = { x: innerWidth / 2, y: innerHeight / 2, left: false, right: false, justLeft: false, justRight: false };
+      this.mouse = { x: innerWidth / 2, y: innerHeight / 2, dx: 0, dy: 0, wheel: 0, left: false, right: false, justLeft: false, justRight: false };
       this.listeners = [];
       this.bind(window, 'keydown', (e) => {
         if (!this.keys.has(e.code)) this.justKeys.add(e.code);
@@ -968,6 +968,12 @@
       this.bind(canvas, 'mousemove', (e) => {
         this.mouse.x = e.clientX;
         this.mouse.y = e.clientY;
+        this.mouse.dx += Number(e.movementX || 0);
+        this.mouse.dy += Number(e.movementY || 0);
+      });
+      this.bind(canvas, 'wheel', (e) => {
+        this.mouse.wheel += Number(e.deltaY || 0);
+        e.preventDefault();
       });
       this.bind(canvas, 'mousedown', (e) => {
         if (e.button === 0) {
@@ -993,6 +999,10 @@
         this.virtualSub = false;
         this.virtualMove.x = 0;
         this.virtualMove.y = 0;
+        this.virtualAim.touching = false;
+        this.mouse.dx = 0;
+        this.mouse.dy = 0;
+        this.mouse.wheel = 0;
       });
       this.bindMobileControls();
     }
@@ -1017,11 +1027,18 @@
           if ('active' in target) target.active = true;
           if (thumb) thumb.style.transform = `translate(${x}px,${y}px)`;
         };
-        const down = (event) => { pointerId = event.pointerId; pad.setPointerCapture?.(pointerId); update(event); event.preventDefault(); };
+        const down = (event) => {
+          pointerId = event.pointerId;
+          if ('touching' in target) target.touching = true;
+          pad.setPointerCapture?.(pointerId);
+          update(event);
+          event.preventDefault();
+        };
         const move = (event) => { if (event.pointerId === pointerId) { update(event); event.preventDefault(); } };
         const up = (event) => {
           if (event.pointerId !== pointerId) return;
           pointerId = null;
+          if ('touching' in target) target.touching = false;
           if (!keepActive) { target.x = 0; target.y = 0; }
           if (thumb) thumb.style.transform = 'translate(0,0)';
           event.preventDefault();
@@ -1082,6 +1099,9 @@
       this.virtualJustKeys.clear();
       this.mouse.justLeft = false;
       this.mouse.justRight = false;
+      this.mouse.dx = 0;
+      this.mouse.dy = 0;
+      this.mouse.wheel = 0;
       this.virtualMainJust = false;
       this.virtualSubJust = false;
     }
@@ -1224,6 +1244,10 @@
       this.camera = { x: 0, y: 0 };
       this.scopeActive = false;
       this.scopeTarget = null;
+      this.scopeAim = 0;
+      this.scopeDistance = 0;
+      this.scopeTargetDistance = 0;
+      this.scopeReticle = { x: 0, y: 0 };
       this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [] };
       this.terrainChunkSize = 640;
       this.terrainChunks = new Map();
@@ -4268,7 +4292,10 @@
       ];
       for (const [code, hand, index] of selectMap) if (this.input.consume(code)) p.selected[hand] = index;
 
-      if (this.input.virtualAim.active) p.aim = Math.atan2(this.input.virtualAim.y, this.input.virtualAim.x);
+      const scopeTrigger = this.scopeActive ? this.getScopeTrigger(p) : null;
+      if (this.scopeActive && !scopeTrigger) this.scopeActive = false;
+      if (scopeTrigger) this.updateScopeControl(p, scopeTrigger, dt);
+      else if (this.input.virtualAim.active) p.aim = Math.atan2(this.input.virtualAim.y, this.input.virtualAim.x);
       else {
         const mouseWorld = this.screenToWorld(this.input.mouse.x, this.input.mouse.y);
         p.aim = Math.atan2(mouseWorld.y - p.y, mouseWorld.x - p.x);
@@ -4708,6 +4735,7 @@
     }
 
     getHumanAimPoint(p, distance = 520) {
+      if (this.scopeActive && p === this.human && this.getScopeTrigger(p)) return this.getScopeReticlePoint(p);
       if (this.input.virtualAim.active) return { x: p.x + Math.cos(p.aim) * distance, y: p.y + Math.sin(p.aim) * distance };
       return this.screenToWorld(this.input.mouse.x, this.input.mouse.y);
     }
@@ -6917,31 +6945,99 @@
         return;
       }
       this.scopeActive = !this.scopeActive;
-      this.toast(this.scopeActive ? `${trigger.name}　SCOPE ON` : 'SCOPE OFF');
+      if (this.scopeActive) {
+        const profile = this.getTriggerRangeProfile(trigger);
+        this.scopeAim = this.human.aim;
+        const initial = trigger.kind === 'sniper'
+          ? clamp((profile?.min || 500) * .72, 260, 620)
+          : clamp((profile?.min || 160) * .82, 100, 300);
+        this.scopeDistance = initial;
+        this.scopeTargetDistance = initial;
+        this.updateScopeReticle(this.human);
+        this.input.mouse.dx = 0;
+        this.input.mouse.dy = 0;
+        this.input.mouse.wheel = 0;
+      }
+      this.toast(this.scopeActive ? `${trigger.name}　SCOPE ON　上下で距離調整` : 'SCOPE OFF');
+    }
+
+    getScopeDistanceLimits(trigger) {
+      const profile = this.getTriggerRangeProfile(trigger) || { min: 100, max: 700 };
+      const min = trigger?.kind === 'sniper' ? 70 : 45;
+      const max = trigger?.kind === 'sniper'
+        ? Math.max(profile.max * 2.45, profile.max + 1900)
+        : Math.max(profile.max * 1.65, profile.max + 520);
+      return { min, max: Math.min(max, Math.hypot(this.world.w, this.world.h)) };
+    }
+
+    updateScopeReticle(p) {
+      if (!p) return this.scopeReticle;
+      this.scopeReticle.x = clamp(p.x + Math.cos(this.scopeAim) * this.scopeDistance, 0, this.world.w);
+      this.scopeReticle.y = clamp(p.y + Math.sin(this.scopeAim) * this.scopeDistance, 0, this.world.h);
+      return this.scopeReticle;
+    }
+
+    getScopeReticlePoint(p = this.human) {
+      if (!p) return { x: 0, y: 0 };
+      if (!this.scopeActive) return { x: p.x + Math.cos(p.aim) * 520, y: p.y + Math.sin(p.aim) * 520 };
+      return this.updateScopeReticle(p);
+    }
+
+    updateScopeControl(p, trigger, dt) {
+      const limits = this.getScopeDistanceLimits(trigger);
+      const mobileTouch = Boolean(this.input.virtualAim.touching);
+      let turnInput = 0;
+      let distanceInput = 0;
+
+      if (mobileTouch) {
+        turnInput += this.input.virtualAim.x * .82;
+        distanceInput += -this.input.virtualAim.y * (trigger.kind === 'sniper' ? 520 : 310);
+      } else {
+        this.scopeAim += this.input.mouse.dx * .00165;
+        this.scopeTargetDistance += -this.input.mouse.dy * (trigger.kind === 'sniper' ? 2.1 : 1.35);
+        this.scopeTargetDistance += -this.input.mouse.wheel * (trigger.kind === 'sniper' ? .72 : .48);
+      }
+
+      if (this.input.isDown('ArrowLeft')) turnInput -= .72;
+      if (this.input.isDown('ArrowRight')) turnInput += .72;
+      if (this.input.isDown('ArrowUp')) distanceInput += trigger.kind === 'sniper' ? 480 : 280;
+      if (this.input.isDown('ArrowDown')) distanceInput -= trigger.kind === 'sniper' ? 480 : 280;
+
+      this.scopeAim += turnInput * dt;
+      this.scopeTargetDistance = clamp(this.scopeTargetDistance + distanceInput * dt, limits.min, limits.max);
+      const follow = 1 - Math.exp(-(trigger.kind === 'sniper' ? 2.15 : 2.8) * dt);
+      this.scopeDistance = lerp(this.scopeDistance || this.scopeTargetDistance, this.scopeTargetDistance, follow);
+      p.aim = this.scopeAim;
+      this.updateScopeReticle(p);
     }
 
     getScopeTargetInfo(p, trigger) {
       const profile = this.getTriggerRangeProfile(trigger);
       if (!p || !profile) return null;
-      let best = null;
+      const reticle = this.getScopeReticlePoint(p);
+      const aimedDistance = Math.hypot(reticle.x - p.x, reticle.y - p.y);
+      let bestTarget = null;
       let bestScore = Infinity;
-      const maxScan = Math.max(profile.max * (trigger.kind === 'sniper' ? 1.75 : 1.35), profile.max + (trigger.kind === 'sniper' ? 900 : 320));
+      const acquireRadius = trigger.kind === 'sniper' ? 66 : 54;
       for (const target of this.players) {
         if (!this.canDamage(p, target)) continue;
-        const dx = target.x - p.x, dy = target.y - p.y;
-        const d = Math.hypot(dx, dy);
-        if (d > maxScan) continue;
-        const diff = Math.abs(angleDiff(Math.atan2(dy, dx), p.aim));
-        const lateral = Math.sin(diff) * d;
-        if (diff > .16 || lateral > target.radius + 34) continue;
+        const cursorDistance = Math.hypot(target.x - reticle.x, target.y - reticle.y);
+        if (cursorDistance > acquireRadius + target.radius) continue;
         if (this.findBlockingWall(p.x, p.y, target.x, target.y, 3)) continue;
-        const score = lateral * 4 + diff * 220 + d * .002;
-        if (score < bestScore) {
-          bestScore = score;
-          best = { target, distance: d, optimal: d >= profile.min && d <= profile.max, profile };
+        if (cursorDistance < bestScore) {
+          bestScore = cursorDistance;
+          bestTarget = target;
         }
       }
-      return best;
+      const distance = bestTarget ? Math.hypot(bestTarget.x - p.x, bestTarget.y - p.y) : aimedDistance;
+      return {
+        target: bestTarget,
+        distance,
+        aimedDistance,
+        optimal: distance >= profile.min && distance <= profile.max,
+        profile,
+        reticle,
+      };
     }
 
     updateCamera(dt) {
@@ -6956,13 +7052,13 @@
         const scopeTrigger = focus === this.human && this.scopeActive ? this.getScopeTrigger(this.human) : null;
         if (this.scopeActive && !scopeTrigger) this.scopeActive = false;
         if (scopeTrigger) {
-          const diagonal = Math.hypot(this.viewW, this.viewH);
-          const lead = diagonal * (scopeTrigger.kind === 'sniper' ? 1.35 : .5);
-          targetX += Math.cos(focus.aim) * lead;
-          targetY += Math.sin(focus.aim) * lead;
+          const reticle = this.getScopeReticlePoint(focus);
+          const cameraShare = scopeTrigger.kind === 'sniper' ? .86 : .74;
+          targetX = lerp(focus.x, reticle.x, cameraShare) - this.viewW / 2;
+          targetY = lerp(focus.y, reticle.y, cameraShare) - this.viewH / 2;
         }
-        this.camera.x = lerp(this.camera.x, targetX, 1 - Math.pow(scopeTrigger ? .006 : .0008, dt));
-        this.camera.y = lerp(this.camera.y, targetY, 1 - Math.pow(scopeTrigger ? .006 : .0008, dt));
+        this.camera.x = lerp(this.camera.x, targetX, 1 - Math.pow(scopeTrigger ? .025 : .0008, dt));
+        this.camera.y = lerp(this.camera.y, targetY, 1 - Math.pow(scopeTrigger ? .025 : .0008, dt));
       }
       this.camera.x = clamp(this.camera.x, 0, Math.max(0, this.world.w - this.viewW));
       this.camera.y = clamp(this.camera.y, 0, Math.max(0, this.world.h - this.viewH));
@@ -7777,29 +7873,43 @@
       const profile = this.getTriggerRangeProfile(trigger);
       const info = this.getScopeTargetInfo(this.human, trigger);
       this.scopeTarget = info?.target?.id || null;
-      const color = info ? (info.optimal ? '#84ff95' : '#ffad62') : '#74eaff';
-      const rx = this.input.virtualAim.active ? this.viewW / 2 : clamp(this.input.mouse.x || this.viewW / 2, 42, this.viewW - 42);
-      const ry = this.input.virtualAim.active ? this.viewH / 2 : clamp(this.input.mouse.y || this.viewH / 2, 42, this.viewH - 42);
-      const radius = Math.min(this.viewW, this.viewH) * (trigger.kind === 'sniper' ? .34 : .28);
+      const distance = info?.distance ?? this.scopeDistance;
+      const optimal = distance >= profile.min && distance <= profile.max;
+      const color = optimal ? '#84ff95' : '#ffad62';
+      const reticle = info?.reticle || this.getScopeReticlePoint(this.human);
+      const screen = this.worldToScreen(reticle.x, reticle.y);
+      const rx = clamp(screen.x, 42, this.viewW - 42);
+      const ry = clamp(screen.y, 42, this.viewH - 42);
+      const radius = Math.min(this.viewW, this.viewH) * (trigger.kind === 'sniper' ? .31 : .25);
+      const playerScreen = this.worldToScreen(this.human.x, this.human.y);
       ctx.save();
       ctx.fillStyle = 'rgba(0,5,10,.2)';
       ctx.fillRect(0, 0, this.viewW, this.viewH);
-      ctx.strokeStyle = 'rgba(220,250,255,.22)';
+      ctx.strokeStyle = 'rgba(116,234,255,.24)';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([8, 8]);
+      ctx.beginPath();
+      ctx.moveTo(clamp(playerScreen.x, 0, this.viewW), clamp(playerScreen.y, 0, this.viewH));
+      ctx.lineTo(rx, ry);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.strokeStyle = 'rgba(220,250,255,.2)';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(rx, ry, radius, 0, TAU); ctx.stroke();
       ctx.strokeStyle = color;
-      ctx.lineWidth = info?.optimal ? 3 : 2;
+      ctx.lineWidth = optimal ? 3 : 2;
       ctx.beginPath(); ctx.arc(rx, ry, 25, 0, TAU); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(rx - 58, ry); ctx.lineTo(rx - 10, ry); ctx.moveTo(rx + 10, ry); ctx.lineTo(rx + 58, ry); ctx.moveTo(rx, ry - 58); ctx.lineTo(rx, ry - 10); ctx.moveTo(rx, ry + 10); ctx.lineTo(rx, ry + 58); ctx.stroke();
       ctx.fillStyle = color; ctx.fillRect(rx - 2, ry - 2, 4, 4);
       ctx.textAlign = 'center';
       ctx.font = '900 12px Inter, sans-serif';
       ctx.fillStyle = color;
-      ctx.fillText(info ? (info.optimal ? 'OPTIMAL RANGE' : info.distance < profile.min ? 'TOO CLOSE / 50% DAMAGE' : 'TOO FAR / 50% DAMAGE') : 'NO TARGET', rx, clamp(ry - radius - 13, 82, this.viewH - 58));
+      ctx.fillText(optimal ? 'OPTIMAL RANGE' : distance < profile.min ? 'TOO CLOSE / 50% DAMAGE' : 'TOO FAR / 50% DAMAGE', rx, clamp(ry - radius - 13, 82, this.viewH - 58));
       ctx.font = '800 10px Inter, sans-serif';
       ctx.fillStyle = 'rgba(226,250,255,.82)';
-      const distanceText = info ? `DIST ${Math.round(info.distance)}　` : '';
-      ctx.fillText(`${trigger.short || trigger.name}　${distanceText}適正 ${profile.min}–${profile.max}`, rx, Math.min(this.viewH - 18, ry + radius + 21));
+      const targetText = info?.target ? `　TARGET ${info.target.name}` : '';
+      ctx.fillText(`${trigger.short || trigger.name}　DIST ${Math.round(distance)}　適正 ${profile.min}–${profile.max}${targetText}`, rx, Math.min(this.viewH - 18, ry + radius + 21));
+      ctx.fillText('左右：方向　上下／ホイール：近・遠', rx, Math.min(this.viewH - 6, ry + radius + 36));
       ctx.restore();
     }
 
