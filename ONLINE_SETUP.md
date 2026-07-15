@@ -1,16 +1,20 @@
-# TRION ARENA オンライン設定 v25
+# TRION ARENA オンライン設定 v26
 
 この版はGitHub Pagesなどの静的ホスティングとSupabaseを使用します。自宅PCの常時起動やポート開放は不要です。
 
-## 1. Supabaseの認証設定
+## 1. メール送信なし登録を有効化
 
-Supabase管理画面で対象プロジェクトを開きます。
+今回から、ブラウザの `signUp()` は使用しません。Supabase Edge FunctionがAdmin APIで確認済みユーザーを作成するため、登録メールは送信されず、`email rate limit exceeded`も発生しません。
 
-1. **Authentication → Providers → Email** を有効にします。
-2. **Confirm email** をオフにします。
-3. 匿名ログインは不要です。以前有効化していても動作しますが、新規オンライン出撃はユーザー登録／ログインを使います。
+先に次の手順を実行してください。
 
-ゲーム画面ではユーザー名とパスワードだけを入力します。内部ではユーザー名から専用の認証IDを生成するため、利用者のメールアドレスは不要です。
+1. `supabase-schema.sql`をSQL Editorで全文実行
+2. `DEPLOY_EDGE_FUNCTION.ps1`をPowerShellで実行
+3. Edge Function `register-account`をデプロイ
+
+詳しい手順は `EDGE_FUNCTION_SETUP.md` にあります。
+
+Supabaseの **Authentication → Providers → Email** はオンにします。Confirm emailはオン／オフどちらでも構いません。オンラインのゲスト参加を使う場合はAnonymousもオンにします。
 
 ## 2. データベースを更新
 
@@ -41,12 +45,12 @@ window.TRION_ONLINE_CONFIG = {
 
 ## 4. 公開とキャッシュ
 
-フォルダーの中身をGitHub Pagesへ配置します。ビルドは不要です。現行HTMLの読み込み番号は `v=25` です。
+フォルダーの中身をGitHub Pagesへ配置します。ビルドは不要です。現行HTMLの読み込み番号は `v=27` です。
 
 公開後：
 
 ```text
-https://soshuko.github.io/Trigger/?v=25
+https://soshuko.github.io/Trigger/?v=27
 ```
 
 古い画面が残る場合は `Ctrl + Shift + R`、またはサイトデータ削除を行ってください。
@@ -84,6 +88,18 @@ https://soshuko.github.io/Trigger/?v=25
 - 試合計算はルームホストのブラウザが担当します。ホストが閉じると進行中の試合は終了します。
 
 
-## v25 登録エラー修正
+## ユーザー登録の仕組み
 
-ユーザー名から生成する内部認証メールを `@example.com` 形式へ変更しました。以前の `@trion-arena.local` はSupabaseのメール形式検証で拒否されるため使用しません。利用者がメールを入力する必要はありません。
+- 利用者が入力するのはユーザー名とパスワードだけです。
+- 内部認証IDはユーザー名から決定的に生成します。
+- Edge Functionが `auth.admin.createUser()` と `email_confirm: true` を使用します。
+- 確認メールや登録メールは送信されません。
+- IP単位で1時間8回、同一ユーザー名で1時間3回の登録試行制限があります。
+- パスワード再設定メールはないため、パスワードを忘れると復旧できません。
+## v27 登録回数チェック修正
+
+- `consume_registration_attempt` RPCを引数名ごと作り直します。
+- SQL実行後にPostgRESTのスキーマキャッシュを再読込します。
+- RPCが一時的に取得できない場合も、Edge Function内の簡易制限へ切り替えて登録を継続します。
+- `supabase-registration-hotfix.sql` をSQL Editorで実行後、Edge Functionを再デプロイしてください。
+

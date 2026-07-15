@@ -22,6 +22,51 @@ async function sha256Hex(value: string) {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
+
+type LimitEntry = { startedAt: number; attempts: number }
+const memoryLimits = new Map<string, LimitEntry>()
+
+function consumeMemoryAttempt(key: string, maxAttempts: number, windowSeconds: number) {
+  const now = Date.now()
+  const windowMs = windowSeconds * 1000
+  const current = memoryLimits.get(key)
+  if (!current || now - current.startedAt >= windowMs) {
+    memoryLimits.set(key, { startedAt: now, attempts: 1 })
+    return true
+  }
+  current.attempts += 1
+  memoryLimits.set(key, current)
+  if (memoryLimits.size > 512) {
+    for (const [entryKey, entry] of memoryLimits) {
+      if (now - entry.startedAt >= windowMs * 2) memoryLimits.delete(entryKey)
+    }
+  }
+  return current.attempts <= maxAttempts
+}
+
+async function consumeRegistrationAttempt(
+  admin: ReturnType<typeof createClient>,
+  key: string,
+  maxAttempts: number,
+  windowSeconds: number,
+) {
+  const { data, error } = await admin.rpc('consume_registration_attempt', {
+    p_rate_key: key,
+    p_max_attempts: maxAttempts,
+    p_window_seconds: windowSeconds,
+  })
+  if (!error) return Boolean(data)
+
+  // PostgREST may briefly retain an old schema after SQL changes. Do not block
+  // all registrations in that case; use a per-instance burst limiter instead.
+  console.warn('Durable registration limiter unavailable; using memory fallback', {
+    code: error.code,
+    message: error.message,
+    hint: error.hint,
+  })
+  return consumeMemoryAttempt(key, maxAttempts, windowSeconds)
+}
+
 function secretKey() {
   const legacy = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   if (legacy) return legacy
@@ -35,7 +80,7 @@ function secretKey() {
   }
 }
 
-Deno.serve(async (request) => {
+Deno.serve(async (request: Request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (request.method !== 'POST') return json(405, { error: 'POSTで呼び出してください。' })
 
@@ -46,6 +91,7 @@ Deno.serve(async (request) => {
     return json(400, { error: '送信内容を読み取れませんでした。' })
   }
 
+  // Simple honeypot for automated form spam.
   if (String(body.website || '')) return json(201, { ok: true })
 
   const username = normalizeUsername(body.username)
@@ -73,15 +119,11 @@ Deno.serve(async (request) => {
   const ipHash = await sha256Hex(`trion-register-ip:${clientIp}`)
   const userHash = await sha256Hex(`trion-register-user:${username}`)
 
-  const [ipLimit, userLimit] = await Promise.all([
-    admin.rpc('consume_registration_attempt', { rate_key: `ip:${ipHash}`, max_attempts: 8, window_seconds: 3600 }),
-    admin.rpc('consume_registration_attempt', { rate_key: `user:${userHash}`, max_attempts: 3, window_seconds: 3600 }),
+  const [ipAllowed, userAllowed] = await Promise.all([
+    consumeRegistrationAttempt(admin, `ip:${ipHash}`, 8, 3600),
+    consumeRegistrationAttempt(admin, `user:${userHash}`, 3, 3600),
   ])
-  if (ipLimit.error || userLimit.error) {
-    console.error('Registration limiter failed', ipLimit.error || userLimit.error)
-    return json(500, { error: '登録回数の確認に失敗しました。SQLを更新してください。' })
-  }
-  if (!ipLimit.data || !userLimit.data) {
+  if (!ipAllowed || !userAllowed) {
     return json(429, { error: '登録試行が多すぎます。1時間ほど空けてから再度お試しください。' })
   }
 
