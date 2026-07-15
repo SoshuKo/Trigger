@@ -62,17 +62,11 @@
         });
         const { data: sessionData, error: sessionError } = await this.client.auth.getSession();
         if (sessionError) throw sessionError;
-        let session = sessionData.session;
-        if (!session) {
-          const result = await this.client.auth.signInAnonymously();
-          if (result.error) throw result.error;
-          session = result.data.session;
-        }
+        const session = sessionData.session;
         this.user = session?.user || null;
-        if (!this.user) throw new Error('匿名アカウントを作成できませんでした。');
-        await this.ensureProfile();
+        if (this.user) await this.ensureProfile();
         this.ready = true;
-        this.emit('status', { status: 'online' });
+        this.emit('status', { status: 'online', detail: this.user && !this.user.is_anonymous ? 'ログイン済み' : 'ユーザー登録またはログインしてください。' });
         this.emit('ready', { enabled: true, user: this.user, profile: this.profile });
         return true;
       } catch (error) {
@@ -86,7 +80,7 @@
     }
 
     async ensureProfile() {
-      const storedName = localStorage.getItem('trionOnlineDisplayName') || '隊員';
+      const storedName = this.user?.user_metadata?.display_name || this.user?.user_metadata?.username || localStorage.getItem('trionOnlineDisplayName') || '隊員';
       const { data: existing, error: readError } = await this.client.from('profiles').select('*').eq('id', this.user.id).maybeSingle();
       if (readError) throw readError;
       if (existing) {
@@ -98,6 +92,7 @@
         const { data, error } = await this.client.from('profiles').insert({
           id: this.user.id,
           display_name: storedName,
+          username: this.user?.user_metadata?.username || null,
           friend_code: friendCode,
         }).select('*').single();
         if (!error) {
@@ -121,18 +116,20 @@
     }
 
     async fetchRankings() {
-      if (!this.connected) return { solo: [], team: [] };
-      const [soloResult, teamResult] = await Promise.all([
+      if (!this.client) return { solo: [], team: [], defense: [] };
+      const [soloResult, teamResult, defenseResult] = await Promise.all([
         this.client.from('rankings').select('display_name,score,kills,deaths,created_at').eq('mode', 'solo').order('score', { ascending: false }).limit(5),
         this.client.from('rankings').select('team_name,score,kills,deaths,created_at').eq('mode', 'team').order('score', { ascending: false }).limit(5),
+        this.client.from('rankings').select('team_name,display_name,score,kills,deaths,defense_round,created_at').eq('mode', 'defense').order('score', { ascending: false }).limit(5),
       ]);
       if (soloResult.error) throw soloResult.error;
       if (teamResult.error) throw teamResult.error;
-      return { solo: soloResult.data || [], team: teamResult.data || [] };
+      if (defenseResult.error) throw defenseResult.error;
+      return { solo: soloResult.data || [], team: teamResult.data || [], defense: defenseResult.data || [] };
     }
 
     async submitRanking(entry) {
-      if (!this.connected || !entry || !['solo', 'team'].includes(entry.mode)) return false;
+      if (!this.connected || !entry || !['solo', 'team', 'defense'].includes(entry.mode)) return false;
       const payload = {
         user_id: this.user.id,
         display_name: String(entry.displayName || this.profile?.display_name || '隊員').slice(0, 18),
@@ -143,6 +140,7 @@
         deaths: Math.max(0, Math.round(Number(entry.deaths || 0))),
         match_id: String(entry.matchId || '').slice(0, 80),
         room_id: this.room?.id || null,
+        defense_round: Math.max(0, Math.round(Number(entry.defenseRound || 0))),
         verified: false,
       };
       const { error } = await this.client.from('rankings').insert(payload);
@@ -477,7 +475,7 @@
       badge.title = detail;
     }
     const note = $('#onlineStatusNote');
-    if (note) note.textContent = detail || (status === 'disabled' ? 'Supabase設定後に利用できます。' : status === 'online' ? 'クラウドへ接続しています。' : '');
+    if (note) note.textContent = detail || (status === 'disabled' ? 'Supabase設定後に利用できます。' : status === 'online' ? (service.connected ? 'クラウドへ接続しています。' : 'ユーザー登録またはログインしてください。') : '');
   }
 
   async function renderOnlineRankings() {
@@ -490,6 +488,7 @@
       };
       render($('#soloTitleRanking'), rankings.solo, false);
       render($('#teamTitleRanking'), rankings.team, true);
+      render($('#defenseTitleRanking'), rankings.defense, true);
     } catch (error) {
       console.warn('Online ranking load failed', error);
     }
@@ -560,8 +559,6 @@
 
   function bindUi() {
     const openPanel = async () => { $('#onlinePanel')?.classList.remove('hidden'); if (service.connected) { await renderFriends(); await renderOnlineRankings(); } };
-    $('#onlineOpenButton')?.addEventListener('click', openPanel);
-    $('#onlineSetupOpenButton')?.addEventListener('click', openPanel);
     $('#onlineCloseButton')?.addEventListener('click', () => $('#onlinePanel')?.classList.add('hidden'));
     $('#onlineNameSave')?.addEventListener('click', async () => {
       try { await service.updateDisplayName($('#onlineDisplayName').value); } catch (error) { alert(error.message || error); }

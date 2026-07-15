@@ -1,6 +1,6 @@
 -- TRION ARENA online schema for Supabase
 -- Run this whole file in the Supabase SQL Editor.
--- Then enable Authentication > Providers > Anonymous Sign-Ins.
+-- Then enable Authentication > Providers > Email and disable Confirm email.
 
 create extension if not exists pgcrypto;
 
@@ -233,3 +233,181 @@ begin
   alter publication supabase_realtime add table public.room_members;
 exception when duplicate_object then null;
 end $$;
+
+-- v24: username/password accounts, squads, defense rankings and access counter.
+alter table public.profiles add column if not exists username text;
+create unique index if not exists profiles_username_unique_idx on public.profiles(lower(username)) where username is not null;
+
+alter table public.rankings add column if not exists defense_round integer not null default 0 check (defense_round between 0 and 100000);
+alter table public.rankings drop constraint if exists rankings_mode_check;
+alter table public.rankings add constraint rankings_mode_check check (mode in ('solo','team','defense'));
+
+drop policy if exists "rankings readable" on public.rankings;
+create policy "rankings readable" on public.rankings for select to anon, authenticated using (true);
+grant select on public.rankings to anon;
+
+create table if not exists public.squads (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(name) between 1 and 12),
+  color text not null default '#4aa8ff' check (color ~ '^#[0-9A-Fa-f]{6}$'),
+  emblem_pixels text not null default '' check (char_length(emblem_pixels) in (0,1024)),
+  leader_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.squad_members (
+  squad_id uuid not null references public.squads(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  joined_at timestamptz not null default now(),
+  primary key (squad_id,user_id)
+);
+create index if not exists squad_members_user_idx on public.squad_members(user_id);
+
+alter table public.squads enable row level security;
+alter table public.squad_members enable row level security;
+
+create or replace function public.is_squad_member(target_squad uuid)
+returns boolean language sql stable security definer set search_path=public as $$
+  select exists(select 1 from public.squad_members where squad_id=target_squad and user_id=auth.uid());
+$$;
+
+create or replace function public.is_squad_leader(target_squad uuid)
+returns boolean language sql stable security definer set search_path=public as $$
+  select exists(select 1 from public.squads where id=target_squad and leader_id=auth.uid());
+$$;
+
+drop policy if exists "squads members read" on public.squads;
+create policy "squads members read" on public.squads for select to authenticated using (public.is_squad_member(id));
+drop policy if exists "squad members read" on public.squad_members;
+create policy "squad members read" on public.squad_members for select to authenticated using (public.is_squad_member(squad_id));
+
+create or replace function public.remove_friend(target_id uuid)
+returns boolean language plpgsql security definer set search_path=public as $$
+begin
+  delete from public.friends where (owner_id=auth.uid() and friend_id=target_id) or (owner_id=target_id and friend_id=auth.uid());
+  return true;
+end;
+$$;
+
+create or replace function public.create_squad_with_members(
+  squad_name text,
+  squad_color text,
+  squad_emblem text,
+  member_ids uuid[] default '{}'::uuid[]
+)
+returns uuid language plpgsql security definer set search_path=public as $$
+declare
+  new_squad uuid;
+  member_id uuid;
+begin
+  if auth.uid() is null then raise exception 'ログインが必要です。'; end if;
+  if char_length(trim(squad_name)) < 1 or char_length(trim(squad_name)) > 12 then raise exception '隊名は1～12文字です。'; end if;
+  if squad_color !~ '^#[0-9A-Fa-f]{6}$' then raise exception '隊カラーが不正です。'; end if;
+  if char_length(coalesce(squad_emblem,'')) not in (0,1024) then raise exception '隊章データが不正です。'; end if;
+  insert into public.squads(name,color,emblem_pixels,leader_id)
+  values(left(trim(squad_name),12),squad_color,coalesce(squad_emblem,''),auth.uid()) returning id into new_squad;
+  insert into public.squad_members(squad_id,user_id) values(new_squad,auth.uid());
+  foreach member_id in array coalesce(member_ids,'{}'::uuid[]) loop
+    if member_id=auth.uid() then continue; end if;
+    if not exists(select 1 from public.friends where owner_id=auth.uid() and friend_id=member_id) then
+      raise exception 'フレンド以外は隊へ追加できません。';
+    end if;
+    insert into public.squad_members(squad_id,user_id) values(new_squad,member_id) on conflict do nothing;
+  end loop;
+  return new_squad;
+end;
+$$;
+
+create or replace function public.list_my_squads()
+returns jsonb language sql security definer set search_path=public as $$
+  select coalesce(jsonb_agg(item order by item->>'name'),'[]'::jsonb)
+  from (
+    select jsonb_build_object(
+      'id',s.id,
+      'name',s.name,
+      'color',s.color,
+      'emblem_pixels',s.emblem_pixels,
+      'leader_id',s.leader_id,
+      'members',coalesce((
+        select jsonb_agg(jsonb_build_object('user_id',p.id,'display_name',p.display_name,'friend_code',p.friend_code) order by sm.joined_at)
+        from public.squad_members sm join public.profiles p on p.id=sm.user_id where sm.squad_id=s.id
+      ),'[]'::jsonb)
+    ) item
+    from public.squads s join public.squad_members mine on mine.squad_id=s.id
+    where mine.user_id=auth.uid()
+  ) q;
+$$;
+
+create or replace function public.update_squad_identity(
+  target_squad uuid,
+  squad_name text,
+  squad_color text,
+  squad_emblem text
+)
+returns boolean language plpgsql security definer set search_path=public as $$
+begin
+  if not public.is_squad_leader(target_squad) then raise exception '隊長だけが隊設定を変更できます。'; end if;
+  update public.squads set
+    name=left(trim(squad_name),12),
+    color=squad_color,
+    emblem_pixels=coalesce(squad_emblem,''),
+    updated_at=now()
+  where id=target_squad;
+  return true;
+end;
+$$;
+
+create or replace function public.set_squad_leader(target_squad uuid,new_leader uuid)
+returns boolean language plpgsql security definer set search_path=public as $$
+begin
+  if not public.is_squad_leader(target_squad) then raise exception '現在の隊長だけが隊長を変更できます。'; end if;
+  if not exists(select 1 from public.squad_members where squad_id=target_squad and user_id=new_leader) then raise exception '新しい隊長は隊員から選んでください。'; end if;
+  update public.squads set leader_id=new_leader,updated_at=now() where id=target_squad;
+  return true;
+end;
+$$;
+
+create or replace function public.leave_squad(target_squad uuid)
+returns boolean language plpgsql security definer set search_path=public as $$
+declare next_leader uuid;
+begin
+  if not exists(select 1 from public.squad_members where squad_id=target_squad and user_id=auth.uid()) then raise exception 'この隊に所属していません。'; end if;
+  delete from public.squad_members where squad_id=target_squad and user_id=auth.uid();
+  if not exists(select 1 from public.squad_members where squad_id=target_squad) then
+    delete from public.squads where id=target_squad;
+  elsif exists(select 1 from public.squads where id=target_squad and leader_id=auth.uid()) then
+    select user_id into next_leader from public.squad_members where squad_id=target_squad order by joined_at limit 1;
+    update public.squads set leader_id=next_leader,updated_at=now() where id=target_squad;
+  end if;
+  return true;
+end;
+$$;
+
+create table if not exists public.site_stats (
+  id integer primary key check (id=1),
+  access_count bigint not null default 0,
+  updated_at timestamptz not null default now()
+);
+insert into public.site_stats(id,access_count) values(1,0) on conflict(id) do nothing;
+alter table public.site_stats enable row level security;
+
+create or replace function public.register_page_visit()
+returns bigint language plpgsql security definer set search_path=public as $$
+declare total bigint;
+begin
+  update public.site_stats set access_count=access_count+1,updated_at=now() where id=1 returning access_count into total;
+  return total;
+end;
+$$;
+
+grant execute on function public.remove_friend(uuid) to authenticated;
+grant execute on function public.is_squad_member(uuid) to authenticated;
+grant execute on function public.is_squad_leader(uuid) to authenticated;
+grant execute on function public.create_squad_with_members(text,text,text,uuid[]) to authenticated;
+grant execute on function public.list_my_squads() to authenticated;
+grant execute on function public.update_squad_identity(uuid,text,text,text) to authenticated;
+grant execute on function public.set_squad_leader(uuid,uuid) to authenticated;
+grant execute on function public.leave_squad(uuid) to authenticated;
+grant execute on function public.register_page_visit() to anon, authenticated;
+grant select on public.squads,public.squad_members to authenticated;

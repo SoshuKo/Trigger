@@ -570,3 +570,51 @@ body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity
 }
 
 .hud-slot .ammo{display:block;font-size:9px;line-height:1;color:#9feaff;letter-spacing:.04em;min-height:10px;white-space:nowrap}.hud-slot .ammo.warning{color:#ffb46b}.hud-slot{min-width:72px}
+
+
+/* v24 user, squad and online preparation */
+.title-rankings { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.title-actions { flex-wrap:wrap; }
+.title-access { display:flex; justify-content:center; align-items:baseline; gap:10px; margin:10px auto 4px; color:var(--muted); letter-spacing:.14em; font-size:9px; }
+.title-access strong { color:var(--cyan); font-size:18px; letter-spacing:.08em; }
+.title-footer { display:grid; gap:5px; justify-items:center; margin-top:10px; padding-top:10px; border-top:1px solid rgba(101,232,255,.1); }
+.title-footer a { color:var(--cyan); font-size:10px; text-decoration:none; }
+.title-footer a:hover { text-decoration:underline; }
+.title-footer small { max-width:700px; color:var(--muted); font-size:8px; line-height:1.7; text-align:center; }
+.online-preparation-banner { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:12px; padding:12px 14px; border:1px solid rgba(101,232,255,.28); background:linear-gradient(90deg,rgba(26,113,145,.25),rgba(7,21,33,.74)); }
+.online-preparation-banner div { display:grid; gap:3px; }
+.online-preparation-banner strong { color:var(--cyan); letter-spacing:.12em; }
+.online-preparation-banner span { color:var(--muted); font-size:10px; }
+.online-proceed { margin-top:8px; background:linear-gradient(90deg,#1d7e9d,#275aa9); }
+.online-prep-summary { display:flex; flex-wrap:wrap; align-items:center; gap:9px; padding:11px; margin-bottom:12px; border:1px solid rgba(101,232,255,.13); background:rgba(0,0,0,.2); }
+.online-prep-summary div { display:grid; gap:2px; margin-right:auto; }
+.online-prep-summary span { color:var(--muted); font-size:8px; letter-spacing:.12em; }
+.online-prep-summary strong { color:#e8fbff; font-size:11px; }
+.user-panel-card { width:min(1180px,calc(100vw - 24px)); max-height:calc(100dvh - 24px); overflow:auto; }
+.user-auth-grid,.user-management-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.user-account-head { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:12px; margin-bottom:12px; border:1px solid rgba(101,232,255,.16); background:rgba(0,0,0,.2); }
+.user-account-head>div:first-child { display:grid; gap:3px; }
+.user-account-head span { color:var(--muted); font-size:8px; letter-spacing:.15em; }
+.user-account-head strong { color:var(--cyan); font-size:18px; }
+.user-account-head small { color:#d8f5ff; }
+.user-account-head>div:last-child { display:flex; flex-wrap:wrap; gap:7px; }
+.user-message { min-height:18px; padding:7px 2px; color:#ffe58a; font-size:10px; }
+.squad-create-box,.squad-manage-box { grid-column:span 1; }
+.squad-friend-choices { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; max-height:150px; overflow:auto; margin:7px 0; }
+.squad-friend-choice { display:flex; align-items:center; gap:7px; padding:7px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.025); font-size:10px; }
+.user-emblem-layout { display:grid; grid-template-columns:180px 1fr; gap:10px; margin:9px 0; }
+#userEmblemEditor { width:180px; height:180px; image-rendering:pixelated; border:1px solid rgba(101,232,255,.28); background:#fff; touch-action:none; }
+.user-emblem-layout>div { display:grid; align-content:start; gap:7px; }
+.user-squad-list { display:grid; gap:6px; max-height:190px; overflow:auto; }
+.user-squad-row { display:grid; grid-template-columns:auto 1fr auto; gap:9px; align-items:center; padding:8px; border:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.025); }
+.user-squad-emblem { width:38px; height:38px; image-rendering:pixelated; border:1px solid rgba(255,255,255,.1); }
+.user-squad-row div { display:grid; gap:2px; }
+.user-squad-row small { color:var(--muted); font-size:8px; }
+.user-squad-editor { display:grid; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid rgba(101,232,255,.11); }
+.squad-member-list { display:grid; gap:5px; }
+.squad-member-row { display:flex; justify-content:space-between; gap:10px; padding:7px; background:rgba(255,255,255,.025); font-size:10px; }
+@media (max-width:900px) { .title-rankings { grid-template-columns:1fr; } .user-auth-grid,.user-management-grid { grid-template-columns:1fr; } .squad-create-box,.squad-manage-box { grid-column:auto; } }
+@media (max-width:560px) { .online-preparation-banner,.user-account-head { align-items:stretch; flex-direction:column; } .user-emblem-layout { grid-template-columns:1fr; } #userEmblemEditor { width:min(256px,100%); height:auto; } .squad-friend-choices { grid-template-columns:1fr; } }
+
+#userPanel { z-index:50; }
+.user-message[data-error="true"] { color:#ff8c99; }

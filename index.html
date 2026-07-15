@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
   <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=23" />
+  <link rel="stylesheet" href="styles.css?v=24" />
 </head>
 <body>
   <main id="app">
@@ -18,7 +18,8 @@
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
         <div class="title-actions">
           <button id="enterSetupButton" class="title-start" type="button">出撃準備へ</button>
-          <button id="onlineOpenButton" class="title-online" type="button">オンライン</button>
+          <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
+          <button id="userOpenButton" class="title-sub" type="button">ユーザー</button>
           <button id="titleGuideButton" class="title-sub" type="button">操作案内</button>
         </div>
         <div class="online-title-status"><span id="onlineStatusBadge" data-status="disabled">未設定</span><small id="onlineStatusNote">Supabase設定後に利用できます。</small></div>
@@ -31,8 +32,16 @@
             <header><span>TEAM</span><h2>チームランキング</h2></header>
             <div id="teamTitleRanking" class="title-ranking-list"></div>
           </section>
+          <section class="ranking-board">
+            <header><span>DEFENSE</span><h2>防衛戦ランキング</h2></header>
+            <div id="defenseTitleRanking" class="title-ranking-list"></div>
+          </section>
         </div>
-        <p class="title-note">非公式ファンゲーム。効果音はユーザー提供素材を使用しています。</p>
+        <div class="title-access"><span>ACCESS</span><strong id="accessCounter">---</strong></div>
+        <footer class="title-footer">
+          <a href="https://twitter.com/PubRe26174" target="_blank" rel="noopener noreferrer">Twitter @PubRe26174</a>
+          <small>非公式ファンゲームです。権利者様から問題のご指摘があった場合は、公開停止・削除など速やかに対応します。</small>
+        </footer>
       </div>
     </section>
 
@@ -52,6 +61,10 @@
           </div>
         </header>
 
+        <div id="onlinePreparationBanner" class="online-preparation-banner hidden">
+          <div><strong>オンライン出撃準備</strong><span>オフラインと同じ設定を整えてから、ロビーへ進みます。</span></div>
+          <button id="cancelOnlinePreparation" type="button">通常出撃へ戻す</button>
+        </div>
         <div class="setup-grid">
           <section class="panel match-panel">
             <div class="panel-heading">
@@ -229,6 +242,9 @@
             <button id="startButton" class="start-button" type="button">
               <span>ランク戦を開始</span><small>START MATCH</small>
             </button>
+            <button id="onlineProceedButton" class="start-button online-proceed hidden" type="button">
+              <span>オンラインロビーへ</span><small>USE CURRENT LOADOUT</small>
+            </button>
             <p class="disclaimer">非公式ファンゲームです。効果音はユーザー提供素材を使用しています。</p>
           </section>
 
@@ -248,12 +264,88 @@
     </section>
 
 
+    <section id="userPanel" class="online-panel hidden" aria-label="ユーザー画面">
+      <div class="online-panel-card user-panel-card">
+        <header class="online-panel-heading">
+          <div><span>USER & SQUAD</span><h2>ユーザー</h2></div>
+          <button id="userCloseButton" type="button" aria-label="閉じる">×</button>
+        </header>
+        <div id="userLoggedOut" class="user-auth-grid">
+          <section class="online-box">
+            <h3>新規登録</h3>
+            <label>ユーザー名<input id="registerUsername" type="text" maxlength="20" autocomplete="username" placeholder="3～20文字"></label>
+            <label>パスワード<input id="registerPassword" type="password" minlength="6" maxlength="72" autocomplete="new-password" placeholder="6文字以上"></label>
+            <button id="registerUserButton" type="button" class="online-primary">登録する</button>
+            <small>メールアドレスは不要です。ユーザー名はログインに使います。</small>
+          </section>
+          <section class="online-box">
+            <h3>ログイン</h3>
+            <label>ユーザー名<input id="loginUsername" type="text" maxlength="20" autocomplete="username"></label>
+            <label>パスワード<input id="loginPassword" type="password" minlength="6" maxlength="72" autocomplete="current-password"></label>
+            <button id="loginUserButton" type="button" class="online-primary">ログイン</button>
+            <div id="userAuthMessage" class="user-message"></div>
+          </section>
+        </div>
+        <div id="userLoggedIn" class="hidden">
+          <div class="user-account-head">
+            <div><span>LOGIN USER</span><strong id="userAccountName">---</strong><small id="userAccountCode">FRIEND --------</small></div>
+            <div><button id="copyUserFriendCode" type="button">コードをコピー</button><button id="logoutUserButton" type="button" class="secondary">ログアウト</button></div>
+          </div>
+          <div class="user-management-grid">
+            <section class="online-box">
+              <h3>プロフィール</h3>
+              <label>ゲーム内表示名<input id="userDisplayName" type="text" maxlength="18"></label>
+              <button id="saveUserProfile" type="button">表示名を保存</button>
+            </section>
+            <section class="online-box">
+              <h3>フレンド管理</h3>
+              <div class="online-inline"><input id="userFriendCodeInput" type="text" maxlength="12" placeholder="フレンドコード"><button id="userAddFriend" type="button">追加</button></div>
+              <div id="userFriendList" class="online-friend-list"><div class="online-empty">フレンドはまだいません</div></div>
+            </section>
+            <section class="online-box squad-create-box">
+              <h3>フレンドと隊を結成</h3>
+              <label>隊名<input id="userSquadName" type="text" maxlength="12" value="新設隊"></label>
+              <label>キャラクターカラー<input id="userSquadColor" type="color" value="#4aa8ff"></label>
+              <div id="userSquadFriendChoices" class="squad-friend-choices"></div>
+              <div class="user-emblem-layout">
+                <canvas id="userEmblemEditor" width="256" height="256"></canvas>
+                <div>
+                  <label>隊章プリセット<select id="userEmblemPreset"><option value="cube">キューブ</option><option value="cross">クロス</option><option value="fang">ファング</option><option value="shield">シールド</option><option value="wing">ウィング</option><option value="road">ロード</option><option value="tower">タワー</option><option value="custom">カスタム</option></select></label>
+                  <button id="userEmblemClear" type="button">クリア</button>
+                  <button id="userEmblemInvert" type="button">白黒反転</button>
+                  <button id="downloadUserEmblem" type="button">PNGダウンロード</button>
+                </div>
+              </div>
+              <button id="createUserSquad" type="button" class="online-primary">選んだフレンドと隊を結成</button>
+            </section>
+            <section class="online-box squad-manage-box">
+              <h3>所属隊</h3>
+              <div id="userSquadList" class="user-squad-list"><div class="online-empty">所属隊はありません</div></div>
+              <div id="userSquadEditor" class="user-squad-editor hidden">
+                <label>隊名<input id="editSquadName" type="text" maxlength="12"></label>
+                <label>隊カラー<input id="editSquadColor" type="color"></label>
+                <label>リーダー<select id="editSquadLeader"></select></label>
+                <div class="inline-actions"><button id="saveSquadIdentity" type="button">隊設定を保存</button><button id="applySquadToSetup" type="button">出撃設定へ反映</button><button id="leaveUserSquad" type="button" class="secondary">隊を離れる</button></div>
+                <div id="editSquadMembers" class="squad-member-list"></div>
+              </div>
+            </section>
+          </div>
+          <div id="userPanelMessage" class="user-message"></div>
+        </div>
+      </div>
+    </section>
+
     <section id="onlinePanel" class="online-panel hidden" aria-label="オンラインロビー">
       <div class="online-panel-card">
         <header class="online-panel-heading">
           <div><span>TRION NETWORK</span><h2>オンラインロビー</h2></div>
           <button id="onlineCloseButton" type="button" aria-label="閉じる">×</button>
         </header>
+        <div class="online-prep-summary">
+          <div><span>CURRENT PREPARATION</span><strong id="onlinePrepSummary">設定を読み込み中</strong></div>
+          <button id="onlineEditPreparation" type="button">出撃設定を編集</button>
+          <button id="onlineUserShortcut" type="button">ユーザー／フレンド／隊</button>
+        </div>
         <div class="online-grid">
           <section class="online-box">
             <h3>プロフィール</h3>
@@ -269,7 +361,7 @@
           <section class="online-box">
             <h3>ルームを作る</h3>
             <div class="online-three-fields">
-              <label>参加方法<select id="onlineCreateRole"><option value="combatant">戦闘員</option><option value="operator">オペレーター</option><option value="spectator">観戦</option></select></label>
+              <label>参加方法<select id="onlineCreateRole" disabled><option value="combatant">戦闘員</option><option value="operator">オペレーター</option><option value="spectator">観戦</option></select></label>
               <label>チーム<select id="onlineCreateTeam"><option value="0">TEAM 1</option><option value="1">TEAM 2</option><option value="2">TEAM 3</option><option value="3">TEAM 4</option></select></label>
               <label>上限<select id="onlineMaxPlayers"><option value="4">4人</option><option value="8" selected>8人</option><option value="12">12人</option><option value="16">16人</option></select></label>
             </div>
@@ -279,7 +371,7 @@
             <h3>ルームへ参加</h3>
             <input id="onlineJoinCode" type="text" maxlength="6" placeholder="6文字のルームコード">
             <div class="online-two-fields">
-              <label>参加方法<select id="onlineJoinRole"><option value="combatant">戦闘員</option><option value="operator">オペレーター</option><option value="spectator">観戦</option></select></label>
+              <label>参加方法<select id="onlineJoinRole" disabled><option value="combatant">戦闘員</option><option value="operator">オペレーター</option><option value="spectator">観戦</option></select></label>
               <label>チーム<select id="onlineJoinTeam"><option value="0">TEAM 1</option><option value="1">TEAM 2</option><option value="2">TEAM 3</option><option value="3">TEAM 4</option></select></label>
             </div>
             <button id="onlineJoinRoom" type="button" class="online-primary">参加</button>
@@ -469,9 +561,10 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/online-config.js?v=23"></script>
-  <script src="js/trigger-data.js?v=23"></script>
-  <script src="js/online.js?v=23"></script>
-  <script src="js/game.js?v=23"></script>
+  <script src="js/online-config.js?v=24"></script>
+  <script src="js/trigger-data.js?v=24"></script>
+  <script src="js/online.js?v=24"></script>
+  <script src="js/community.js?v=24"></script>
+  <script src="js/game.js?v=24"></script>
 </body>
 </html>

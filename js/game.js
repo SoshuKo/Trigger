@@ -154,8 +154,19 @@
         detail: `${Math.floor(score)} - ${Math.floor(enemyScore)}`,
       };
     }).sort((a, b) => b.score - a.score);
+    const defense = logs.filter((log) => log.mode === 'defense').map((log) => {
+      const human = log.players?.find((player) => player.human) || log.players?.find((player) => !player.isDefenseEnemy) || {};
+      const round = Number(log.defense?.round || log.defenseRound || 1);
+      const score = Number(human.score || 0) + round * 500;
+      return {
+        name: human.squadName || log.humanConfig?.teamConfig?.squadName || '防衛隊',
+        score,
+        detail: `ROUND ${round} / ${human.kills || 0}撃破`,
+      };
+    }).sort((a, b) => b.score - a.score);
     makeRows(solo, '#soloTitleRanking');
     makeRows(team, '#teamTitleRanking', true);
+    makeRows(defense, '#defenseTitleRanking', true);
   }
 
   function showTitle() {
@@ -881,6 +892,13 @@
   }
 
   window.TRION_GET_SETUP_CONFIG = getSetupConfig;
+  window.TRION_APPLY_TEAM_CONFIG = (teamConfig = {}) => {
+    setup.teamConfig = { ...setup.teamConfig, ...JSON.parse(JSON.stringify(teamConfig || {})) };
+    syncTeamCustomizationUI();
+    saveSetup();
+  };
+  window.TRION_SHOW_SETUP = (options = {}) => showSetup(options);
+  window.TRION_SHOW_TITLE = () => showTitle();
   window.TRION_START_ONLINE_MATCH = (session) => {
     if (!session) return;
     const descriptor = window.trionOnline?.getSessionDescriptor?.() || {};
@@ -1803,11 +1821,11 @@
 
     submitOnlineRanking() {
       if (!this.isOnlineMatch || !window.trionOnline || !this.human || this.playerRole !== 'combatant') return;
-      if (!['solo','team'].includes(this.config.mode)) return;
+      if (!['solo','team','defense'].includes(this.config.mode)) return;
       window.trionOnline.submitRanking({
         mode:this.config.mode, displayName:this.human.name, teamName:this.human.squadName,
-        score:this.config.mode==='team'?(this.teamScores[this.human.team]||0):this.human.score,
-        kills:this.human.kills, deaths:this.human.deaths, matchId:this.matchId,
+        score:this.config.mode==='team'?(this.teamScores[this.human.team]||0):this.config.mode==='defense'?((this.human.score||0)+(this.defenseRound||1)*500):this.human.score,
+        kills:this.human.kills, deaths:this.human.deaths, matchId:this.matchId, defenseRound:this.config.mode==='defense'?(this.defenseRound||1):0,
       });
     }
 

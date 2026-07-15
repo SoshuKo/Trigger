@@ -32,7 +32,7 @@ if ($LASTEXITCODE -ge 8) {
 
 git status
 git add .
-git commit -m "Improve combat AI, weapon actions, and logs"
+git commit -m "Add user accounts, squads, defense ranking, and access counter"
 git push origin main
 ```
 
@@ -61,7 +61,7 @@ git push origin main
 GitHub Pages反映後、次を開きます。
 
 ```text
-https://soshuko.github.io/Trigger/?v=23
+https://soshuko.github.io/Trigger/?v=24
 ```
 
 古いファイルが表示される場合は `Ctrl + Shift + R` で強制再読み込みします。
@@ -69,3 +69,8 @@ https://soshuko.github.io/Trigger/?v=23
 ## 直接ホスト版について
 
 直接ホスト版はNode.jsサーバーを含むため、GitHub Pagesの公開ルートへ上書きしないでください。ローカルで展開して `START_PUBLIC_HOST.bat` から起動します。ソースをGitHubへ保管する場合は、別リポジトリまたは別ブランチを推奨します。
+
+
+## Supabase更新
+
+今回の版は `supabase-schema.sql` の再実行が必要です。GitHubへのpush後、Supabase SQL Editorでファイル全文を実行してください。Authentication → Providers → EmailでEmail認証を有効、Confirm emailをオフにします。
