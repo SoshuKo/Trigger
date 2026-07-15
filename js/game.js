@@ -1271,7 +1271,7 @@
       this.scopeTargetDistance = 0;
       this.scopeReticle = { x: 0, y: 0 };
       this.scopeTargetPoint = { x: 0, y: 0 };
-      this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [], shrineGardens: [], shrineRooms: [], shrineCorridors: [], shrineCourts: [], shrineStatues: [], torii: [], frozenPonds: [], snowDrifts: [] };
+      this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [], shrineGardens: [], shrineRooms: [], shrineCorridors: [], shrineCourts: [], shrineStatues: [], torii: [], frozenPonds: [], snowDrifts: [], shrineApproaches: [], shrineSteps: [], shrineDecor: [] };
       this.terrainChunkSize = 640;
       this.terrainChunks = new Map();
       this.maxTerrainChunks = this.onlineMirror ? 12 : 24;
@@ -2949,7 +2949,7 @@
         this.walls.push(wall);
         return wall;
       };
-      const addRoom = (id, x, y, w, h, label, motif = 'seigaiha') => {
+      const addRoom = (id, x, y, w, h, label, motif = 'asanoha') => {
         const room = { id, x, y, w, h, label, motif };
         this.terrain.shrineRooms.push(room);
         this.terrain.buildings.push({ ...room, shrineBuilding: true });
@@ -2961,107 +2961,157 @@
         this.terrain.roads.push({ ...corridor, shrineCorridor: true });
         return corridor;
       };
-      const addShojiLine = (id, x, y, length, vertical = false, panels = 5) => {
-        const gap = 10;
-        const thickness = 18;
-        const panelLength = (length - gap * (panels - 1)) / panels;
-        for (let i = 0; i < panels; i++) {
-          const px = vertical ? x : x + i * (panelLength + gap);
-          const py = vertical ? y + i * (panelLength + gap) : y;
-          addWall(`${id}-${i}`, px, py, vertical ? thickness : panelLength, vertical ? panelLength : thickness, 'shoji', 105, { respawnable: true, respawnDelay: [20, 32], shrinePanel: true });
+      const addWallRun = (id, x, y, length, vertical = false, gaps = [], type = 'templeWall', hp = 570, options = {}) => {
+        const sorted = [...gaps].sort((a, b) => a[0] - b[0]);
+        let cursor = 0;
+        let part = 0;
+        for (const [rawStart, rawEnd] of sorted) {
+          const start = clamp(rawStart, 0, length);
+          const end = clamp(rawEnd, start, length);
+          if (start > cursor + 1) {
+            addWall(`${id}-${part++}`, vertical ? x : x + cursor, vertical ? y + cursor : y, vertical ? 32 : start - cursor, vertical ? start - cursor : 32, type, hp, options);
+          }
+          cursor = Math.max(cursor, end);
+        }
+        if (cursor < length - 1) {
+          addWall(`${id}-${part++}`, vertical ? x : x + cursor, vertical ? y + cursor : y, vertical ? 32 : length - cursor, vertical ? length - cursor : 32, type, hp, options);
         }
       };
+      const addRoomShell = (room, doors = {}) => {
+        const common = { respawnable: true, respawnDelay: [72, 105], shrineStructure: true };
+        addWallRun(`${room.id}-top`, room.x, room.y, room.w, false, doors.top || [], 'templeWall', 570, common);
+        addWallRun(`${room.id}-bottom`, room.x, room.y + room.h - 32, room.w, false, doors.bottom || [], 'templeWall', 570, common);
+        addWallRun(`${room.id}-left`, room.x, room.y, room.h, true, doors.left || [], 'templeWall', 570, common);
+        addWallRun(`${room.id}-right`, room.x + room.w - 32, room.y, room.h, true, doors.right || [], 'templeWall', 570, common);
+      };
+      const addShojiPartition = (id, x, y, length, vertical = false, doorCenter = null, doorWidth = 180) => {
+        const thickness = 16;
+        const panelMax = 150;
+        const panelGap = 8;
+        const doorStart = doorCenter == null ? Infinity : clamp(doorCenter - doorWidth / 2, 0, length);
+        const doorEnd = doorCenter == null ? Infinity : clamp(doorCenter + doorWidth / 2, 0, length);
+        let cursor = 0;
+        let index = 0;
+        while (cursor < length - 1) {
+          if (cursor >= doorStart && cursor < doorEnd) {
+            cursor = doorEnd;
+            continue;
+          }
+          const availableEnd = Math.min(length, cursor < doorStart ? doorStart : length);
+          const panelLength = Math.min(panelMax, availableEnd - cursor);
+          if (panelLength > 24) {
+            addWall(`${id}-${index++}`, vertical ? x : x + cursor, vertical ? y + cursor : y, vertical ? thickness : panelLength, vertical ? panelLength : thickness, 'shoji', 105, { respawnable: true, respawnDelay: [20, 32], shrinePanel: true });
+          }
+          cursor += Math.max(panelLength, 0) + panelGap;
+        }
+      };
+      const addGardenBorder = (id, x, y, length, vertical, gaps) => {
+        addWallRun(id, x, y, length, vertical, gaps, 'shrineStone', 250, { respawnable: true, respawnDelay: [48, 72], lowCover: true });
+      };
 
-      // Main snowy garden and the shinden-style halls around it.
-      this.terrain.shrineGardens.push({ id: 'snow-garden-main', x: 1980, y: 1070, w: 2440, h: 2250, label: '雪庭', trionMultiplier: 1.34 });
-      this.terrain.shrineCourts.push({ id: 'south-court', x: 2290, y: 3450, w: 1820, h: 610, label: '南庭' });
-      this.terrain.frozenPonds.push({ id: 'frozen-pond', x: 2830, y: 1770, w: 760, h: 520 });
+      // 敷地の中心を雪庭に置き、南の参道から一方向に読める寝殿造の配置へ整理。
+      this.terrain.shrineGardens.push({ id: 'snow-garden-main', x: 1950, y: 1180, w: 2500, h: 2020, label: '雪庭', trionMultiplier: 1.34 });
+      this.terrain.shrineCourts.push(
+        { id: 'south-court', x: 2460, y: 3990, w: 1480, h: 360, label: '前庭' },
+        { id: 'west-court', x: 1660, y: 1840, w: 290, h: 700, label: '西中庭' },
+        { id: 'east-court', x: 4450, y: 1840, w: 290, h: 700, label: '東中庭' }
+      );
+      this.terrain.shrineApproaches.push({ id: 'omotesando', x: 2880, y: 3970, w: 640, h: 430, label: '表参道' });
+      this.terrain.frozenPonds.push({ id: 'frozen-pond', x: 3570, y: 1460, w: 610, h: 430 });
       this.terrain.snowDrifts.push(
-        { id: 'drift-0', x: 2140, y: 1320, w: 420, h: 180 },
-        { id: 'drift-1', x: 3820, y: 2710, w: 390, h: 210 },
-        { id: 'drift-2', x: 2440, y: 2860, w: 520, h: 190 },
-        { id: 'drift-3', x: 3610, y: 1240, w: 430, h: 170 }
+        { id: 'drift-0', x: 2090, y: 1370, w: 380, h: 150 },
+        { id: 'drift-1', x: 3960, y: 2760, w: 330, h: 160 },
+        { id: 'drift-2', x: 2300, y: 2790, w: 430, h: 150 },
+        { id: 'drift-3', x: 4100, y: 1260, w: 260, h: 130 }
       );
 
-      addRoom('north-main-hall', 1760, 180, 2880, 720, '正殿', 'shippo');
-      addRoom('west-hall', 250, 620, 1480, 3020, '西殿', 'asanoha');
-      addRoom('east-hall', 4670, 620, 1480, 3020, '東殿', 'seigaiha');
-      addRoom('south-hall', 2130, 3540, 2140, 650, '拝殿', 'kikkou');
-      addCorridor('north-corridor', 1670, 900, 3060, 170, 'asanoha');
-      addCorridor('west-corridor', 1730, 900, 250, 2530, 'seigaiha');
-      addCorridor('east-corridor', 4420, 900, 250, 2530, 'seigaiha');
-      addCorridor('south-corridor', 1730, 3320, 2940, 170, 'asanoha');
-      addCorridor('west-cross', 250, 1950, 1730, 180, 'kikkou');
-      addCorridor('east-cross', 4420, 1950, 1730, 180, 'kikkou');
+      const northHall = addRoom('north-main-hall', 1900, 250, 2600, 660, '正殿', 'shippo');
+      const westHall = addRoom('west-hall', 380, 1100, 1240, 2200, '西殿', 'asanoha');
+      const eastHall = addRoom('east-hall', 4780, 1100, 1240, 2200, '東殿', 'seigaiha');
+      const southHall = addRoom('south-hall', 2180, 3500, 2040, 500, '拝殿', 'kikkou');
 
-      // Sturdy outer walls. Gates remain open at corridor junctions.
-      const hallWall = 34;
-      const outer = [
-        ['north-top',1760,180,2880,hallWall],['north-left',1760,180,hallWall,720],['north-right',4606,180,hallWall,720],
-        ['north-bottom-a',1760,866,980,hallWall],['north-bottom-b',3660,866,980,hallWall],
-        ['west-left',250,620,hallWall,3020],['west-top',250,620,1480,hallWall],['west-bottom',250,3606,1480,hallWall],
-        ['west-right-a',1696,620,hallWall,1080],['west-right-b',1696,2350,hallWall,1290],
-        ['east-right',6116,620,hallWall,3020],['east-top',4670,620,1480,hallWall],['east-bottom',4670,3606,1480,hallWall],
-        ['east-left-a',4670,620,hallWall,1080],['east-left-b',4670,2350,hallWall,1290],
-        ['south-left',2130,3540,hallWall,650],['south-right',4236,3540,hallWall,650],['south-bottom',2130,4156,2140,hallWall],
-      ];
-      outer.forEach(([id,x,y,w,h]) => addWall(`temple-${id}`,x,y,w,h,'templeWall',570,{respawnable:true,respawnDelay:[72,105]}));
+      addCorridor('north-corridor', 1690, 940, 3020, 180, 'asanoha');
+      addCorridor('west-corridor', 1690, 940, 220, 2440, 'seigaiha');
+      addCorridor('east-corridor', 4490, 940, 220, 2440, 'seigaiha');
+      addCorridor('south-corridor', 1690, 3260, 3020, 190, 'asanoha');
+      addCorridor('west-upper-link', 1590, 1490, 130, 300, 'kikkou');
+      addCorridor('west-lower-link', 1590, 2610, 130, 300, 'kikkou');
+      addCorridor('east-upper-link', 4680, 1490, 130, 300, 'kikkou');
+      addCorridor('east-lower-link', 4680, 2610, 130, 300, 'kikkou');
 
-      // Shoji partitions: destructible and automatically restored.
-      addShojiLine('shoji-north-a', 1960, 520, 900, false, 6);
-      addShojiLine('shoji-north-b', 3540, 520, 900, false, 6);
-      addShojiLine('shoji-west-a', 820, 920, 760, true, 5);
-      addShojiLine('shoji-west-b', 1120, 2300, 840, true, 6);
-      addShojiLine('shoji-west-c', 520, 1720, 900, false, 6);
-      addShojiLine('shoji-east-a', 5540, 920, 760, true, 5);
-      addShojiLine('shoji-east-b', 5240, 2300, 840, true, 6);
-      addShojiLine('shoji-east-c', 4940, 1720, 900, false, 6);
-      addShojiLine('shoji-south-a', 2360, 3770, 690, true, 5);
-      addShojiLine('shoji-south-b', 4040, 3770, 690, true, 5);
-      addShojiLine('shoji-corridor-west', 1760, 1260, 640, true, 5);
-      addShojiLine('shoji-corridor-east', 4620, 1260, 640, true, 5);
+      // 各殿の出入口は壁を切り欠き、庭と回廊の間には必ず階段を置く。
+      addRoomShell(northHall, { bottom: [[980, 1620]] });
+      addRoomShell(westHall, { right: [[390, 690], [1510, 1810]] });
+      addRoomShell(eastHall, { left: [[390, 690], [1510, 1810]] });
+      addRoomShell(southHall, { top: [[700, 1340]], bottom: [[700, 1340]] });
 
-      // Traditional field installations placed as in the existing maps.
+      this.terrain.shrineSteps.push(
+        { id: 'step-garden-north', x: 2910, y: 1090, w: 580, h: 120, direction: 'north', label: '正殿石段' },
+        { id: 'step-garden-south', x: 2910, y: 3160, w: 580, h: 130, direction: 'south', label: '拝殿石段' },
+        { id: 'step-garden-west', x: 1880, y: 2010, w: 100, h: 360, direction: 'west', label: '西渡り段' },
+        { id: 'step-garden-east', x: 4420, y: 2010, w: 100, h: 360, direction: 'east', label: '東渡り段' },
+        { id: 'step-south-hall', x: 2920, y: 3425, w: 560, h: 105, direction: 'north', label: '拝殿上段' },
+        { id: 'step-south-entry', x: 2920, y: 3960, w: 560, h: 95, direction: 'south', label: '拝殿入口' }
+      );
+
+      // 雪庭の石縁は四方向の階段部分を広く空ける。
+      addGardenBorder('garden-border-top', 1950, 1160, 2500, false, [[900, 1600]]);
+      addGardenBorder('garden-border-bottom', 1950, 3200, 2500, false, [[900, 1600]]);
+      addGardenBorder('garden-border-left', 1930, 1180, 2020, true, [[790, 1230]]);
+      addGardenBorder('garden-border-right', 4450, 1180, 2020, true, [[790, 1230]]);
+
+      // 障子は部屋の中を分けるが、必ず通行用の開口を残す。
+      addShojiPartition('shoji-north-left', 2460, 390, 400, true, 210, 150);
+      addShojiPartition('shoji-north-right', 3940, 390, 400, true, 210, 150);
+      addShojiPartition('shoji-west-upper', 620, 1810, 760, false, 380, 190);
+      addShojiPartition('shoji-west-lower', 620, 2570, 760, false, 380, 190);
+      addShojiPartition('shoji-east-upper', 5020, 1810, 760, false, 380, 190);
+      addShojiPartition('shoji-east-lower', 5020, 2570, 760, false, 380, 190);
+      addShojiPartition('shoji-south-left', 2580, 3600, 300, true, 150, 150);
+      addShojiPartition('shoji-south-right', 3820, 3600, 300, true, 150, 150);
+
+      // 鳥居は表参道の正面一基に限定し、進行方向と直交させる。
+      this.terrain.torii.push({ id: 'torii-south-main', x: 3200, y: 4230, w: 460, h: 150, facing: 'north' });
+
+      // 景観物。戦闘導線を塞がない位置へ集約。
+      this.terrain.shrineDecor.push(
+        { kind: 'pine', x: 730, y: 620, r: 74 }, { kind: 'pine', x: 1250, y: 620, r: 66 },
+        { kind: 'pine', x: 5150, y: 620, r: 70 }, { kind: 'pine', x: 5700, y: 650, r: 76 },
+        { kind: 'pine', x: 840, y: 3650, r: 78 }, { kind: 'pine', x: 5580, y: 3660, r: 76 },
+        { kind: 'sacredTree', x: 2250, y: 2360, r: 92 },
+        { kind: 'rockGarden', x: 2440, y: 1510, w: 690, h: 500 },
+        { kind: 'waterBasin', x: 2710, y: 4070, w: 90, h: 70 },
+        { kind: 'bell', x: 3710, y: 4060, w: 90, h: 90 },
+        { kind: 'stonePath', x1: 3200, y1: 4070, x2: 3200, y2: 3290, count: 8 },
+        { kind: 'stonePath', x1: 3200, y1: 3160, x2: 3200, y2: 1220, count: 10 }
+      );
+
       const facilityPoints = [
-        ['barricade',930,1090],['trap',920,2500],['turret',1320,3180],
-        ['turret',5070,1050],['trap',5480,2540],['barricade',5200,3210],
-        ['barricade',2470,760],['trap',3210,730],['turret',3960,760],
-        ['trap',2520,3840],['turret',3210,3890],['barricade',3910,3840]
+        ['barricade',760,1420],['trap',850,2220],['turret',1250,3000],
+        ['turret',5150,1420],['trap',5550,2220],['barricade',5200,3000],
+        ['barricade',2360,690],['trap',3200,650],['turret',4040,690],
+        ['trap',2480,3750],['turret',3200,3740],['barricade',3920,3750]
       ];
       facilityPoints.forEach(([type,x,y],i)=>this.installations.push({id:`shrine-facility-${i}`,type,x,y,radius:24,hp:type==='barricade'?280:205,maxHp:type==='barricade'?280:205,active:false,team:null,work:0,cooldown:0,activeTimer:0,respawnTimer:0,destroyedLogged:false,shrine:true}));
 
-      // Sake barrels only chain-react to explosive/ignition attacks.
-      const barrelPoints = [[520,890],[650,920],[1420,1450],[1380,2840],[4890,900],[5010,930],[5760,1480],[5740,2850],[2490,3900],[3970,3900]];
+      const barrelPoints = [[560,1290],[710,1290],[1320,3080],[4920,1290],[5070,1290],[5680,3080],[2380,3860],[4020,3860]];
       barrelPoints.forEach(([x,y],i)=>this.lightSources.push({id:`sake-barrel-${i}`,kind:'sakeBarrel',x,y,radius:20,hp:68,maxHp:68,lightRadius:0,respawnTimer:0,destroyedLogged:false,ignited:false}));
 
-      // Stone lanterns, shrine lanterns and braziers provide warm visual landmarks.
-      const lanternPoints = [[1880,1040],[4520,1040],[1880,3260],[4520,3260],[2250,1180],[4150,1180],[2250,3130],[4150,3130],[2840,3520],[3560,3520]];
+      const lanternPoints = [[1860,1070],[4540,1070],[1860,3310],[4540,3310],[2050,1320],[4350,1320],[2050,3060],[4350,3060],[2830,4110],[3570,4110]];
       lanternPoints.forEach(([x,y],i)=>this.lightSources.push({id:`shrine-lantern-${i}`,kind:'shrineLantern',fire:i>=8,x,y,radius:13,hp:82,maxHp:82,lightRadius:i>=8?265:220,respawnTimer:0,destroyedLogged:false}));
 
-      // Hitodama are real destructible radar decoys. Their roaming bounds keep them inside the estate.
       const spiritSpecs = [
-        [820,1250,360,720,1450,3050],[1370,2050,500,420,1550,3320],[5150,1280,4800,720,5950,3050],
-        [5580,2480,4800,900,5960,3360],[2380,980,1830,760,4550,1120],[4010,3380,1810,3260,4590,3500],
-        [2400,2200,2020,1110,4380,3290],[3980,1700,2020,1110,4380,3290]
+        [760,1500,500,1240,1450,3150],[1320,2380,520,1240,1460,3150],
+        [5080,1500,4940,1240,5900,3150],[5660,2460,4940,1240,5900,3150],
+        [2380,1030,1820,970,4580,1095],[4020,3350,1820,3290,4580,3410],
+        [2500,2520,2030,1250,4320,3120],[3970,1770,2030,1250,4320,3120]
       ];
       spiritSpecs.forEach(([x,y,minX,minY,maxX,maxY],i)=>this.beacons.push({id:`hitodama-${i}`,shrineSpirit:true,kind:'hitodama',x,y,spawnX:x,spawnY:y,minX,minY,maxX,maxY,radius:11,hp:42,maxHp:42,ttl:Infinity,respawnTimer:0,active:true,team:null,vx:rand(-24,24),vy:rand(-24,24),exposedTeams:{}}));
 
       this.terrain.shrineStatues.push(
-        { id:'statue-nekomata', kind:'nekomata', label:'西殿の猫又', x:1030, y:2050, radius:66, aura:155, restore:12, color:'#d5a865' },
-        { id:'statue-kitsune', kind:'whiteFox', label:'東殿の白狐', x:5370, y:2050, radius:66, aura:155, restore:12, color:'#edf7ff' }
+        { id:'statue-nekomata', kind:'nekomata', label:'西殿の猫又', x:1040, y:2200, radius:66, aura:155, restore:12, color:'#d5a865' },
+        { id:'statue-kitsune', kind:'whiteFox', label:'東殿の白狐', x:5360, y:2200, radius:66, aura:155, restore:12, color:'#edf7ff' }
       );
-      this.terrain.torii.push(
-        {id:'torii-south-main',x:3200,y:4260,w:420,h:120},
-        {id:'torii-garden-west',x:1840,y:2100,w:180,h:90},
-        {id:'torii-garden-east',x:4380,y:2100,w:180,h:90}
-      );
-
-      // Garden decorations and stone borders double as low cover.
-      const stoneBorders = [
-        [2010,1060,2380,26],[2010,3300,2380,26],[1970,1110,26,2180],[4404,1110,26,2180],
-        [2740,1700,940,24],[2740,2290,940,24]
-      ];
-      stoneBorders.forEach((r,i)=>addWall(`garden-stone-${i}`,r[0],r[1],r[2],r[3],'shrineStone',250,{respawnable:true,respawnDelay:[48,72]}));
 
       for (let i = 0; i < BASE_PICKUP_COUNT; i++) this.pickups.push(this.makePickup());
       this.pickupStats.baseSpawned = BASE_PICKUP_COUNT;
@@ -7446,23 +7496,22 @@
       else this.renderCityTerrainChunk(chunk);
     }
 
-    drawJapanesePattern(ctx, rect, motif='asanoha') {
+    drawJapanesePattern(ctx, rect, motif='asanoha', alpha=.14) {
       ctx.save();
       ctx.beginPath(); ctx.rect(rect.x,rect.y,rect.w,rect.h); ctx.clip();
-      ctx.strokeStyle='rgba(111,38,52,.18)'; ctx.lineWidth=2;
-      const step=motif==='seigaiha'?42:motif==='kikkou'?48:40;
+      ctx.strokeStyle=`rgba(111,38,52,${alpha})`; ctx.lineWidth=1.5;
+      const step=motif==='seigaiha'?36:motif==='kikkou'?42:38;
       for(let y=rect.y-step;y<rect.y+rect.h+step;y+=step){
         for(let x=rect.x-step;x<rect.x+rect.w+step;x+=step){
           if(motif==='seigaiha'){
-            ctx.beginPath();ctx.arc(x,y,step*.45,Math.PI,TAU);ctx.stroke();
-            ctx.beginPath();ctx.arc(x,y,step*.28,Math.PI,TAU);ctx.stroke();
+            ctx.beginPath();ctx.arc(x,y,step*.42,Math.PI,TAU);ctx.stroke();
+            ctx.beginPath();ctx.arc(x,y,step*.25,Math.PI,TAU);ctx.stroke();
           }else if(motif==='kikkou'){
-            ctx.beginPath();for(let i=0;i<6;i++){const a=i/6*TAU,px=x+Math.cos(a)*step*.34,py=y+Math.sin(a)*step*.34;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py)}ctx.closePath();ctx.stroke();
+            ctx.beginPath();for(let i=0;i<6;i++){const a=i/6*TAU,px=x+Math.cos(a)*step*.31,py=y+Math.sin(a)*step*.31;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py)}ctx.closePath();ctx.stroke();
           }else if(motif==='shippo'){
-            ctx.beginPath();ctx.arc(x,y,step*.28,0,TAU);ctx.stroke();ctx.beginPath();ctx.arc(x+step*.28,y,step*.28,0,TAU);ctx.stroke();
+            ctx.beginPath();ctx.arc(x,y,step*.25,0,TAU);ctx.stroke();ctx.beginPath();ctx.arc(x+step*.25,y,step*.25,0,TAU);ctx.stroke();
           }else{
-            ctx.beginPath();ctx.moveTo(x-step*.36,y);ctx.lineTo(x,y-step*.36);ctx.lineTo(x+step*.36,y);ctx.lineTo(x,y+step*.36);ctx.closePath();ctx.stroke();
-            ctx.beginPath();ctx.moveTo(x-step*.36,y-step*.36);ctx.lineTo(x+step*.36,y+step*.36);ctx.moveTo(x+step*.36,y-step*.36);ctx.lineTo(x-step*.36,y+step*.36);ctx.stroke();
+            ctx.beginPath();ctx.moveTo(x-step*.32,y);ctx.lineTo(x,y-step*.32);ctx.lineTo(x+step*.32,y);ctx.lineTo(x,y+step*.32);ctx.closePath();ctx.stroke();
           }
         }
       }
@@ -7474,54 +7523,104 @@
       ctx.imageSmoothingEnabled=false;
       ctx.save();ctx.translate(-chunk.x,-chunk.y);ctx.beginPath();ctx.rect(chunk.x,chunk.y,chunk.width,chunk.height);ctx.clip();
       const x0=chunk.x,y0=chunk.y,x1=x0+chunk.width,y1=y0+chunk.height;
-      const snow=['#dce8ee','#e8f1f5','#cfdde5','#f3f7f9'];
-      ctx.fillStyle='#d9e6ec';ctx.fillRect(x0,y0,chunk.width,chunk.height);
-      for(let y=Math.floor(y0/32)*32;y<y1;y+=32)for(let x=Math.floor(x0/32)*32;x<x1;x+=32){
-        const index=((x/32|0)*5+(y/32|0)*3)%snow.length;ctx.fillStyle=snow[index];ctx.fillRect(x,y,32,32);
-        ctx.fillStyle='rgba(104,135,150,.09)';ctx.fillRect(x+5,y+23,18,3);
+      ctx.fillStyle='#d8e5eb';ctx.fillRect(x0,y0,chunk.width,chunk.height);
+      for(let y=Math.floor(y0/48)*48;y<y1;y+=48)for(let x=Math.floor(x0/48)*48;x<x1;x+=48){
+        const n=((x/48|0)*17+(y/48|0)*11)%5;
+        ctx.fillStyle=n===0?'rgba(255,255,255,.20)':n===1?'rgba(119,154,169,.055)':'rgba(255,255,255,.08)';
+        ctx.fillRect(x+6+(n*3)%14,y+8+(n*7)%18,18+n*3,3);
       }
+
+      for(const approach of this.terrain.shrineApproaches||[]){
+        if(approach.x>x1||approach.x+approach.w<x0||approach.y>y1||approach.y+approach.h<y0)continue;
+        ctx.fillStyle='#a9adb0';ctx.fillRect(approach.x,approach.y,approach.w,approach.h);
+        ctx.fillStyle='#c8ccce';
+        for(let y=approach.y+10;y<approach.y+approach.h;y+=58)for(let x=approach.x+10;x<approach.x+approach.w;x+=76){
+          const offset=((y-approach.y)/58|0)%2?28:0;
+          ctx.fillRect(x+offset,y,58,42);
+          ctx.strokeStyle='rgba(71,76,78,.22)';ctx.strokeRect(x+offset,y,58,42);
+        }
+        ctx.strokeStyle='rgba(86,39,42,.55)';ctx.lineWidth=4;ctx.strokeRect(approach.x+4,approach.y+4,approach.w-8,approach.h-8);
+      }
+
       for(const garden of this.terrain.shrineGardens){
         if(garden.x>x1||garden.x+garden.w<x0||garden.y>y1||garden.y+garden.h<y0)continue;
-        ctx.fillStyle='#eaf3f6';ctx.fillRect(garden.x,garden.y,garden.w,garden.h);
-        ctx.strokeStyle='rgba(119,143,153,.34)';ctx.lineWidth=3;ctx.strokeRect(garden.x+6,garden.y+6,garden.w-12,garden.h-12);
-        for(let y=garden.y+40;y<garden.y+garden.h;y+=88){ctx.strokeStyle='rgba(113,139,150,.08)';ctx.beginPath();ctx.moveTo(garden.x+18,y);ctx.bezierCurveTo(garden.x+garden.w*.32,y-22,garden.x+garden.w*.66,y+22,garden.x+garden.w-18,y);ctx.stroke();}
+        ctx.fillStyle='#eef5f7';ctx.fillRect(garden.x,garden.y,garden.w,garden.h);
+        const g=ctx.createLinearGradient(garden.x,garden.y,garden.x,garden.y+garden.h);
+        g.addColorStop(0,'rgba(255,255,255,.28)');g.addColorStop(1,'rgba(153,188,201,.13)');ctx.fillStyle=g;ctx.fillRect(garden.x,garden.y,garden.w,garden.h);
+        ctx.strokeStyle='rgba(103,133,146,.20)';ctx.lineWidth=2;
+        for(let y=garden.y+70;y<garden.y+garden.h;y+=120){ctx.beginPath();ctx.moveTo(garden.x+30,y);ctx.bezierCurveTo(garden.x+garden.w*.28,y-14,garden.x+garden.w*.72,y+14,garden.x+garden.w-30,y);ctx.stroke();}
       }
+
       for(const drift of this.terrain.snowDrifts){
         if(drift.x>x1||drift.x+drift.w<x0||drift.y>y1||drift.y+drift.h<y0)continue;
-        const g=ctx.createRadialGradient(drift.x+drift.w*.5,drift.y+drift.h*.45,10,drift.x+drift.w*.5,drift.y+drift.h*.5,Math.max(drift.w,drift.h)*.55);
-        g.addColorStop(0,'rgba(255,255,255,.96)');g.addColorStop(1,'rgba(178,204,216,.18)');ctx.fillStyle=g;ctx.fillRect(drift.x,drift.y,drift.w,drift.h);
+        const g=ctx.createRadialGradient(drift.x+drift.w*.46,drift.y+drift.h*.42,8,drift.x+drift.w*.5,drift.y+drift.h*.5,Math.max(drift.w,drift.h)*.55);
+        g.addColorStop(0,'rgba(255,255,255,.96)');g.addColorStop(.7,'rgba(226,240,246,.78)');g.addColorStop(1,'rgba(150,183,197,.10)');ctx.fillStyle=g;ctx.fillRect(drift.x,drift.y,drift.w,drift.h);
       }
+
       for(const pond of this.terrain.frozenPonds){
         if(pond.x>x1||pond.x+pond.w<x0||pond.y>y1||pond.y+pond.h<y0)continue;
-        ctx.fillStyle='#a9d5e6';ctx.fillRect(pond.x,pond.y,pond.w,pond.h);
-        ctx.strokeStyle='rgba(238,252,255,.78)';ctx.lineWidth=4;ctx.strokeRect(pond.x+5,pond.y+5,pond.w-10,pond.h-10);
-        ctx.strokeStyle='rgba(85,149,174,.34)';ctx.lineWidth=2;
-        for(let i=0;i<12;i++){const sx=pond.x+40+(i*83)%Math.max(80,pond.w-80),sy=pond.y+30+(i*47)%Math.max(60,pond.h-60);ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx+Math.sin(i*2.17)*52,sy+28+(i*19)%47);ctx.stroke();}
+        ctx.fillStyle='#9ac9da';ctx.fillRect(pond.x,pond.y,pond.w,pond.h);
+        ctx.fillStyle='rgba(231,250,255,.28)';ctx.fillRect(pond.x+14,pond.y+14,pond.w-28,pond.h-28);
+        ctx.strokeStyle='rgba(247,255,255,.90)';ctx.lineWidth=7;ctx.strokeRect(pond.x+4,pond.y+4,pond.w-8,pond.h-8);
+        ctx.strokeStyle='rgba(66,137,164,.38)';ctx.lineWidth=2;
+        for(let i=0;i<10;i++){const sx=pond.x+45+(i*67)%Math.max(80,pond.w-90),sy=pond.y+34+(i*41)%Math.max(60,pond.h-70);ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(sx+((i%3)-1)*54,sy+34+(i*13)%35);ctx.stroke();}
       }
+
       for(const court of this.terrain.shrineCourts){
         if(court.x>x1||court.x+court.w<x0||court.y>y1||court.y+court.h<y0)continue;
-        ctx.fillStyle='#c8d3d7';ctx.fillRect(court.x,court.y,court.w,court.h);
-        this.drawJapanesePattern(ctx,court,'kikkou');
+        ctx.fillStyle='#b8bdc0';ctx.fillRect(court.x,court.y,court.w,court.h);
+        ctx.strokeStyle='rgba(74,78,80,.20)';ctx.lineWidth=2;
+        for(let y=court.y;y<court.y+court.h;y+=44){ctx.beginPath();ctx.moveTo(court.x,y);ctx.lineTo(court.x+court.w,y);ctx.stroke();}
       }
+
       for(const corridor of this.terrain.shrineCorridors){
         if(corridor.x>x1||corridor.x+corridor.w<x0||corridor.y>y1||corridor.y+corridor.h<y0)continue;
-        ctx.fillStyle='#b88a61';ctx.fillRect(corridor.x,corridor.y,corridor.w,corridor.h);
-        ctx.fillStyle='rgba(245,218,171,.35)';
-        if(corridor.w>corridor.h)for(let x=corridor.x;x<corridor.x+corridor.w;x+=36)ctx.fillRect(x,corridor.y,2,corridor.h);
-        else for(let y=corridor.y;y<corridor.y+corridor.h;y+=36)ctx.fillRect(corridor.x,y,corridor.w,2);
-        this.drawJapanesePattern(ctx,corridor,corridor.motif);
+        ctx.fillStyle='#9b6847';ctx.fillRect(corridor.x-8,corridor.y-8,corridor.w+16,corridor.h+16);
+        ctx.fillStyle='#bf8d5c';ctx.fillRect(corridor.x,corridor.y,corridor.w,corridor.h);
+        ctx.strokeStyle='rgba(75,39,25,.25)';ctx.lineWidth=2;
+        if(corridor.w>corridor.h){for(let x=corridor.x+18;x<corridor.x+corridor.w;x+=36){ctx.beginPath();ctx.moveTo(x,corridor.y);ctx.lineTo(x,corridor.y+corridor.h);ctx.stroke();}}
+        else{for(let y=corridor.y+18;y<corridor.y+corridor.h;y+=36){ctx.beginPath();ctx.moveTo(corridor.x,y);ctx.lineTo(corridor.x+corridor.w,y);ctx.stroke();}}
+        const band=corridor.w>corridor.h?{x:corridor.x,y:corridor.y+8,w:corridor.w,h:28}:{x:corridor.x+8,y:corridor.y,w:28,h:corridor.h};
+        this.drawJapanesePattern(ctx,band,corridor.motif,.13);
       }
+
+      for(const step of this.terrain.shrineSteps||[]){
+        if(step.x>x1||step.x+step.w<x0||step.y>y1||step.y+step.h<y0)continue;
+        ctx.fillStyle='#9da4a7';ctx.fillRect(step.x,step.y,step.w,step.h);
+        ctx.strokeStyle='rgba(255,255,255,.52)';ctx.lineWidth=2;
+        const horizontal=step.direction==='north'||step.direction==='south';
+        const count=6;
+        for(let i=1;i<count;i++){
+          const t=i/count;
+          ctx.beginPath();
+          if(horizontal){const yy=step.y+step.h*t;ctx.moveTo(step.x,yy);ctx.lineTo(step.x+step.w,yy);}else{const xx=step.x+step.w*t;ctx.moveTo(xx,step.y);ctx.lineTo(xx,step.y+step.h);}
+          ctx.stroke();
+        }
+        ctx.strokeStyle='rgba(73,80,83,.45)';ctx.lineWidth=3;ctx.strokeRect(step.x,step.y,step.w,step.h);
+      }
+
       for(const room of this.terrain.shrineRooms){
         if(room.x>x1||room.x+room.w<x0||room.y>y1||room.y+room.h<y0)continue;
-        ctx.fillStyle='#d8c59b';ctx.fillRect(room.x,room.y,room.w,room.h);
-        for(let y=room.y+8;y<room.y+room.h;y+=48)for(let x=room.x+8;x<room.x+room.w;x+=96){ctx.fillStyle=((x+y)/48|0)%2?'#d2bd90':'#e1cfa8';ctx.fillRect(x,y,88,40);}
-        ctx.strokeStyle='rgba(78,47,31,.3)';ctx.lineWidth=5;ctx.strokeRect(room.x+8,room.y+8,room.w-16,room.h-16);
-        this.drawJapanesePattern(ctx,room,room.motif);
-        ctx.fillStyle='rgba(69,34,32,.7)';ctx.font='900 20px serif';ctx.textAlign='center';ctx.fillText(room.label,room.x+room.w*.5,room.y+36);
+        ctx.fillStyle='#352b2c';ctx.fillRect(room.x-16,room.y-16,room.w+32,room.h+32);
+        ctx.fillStyle='#714047';ctx.fillRect(room.x-8,room.y-8,room.w+16,room.h+16);
+        ctx.fillStyle='#cda875';ctx.fillRect(room.x+18,room.y+18,room.w-36,room.h-36);
+        const tileW=180,tileH=90;
+        for(let y=room.y+28;y<room.y+room.h-40;y+=tileH){
+          for(let x=room.x+28;x<room.x+room.w-40;x+=tileW){
+            const alt=(((x-room.x)/tileW|0)+((y-room.y)/tileH|0))%2;
+            ctx.fillStyle=alt?'#d7bd89':'#e1ca99';ctx.fillRect(x,y,Math.min(tileW-8,room.x+room.w-30-x),Math.min(tileH-8,room.y+room.h-30-y));
+            ctx.strokeStyle='rgba(83,58,31,.18)';ctx.strokeRect(x,y,Math.min(tileW-8,room.x+room.w-30-x),Math.min(tileH-8,room.y+room.h-30-y));
+          }
+        }
+        const band={x:room.x+24,y:room.y+24,w:room.w-48,h:34};
+        ctx.fillStyle='rgba(104,37,45,.10)';ctx.fillRect(band.x,band.y,band.w,band.h);this.drawJapanesePattern(ctx,band,room.motif,.22);
+        ctx.fillStyle='rgba(43,25,26,.82)';ctx.fillRect(room.x+room.w*.5-68,room.y+18,136,34);
+        ctx.fillStyle='#f4e5bf';ctx.font='900 17px serif';ctx.textAlign='center';ctx.fillText(room.label,room.x+room.w*.5,room.y+41);
       }
+
       for(const torii of this.terrain.torii){
         if(torii.x+torii.w<x0||torii.x-torii.w>x1||torii.y+torii.h<y0||torii.y-torii.h>y1)continue;
-        ctx.fillStyle='rgba(156,35,39,.18)';ctx.fillRect(torii.x-torii.w*.5,torii.y-torii.h*.15,torii.w,torii.h*.3);
+        ctx.fillStyle='rgba(75,24,28,.16)';ctx.fillRect(torii.x-torii.w*.53,torii.y+torii.h*.24,torii.w*1.06,18);
       }
       ctx.restore();
     }
@@ -7692,17 +7791,63 @@
 
     drawSnowShrineFeatures(ctx){
       if(this.mapId!=='snowShrine') return;
+
+      for(const decor of this.terrain.shrineDecor||[]){
+        if(decor.kind==='stonePath'){
+          const cx=(decor.x1+decor.x2)/2,cy=(decor.y1+decor.y2)/2;
+          if(!this.inView(cx,cy,Math.hypot(decor.x2-decor.x1,decor.y2-decor.y1)/2+80))continue;
+          for(let i=0;i<decor.count;i++){
+            const t=decor.count<=1?0:i/(decor.count-1),x=lerp(decor.x1,decor.x2,t),y=lerp(decor.y1,decor.y2,t);
+            ctx.fillStyle=i%2?'#8f999d':'#a7b0b3';ctx.beginPath();ctx.ellipse(x,y,28,18,0,0,TAU);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.45)';ctx.stroke();
+          }
+          continue;
+        }
+        if(!this.inView(decor.x,decor.y,Math.max(decor.r||0,decor.w||0,decor.h||0)+90))continue;
+        if(decor.kind==='pine'||decor.kind==='sacredTree'){
+          const r=decor.r||70;
+          ctx.fillStyle='#5c4635';ctx.fillRect(decor.x-9,decor.y+r*.15,18,r*.8);
+          ctx.fillStyle=decor.kind==='sacredTree'?'#234b3b':'#2d5c47';
+          for(let layer=0;layer<3;layer++){ctx.beginPath();ctx.moveTo(decor.x,decor.y-r*(.9-layer*.25));ctx.lineTo(decor.x-r*(.72-layer*.12),decor.y+r*(.3+layer*.18));ctx.lineTo(decor.x+r*(.72-layer*.12),decor.y+r*(.3+layer*.18));ctx.closePath();ctx.fill();}
+          ctx.fillStyle='rgba(244,251,255,.78)';ctx.beginPath();ctx.ellipse(decor.x,decor.y-r*.43,r*.5,r*.13,0,0,TAU);ctx.fill();
+          if(decor.kind==='sacredTree'){
+            ctx.strokeStyle='#e9dfc3';ctx.lineWidth=7;ctx.beginPath();ctx.arc(decor.x,decor.y+r*.35,r*.24,0,TAU);ctx.stroke();
+            ctx.fillStyle='#f4f0df';for(let i=-2;i<=2;i++)ctx.fillRect(decor.x+i*13-4,decor.y+r*.58,8,20+Math.abs(i)*4);
+          }
+        }else if(decor.kind==='rockGarden'){
+          ctx.fillStyle='rgba(224,231,231,.78)';ctx.fillRect(decor.x,decor.y,decor.w,decor.h);
+          ctx.strokeStyle='rgba(112,124,127,.28)';ctx.lineWidth=2;
+          for(let yy=decor.y+28;yy<decor.y+decor.h;yy+=38){ctx.beginPath();ctx.moveTo(decor.x+15,yy);ctx.quadraticCurveTo(decor.x+decor.w*.5,yy-12,decor.x+decor.w-15,yy);ctx.stroke();}
+          const rocks=[[.23,.35,48,34],[.52,.58,58,40],[.76,.30,42,29]];
+          for(const [rx,ry,rw,rh] of rocks){ctx.fillStyle='#747d80';ctx.beginPath();ctx.ellipse(decor.x+decor.w*rx,decor.y+decor.h*ry,rw,rh,-.2,0,TAU);ctx.fill();ctx.fillStyle='rgba(255,255,255,.32)';ctx.beginPath();ctx.ellipse(decor.x+decor.w*rx-8,decor.y+decor.h*ry-9,rw*.55,rh*.28,-.2,0,TAU);ctx.fill();}
+        }else if(decor.kind==='waterBasin'){
+          ctx.fillStyle='#737d81';ctx.fillRect(decor.x-decor.w/2,decor.y-decor.h/2,decor.w,decor.h);ctx.fillStyle='#8fc6d5';ctx.fillRect(decor.x-decor.w*.35,decor.y-decor.h*.28,decor.w*.7,decor.h*.45);ctx.fillStyle='#68513b';ctx.fillRect(decor.x+decor.w*.32,decor.y-decor.h*.6,8,decor.h*.8);
+        }else if(decor.kind==='bell'){
+          ctx.fillStyle='#6a4329';ctx.fillRect(decor.x-decor.w*.45,decor.y-decor.h*.45,10,decor.h);ctx.fillRect(decor.x+decor.w*.45-10,decor.y-decor.h*.45,10,decor.h);ctx.fillRect(decor.x-decor.w*.5,decor.y-decor.h*.48,decor.w,10);ctx.fillStyle='#98733d';ctx.beginPath();ctx.arc(decor.x,decor.y,28,0,TAU);ctx.fill();ctx.fillStyle='#3b2a20';ctx.fillRect(decor.x-4,decor.y+22,8,35);
+        }
+      }
+
       for(const torii of this.terrain.torii){
         if(!this.inView(torii.x,torii.y,torii.w*.7)) continue;
-        ctx.fillStyle='#9d2731';ctx.fillRect(torii.x-torii.w*.46,torii.y-torii.h*.48,20,torii.h);
-        ctx.fillRect(torii.x+torii.w*.46-20,torii.y-torii.h*.48,20,torii.h);
-        ctx.fillStyle='#bb3540';ctx.fillRect(torii.x-torii.w*.55,torii.y-torii.h*.52,torii.w*1.1,22);
-        ctx.fillStyle='#742028';ctx.fillRect(torii.x-torii.w*.44,torii.y-torii.h*.31,torii.w*.88,16);
-        ctx.fillStyle='#15191c';ctx.fillRect(torii.x-torii.w*.58,torii.y-torii.h*.56,torii.w*1.16,8);
+        const left=torii.x-torii.w*.46,right=torii.x+torii.w*.46;
+        ctx.fillStyle='rgba(45,17,20,.18)';ctx.fillRect(left-10,torii.y+torii.h*.44,40,18);ctx.fillRect(right-30,torii.y+torii.h*.44,40,18);
+        ctx.fillStyle='#9e2830';ctx.fillRect(left,torii.y-torii.h*.42,22,torii.h);ctx.fillRect(right-22,torii.y-torii.h*.42,22,torii.h);
+        ctx.fillStyle='#bf3841';ctx.fillRect(torii.x-torii.w*.56,torii.y-torii.h*.48,torii.w*1.12,24);
+        ctx.fillStyle='#702028';ctx.fillRect(torii.x-torii.w*.45,torii.y-torii.h*.25,torii.w*.9,16);
+        ctx.fillStyle='#252125';ctx.fillRect(torii.x-torii.w*.59,torii.y-torii.h*.52,torii.w*1.18,8);
+        ctx.fillStyle='#d7b36d';ctx.fillRect(torii.x-24,torii.y-torii.h*.43,48,14);
       }
+
+      // 回廊の柱を等間隔に描き、建物と庭の境界を読み取りやすくする。
+      for(const corridor of this.terrain.shrineCorridors){
+        if(!this.rectInView(corridor))continue;
+        ctx.fillStyle='#7d2930';
+        if(corridor.w>corridor.h){for(let x=corridor.x+24;x<corridor.x+corridor.w;x+=120){ctx.fillRect(x-5,corridor.y-8,10,corridor.h+16);}}
+        else{for(let y=corridor.y+24;y<corridor.y+corridor.h;y+=120){ctx.fillRect(corridor.x-8,y-5,corridor.w+16,10);}}
+      }
+
       for(const statue of this.terrain.shrineStatues){
         if(!this.inView(statue.x,statue.y,190)) continue;
-        const pulse=.45+Math.sin(this.elapsed*2.3+(statue.kind==='whiteFox'?1.4:0))*.12;
+        const pulse=.42+Math.sin(this.elapsed*2.3+(statue.kind==='whiteFox'?1.4:0))*.10;
         const glow=ctx.createRadialGradient(statue.x,statue.y,18,statue.x,statue.y,statue.aura);
         glow.addColorStop(0,`${statue.color}${Math.round(pulse*255).toString(16).padStart(2,'0')}`);glow.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(statue.x,statue.y,statue.aura,0,TAU);ctx.fill();
         ctx.fillStyle='#6c7377';ctx.fillRect(statue.x-42,statue.y+28,84,28);
@@ -7717,13 +7862,13 @@
           ctx.strokeStyle=statue.color;ctx.lineWidth=8;ctx.beginPath();ctx.arc(statue.x+37,statue.y+4,28,-1.5,1.2);ctx.stroke();
         }
         ctx.fillStyle='#201a1b';ctx.fillRect(statue.x-13,statue.y-7,5,5);ctx.fillRect(statue.x+8,statue.y-7,5,5);
-        ctx.font='900 10px serif';ctx.textAlign='center';ctx.fillStyle='rgba(255,255,255,.88)';ctx.fillText(statue.label,statue.x,statue.y+72);
+        ctx.font='900 10px serif';ctx.textAlign='center';ctx.fillStyle='rgba(255,255,255,.9)';ctx.fillText(statue.label,statue.x,statue.y+72);
       }
-      // Local snowfall is restricted to the garden and remains independent of weather settings.
+
       const garden=this.terrain.shrineGardens[0];
       if(garden){
         ctx.save();ctx.beginPath();ctx.rect(garden.x,garden.y,garden.w,garden.h);ctx.clip();ctx.fillStyle='rgba(255,255,255,.72)';
-        const flakes=this.onlineReducedEffects?34:70;
+        const flakes=this.onlineReducedEffects?32:64;
         for(let i=0;i<flakes;i++){const x=garden.x+(i*137+this.elapsed*(18+(i%5)*7))%garden.w;const y=garden.y+(i*83+this.elapsed*(42+(i%4)*11))%garden.h;const r=1+(i%3);ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();}
         ctx.restore();
       }
@@ -7824,17 +7969,42 @@
       for (const wall of this.walls) {
         if (wall.hp<=0||!this.rectInView(wall)) continue;
         const hp = Number.isFinite(wall.maxHp) ? clamp(wall.hp / wall.maxHp, 0, 1) : 1;
-        const palette = wall.type==='tree'?['#285844','#39755a','#17392c']:wall.type==='bridge'?['#6c6557','#8e846f','#4c473d']:wall.type==='fortressWall'?['#8d6b43','#b28d59','#654b31']:wall.type==='buildingWall'?['#263e49','#385965','#172a33']:wall.type==='shoji'?['#eee8d7','#fffdf5','#a87e55']:wall.type==='templeWall'?['#5f2c2e','#8b4448','#351b20']:wall.type==='shrineStone'?['#7c8588','#a5afb2','#535c60']:wall.type==='barricade'?['#375d69','#4d8090','#203b44']:['#2f6973','#448c96','#1c434a'];
-        this.drawCubeRect(ctx,wall.x,wall.y,wall.w,wall.h,...palette);
         if(wall.type==='shoji'){
-          ctx.strokeStyle='rgba(112,79,45,.65)';ctx.lineWidth=2;
-          const cols=Math.max(1,Math.floor(wall.w/34)),rows=Math.max(1,Math.floor(wall.h/34));
-          for(let c=1;c<cols;c++){const gx=wall.x+wall.w*c/cols;ctx.beginPath();ctx.moveTo(gx,wall.y);ctx.lineTo(gx,wall.y+wall.h);ctx.stroke();}
-          for(let r=1;r<rows;r++){const gy=wall.y+wall.h*r/rows;ctx.beginPath();ctx.moveTo(wall.x,gy);ctx.lineTo(wall.x+wall.w,gy);ctx.stroke();}
+          ctx.fillStyle='#f5f0df';ctx.fillRect(wall.x,wall.y,wall.w,wall.h);
+          ctx.strokeStyle='#9b7047';ctx.lineWidth=3;ctx.strokeRect(wall.x,wall.y,wall.w,wall.h);
+          ctx.lineWidth=1.5;
+          const horizontal=wall.w>=wall.h;
+          if(horizontal){
+            for(let x=wall.x+28;x<wall.x+wall.w;x+=28){ctx.beginPath();ctx.moveTo(x,wall.y);ctx.lineTo(x,wall.y+wall.h);ctx.stroke();}
+            ctx.beginPath();ctx.moveTo(wall.x,wall.y+wall.h*.5);ctx.lineTo(wall.x+wall.w,wall.y+wall.h*.5);ctx.stroke();
+          }else{
+            for(let y=wall.y+28;y<wall.y+wall.h;y+=28){ctx.beginPath();ctx.moveTo(wall.x,y);ctx.lineTo(wall.x+wall.w,y);ctx.stroke();}
+            ctx.beginPath();ctx.moveTo(wall.x+wall.w*.5,wall.y);ctx.lineTo(wall.x+wall.w*.5,wall.y+wall.h);ctx.stroke();
+          }
+        }else if(wall.type==='templeWall'){
+          ctx.fillStyle='#3c2527';ctx.fillRect(wall.x,wall.y,wall.w,wall.h);
+          ctx.fillStyle='#7b3037';ctx.fillRect(wall.x+3,wall.y+3,Math.max(0,wall.w-6),Math.max(0,wall.h-6));
+          ctx.fillStyle='rgba(242,229,202,.72)';
+          if(wall.w>=wall.h)ctx.fillRect(wall.x+6,wall.y+9,Math.max(0,wall.w-12),Math.max(0,wall.h-18));
+          else ctx.fillRect(wall.x+9,wall.y+6,Math.max(0,wall.w-18),Math.max(0,wall.h-12));
+          ctx.strokeStyle='rgba(39,24,25,.65)';ctx.lineWidth=2;ctx.strokeRect(wall.x,wall.y,wall.w,wall.h);
+        }else if(wall.type==='shrineStone'){
+          ctx.fillStyle='#747e82';ctx.fillRect(wall.x,wall.y,wall.w,wall.h);
+          ctx.fillStyle='#aeb8bc';ctx.fillRect(wall.x+3,wall.y+3,Math.max(0,wall.w-6),Math.max(0,wall.h-6));
+          ctx.fillStyle='rgba(244,251,255,.88)';
+          if(wall.w>=wall.h)ctx.fillRect(wall.x,wall.y,wall.w,Math.min(7,wall.h));else ctx.fillRect(wall.x,wall.y,Math.min(7,wall.w),wall.h);
+          ctx.strokeStyle='rgba(58,67,70,.5)';ctx.strokeRect(wall.x,wall.y,wall.w,wall.h);
+        }else{
+          const palette = wall.type==='tree'?['#285844','#39755a','#17392c']:wall.type==='bridge'?['#6c6557','#8e846f','#4c473d']:wall.type==='fortressWall'?['#8d6b43','#b28d59','#654b31']:wall.type==='buildingWall'?['#263e49','#385965','#172a33']:wall.type==='barricade'?['#375d69','#4d8090','#203b44']:['#2f6973','#448c96','#1c434a'];
+          this.drawCubeRect(ctx,wall.x,wall.y,wall.w,wall.h,...palette);
         }
-        if(Number.isFinite(wall.maxHp)){ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(wall.x,wall.y-6,wall.w,3);ctx.fillStyle=hp>.35?'#72e4bc':'#ff6879';ctx.fillRect(wall.x,wall.y-6,wall.w*hp,3);}
+        const shrineTerrain=['shoji','templeWall','shrineStone'].includes(wall.type);
+        if(Number.isFinite(wall.maxHp)&&(!shrineTerrain||hp<.995)){
+          ctx.fillStyle='rgba(0,0,0,.42)';ctx.fillRect(wall.x,wall.y-6,wall.w,3);ctx.fillStyle=hp>.35?'#72e4bc':'#ff6879';ctx.fillRect(wall.x,wall.y-6,wall.w*hp,3);
+        }
       }
     }
+
 
     drawWires(ctx) {
       ctx.lineWidth = 1.5;

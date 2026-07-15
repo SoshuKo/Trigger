@@ -1,94 +1,75 @@
-# v29「雪山神殿」をGitHubへ反映する手順
+# v30「雪山神殿 全面改修」反映手順
 
 対象リポジトリ：`SoshuKo/Trigger`
 
 基準にした `main` コミット：
 
 ```text
-065fb82dbee7ef4d68aa9552da9edb8494ba8069
+d7d572155ca6cd1b968012aea6bf6dee296839ab
 ```
 
 推奨コミットメッセージ：
 
 ```text
-Add Snow Mountain Shrine map
+Rebuild Snow Mountain Shrine layout
 ```
 
-## 1. ZIPを展開
-
-`world-trigger-arena-github-v29-snow-shrine.zip` をダウンロードフォルダーへ展開します。
-Windows標準機能で展開した場合の例：
+## GitHub版ZIPの上書き先
 
 ```text
-C:\Users\ユーザー名\Downloads\world-trigger-arena-github-v29-snow-shrine\world-trigger-arena
+C:\Users\chiti\OneDrive\デスクトップ\world-trigger-arena
 ```
 
-## 2. PowerShellでコピー・コミット・プッシュ
+`world-trigger-arena-v30-overwrite.zip` をデスクトップへ展開し、既存フォルダーへ上書きします。
+`.git` フォルダーはZIPに含まれていないため、そのまま残ります。
 
-ローカルリポジトリを `$HOME\Documents\Trigger` に置いている場合は、以下をそのまま実行できます。
-展開先が違う場合は `$update` だけ修正してください。
+PowerShellで展開する場合：
 
 ```powershell
-$repo = "$HOME\Documents\Trigger"
-$update = "$HOME\Downloads\world-trigger-arena-github-v29-snow-shrine\world-trigger-arena"
+Expand-Archive `
+  -Path "$HOME\Downloads\world-trigger-arena-v30-overwrite.zip" `
+  -DestinationPath "C:\Users\chiti\OneDrive\デスクトップ" `
+  -Force
+```
 
-if (-not (Test-Path "$repo\.git")) {
-    throw "Gitリポジトリが見つかりません: $repo"
-}
-if (-not (Test-Path "$update\index.html")) {
-    throw "展開した更新ファイルが見つかりません: $update"
-}
+## コミット・プッシュ
 
-Set-Location $repo
+```powershell
+Set-Location "C:\Users\chiti\OneDrive\デスクトップ\world-trigger-arena"
 
 git status --short
-git pull --ff-only origin main
-
-robocopy $update $repo /E /XD .git
-if ($LASTEXITCODE -ge 8) {
-    throw "robocopyに失敗しました。終了コード: $LASTEXITCODE"
-}
-
-git status
 git add -A
-git commit -m "Add Snow Mountain Shrine map"
-git push origin main
-```
-
-`git commit`で `nothing to commit` と表示された場合は、同じ内容が既に反映されています。
-
-## 3. 公開確認
-
-GitHub Pagesの反映後、次を開きます。
-
-```text
-https://soshuko.github.io/Trigger/?v=29
-```
-
-古いファイルが表示される場合は `Ctrl + Shift + R` で強制再読み込みしてください。
-
-## pushが拒否された場合
-
-```powershell
-Set-Location "$HOME\Documents\Trigger"
+git diff --cached --stat
+git commit -m "Rebuild Snow Mountain Shrine layout"
 git pull --rebase origin main
 git push origin main
+git log -1 --oneline
 ```
 
-競合が発生した場合は、競合ファイルを修正してから次を実行します。
+最後が次のようになれば成功です。
 
-```powershell
-git add -A
-git rebase --continue
-git push origin main
+```text
+xxxxxxx Rebuild Snow Mountain Shrine layout
 ```
 
-`git push --force`は使用しないでください。
+## 公開確認
+
+```text
+https://soshuko.github.io/Trigger/?v=30
+```
+
+古いファイルが表示される場合は `Ctrl + Shift + R` で強制再読み込みします。
 
 ## 自分のサーバー版
 
-`world-trigger-arena-server-v29-snow-shrine.zip` は、展開した中身をWebサーバーの公開ディレクトリへ上書きする静的ファイル版です。Git管理用文書やSupabaseの管理ファイルは含みません。
+上書き先：
+
+```text
+C:\Users\chiti\OneDrive\デスクトップ\world-trigger-arena-direct-host
+```
+
+`world-trigger-arena-direct-host-v30-overwrite.zip` をデスクトップへ展開し、既存フォルダーへ上書きします。
 
 ## Supabaseについて
 
-v29はマップ追加だけなので、Supabase SQLの再実行やEdge Functionの再デプロイは不要です。
+v30はマップと描画の改修だけなので、Supabase SQLの再実行やEdge Functionの再デプロイは不要です。
