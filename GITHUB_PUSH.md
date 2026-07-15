@@ -61,7 +61,7 @@ git push origin main
 GitHub Pages反映後、次を開きます。
 
 ```text
-https://soshuko.github.io/Trigger/?v=26
+https://soshuko.github.io/Trigger/?v=28
 ```
 
 古いファイルが表示される場合は `Ctrl + Shift + R` で強制再読み込みします。
@@ -73,4 +73,4 @@ https://soshuko.github.io/Trigger/?v=26
 
 ## Supabase更新
 
-今回の版は `supabase-schema.sql` の再実行と、`register-account` Edge Functionのデプロイが必要です。GitHubへのpush後、Supabase SQL EditorでSQL全文を実行し、プロジェクトフォルダーで `DEPLOY_EDGE_FUNCTION.ps1` を実行してください。詳しくは `EDGE_FUNCTION_SETUP.md` を参照してください。
+今回の版は ``register-account-v2` Edge Functionのデプロイが必要です。GitHubへのpush後、Supabase SQL EditorでSQL全文を実行し、プロジェクトフォルダーで `DEPLOY_EDGE_FUNCTION.ps1` を実行してください。詳しくは `EDGE_FUNCTION_SETUP.md` を参照してください。

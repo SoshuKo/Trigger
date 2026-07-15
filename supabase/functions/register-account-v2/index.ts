@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
+const FUNCTION_VERSION = 2
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'apikey, authorization, content-type, x-client-info',
@@ -7,9 +8,13 @@ const corsHeaders = {
 }
 
 function json(status: number, body: Record<string, unknown>) {
-  return new Response(JSON.stringify(body), {
+  return new Response(JSON.stringify({ functionVersion: FUNCTION_VERSION, ...body }), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
   })
 }
 
@@ -22,7 +27,6 @@ async function sha256Hex(value: string) {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
-
 type LimitEntry = { startedAt: number; attempts: number }
 const memoryLimits = new Map<string, LimitEntry>()
 
@@ -30,57 +34,31 @@ function consumeMemoryAttempt(key: string, maxAttempts: number, windowSeconds: n
   const now = Date.now()
   const windowMs = windowSeconds * 1000
   const current = memoryLimits.get(key)
+
   if (!current || now - current.startedAt >= windowMs) {
     memoryLimits.set(key, { startedAt: now, attempts: 1 })
     return true
   }
+
   current.attempts += 1
   memoryLimits.set(key, current)
+
   if (memoryLimits.size > 512) {
     for (const [entryKey, entry] of memoryLimits) {
       if (now - entry.startedAt >= windowMs * 2) memoryLimits.delete(entryKey)
     }
   }
+
   return current.attempts <= maxAttempts
-}
-
-async function consumeRegistrationAttempt(
-  admin: ReturnType<typeof createClient>,
-  key: string,
-  maxAttempts: number,
-  windowSeconds: number,
-) {
-  const current = await admin.rpc('consume_registration_attempt_v2', {
-    p_rate_key: key,
-    p_max_attempts: maxAttempts,
-    p_window_seconds: windowSeconds,
-  })
-  if (!current.error) return Boolean(current.data)
-
-  // Compatibility with the first SQL definition, whose argument names did not
-  // use the p_ prefix. This also covers a short PostgREST schema-cache delay.
-  const legacy = await admin.rpc('consume_registration_attempt', {
-    rate_key: key,
-    max_attempts: maxAttempts,
-    window_seconds: windowSeconds,
-  })
-  if (!legacy.error) return Boolean(legacy.data)
-
-  // Do not make account registration completely unavailable while the repair
-  // SQL is being applied. This is only a per-instance emergency limiter; the
-  // durable database limiter should still be installed.
-  console.warn('Durable registration limiter unavailable; using memory fallback', {
-    current: { code: current.error.code, message: current.error.message, hint: current.error.hint },
-    legacy: { code: legacy.error.code, message: legacy.error.message, hint: legacy.error.hint },
-  })
-  return consumeMemoryAttempt(key, maxAttempts, windowSeconds)
 }
 
 function secretKey() {
   const legacy = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   if (legacy) return legacy
+
   const packed = Deno.env.get('SUPABASE_SECRET_KEYS')
   if (!packed) return ''
+
   try {
     const keys = JSON.parse(packed)
     return String(keys.default || Object.values(keys)[0] || '')
@@ -100,11 +78,12 @@ Deno.serve(async (request: Request) => {
     return json(400, { error: '送信内容を読み取れませんでした。' })
   }
 
-  // Simple honeypot for automated form spam.
+  // Honeypot: bots often fill hidden website fields.
   if (String(body.website || '')) return json(201, { ok: true })
 
   const username = normalizeUsername(body.username)
   const password = String(body.password ?? '')
+
   if (!/^[\p{L}\p{N}_\-.]{3,18}$/u.test(username)) {
     return json(400, { error: 'ユーザー名は3～18文字の文字・数字・_・-・.で入力してください。' })
   }
@@ -119,22 +98,22 @@ Deno.serve(async (request: Request) => {
     return json(500, { error: '登録サーバーの設定が不足しています。' })
   }
 
+  // This limiter intentionally does not call SQL/RPC. A cold start may reset it,
+  // but account registration will never fail because a database function is stale.
+  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+  const clientIp = request.headers.get('cf-connecting-ip') || forwarded || request.headers.get('x-real-ip') || 'unknown'
+  const ipHash = await sha256Hex(`trion-register-v2-ip:${clientIp}`)
+  const userHash = await sha256Hex(`trion-register-v2-user:${username}`)
+
+  const ipAllowed = consumeMemoryAttempt(`ip:${ipHash}`, 10, 3600)
+  const userAllowed = consumeMemoryAttempt(`user:${userHash}`, 5, 3600)
+  if (!ipAllowed || !userAllowed) {
+    return json(429, { error: '登録試行が多すぎます。時間を空けてから再度お試しください。' })
+  }
+
   const admin = createClient(supabaseUrl, serviceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
-
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  const clientIp = request.headers.get('cf-connecting-ip') || forwarded || request.headers.get('x-real-ip') || 'unknown'
-  const ipHash = await sha256Hex(`trion-register-ip:${clientIp}`)
-  const userHash = await sha256Hex(`trion-register-user:${username}`)
-
-  const [ipAllowed, userAllowed] = await Promise.all([
-    consumeRegistrationAttempt(admin, `ip:${ipHash}`, 8, 3600),
-    consumeRegistrationAttempt(admin, `user:${userHash}`, 3, 3600),
-  ])
-  if (!ipAllowed || !userAllowed) {
-    return json(429, { error: '登録試行が多すぎます。1時間ほど空けてから再度お試しください。' })
-  }
 
   const digest = await sha256Hex(`trion-arena:${username}`)
   const email = `u_${digest.slice(0, 48)}@example.com`

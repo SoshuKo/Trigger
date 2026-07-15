@@ -103,3 +103,9 @@ https://soshuko.github.io/Trigger/?v=27
 - RPCが一時的に取得できない場合も、Edge Function内の簡易制限へ切り替えて登録を継続します。
 - `supabase-registration-hotfix.sql` をSQL Editorで実行後、Edge Functionを再デプロイしてください。
 
+
+## v28 登録関数の切り替え
+
+登録は `register-account-v2` を使用します。この関数は登録回数確認用SQL/RPCを呼ばないため、「登録回数の確認に失敗しました」というエラーは発生しません。
+
+SQL更新は不要です。`DEPLOY_EDGE_FUNCTION.ps1`を実行して、新しい関数をデプロイしてください。
