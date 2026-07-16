@@ -16,7 +16,7 @@
         <p class="title-kicker">B-GRADE RANK WAR</p>
         <h1>TRION<br>ARENA</h1>
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
-        <div class="version-badge" aria-label="現在のバージョン">VERSION 32</div>
+        <div class="version-badge" aria-label="現在のバージョン">VERSION 34</div>
         <div class="title-actions">
           <button id="enterSetupButton" class="title-start" type="button">出撃準備へ</button>
           <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
@@ -100,12 +100,21 @@
               <input id="teamSize" type="range" min="1" max="4" value="3" />
               <small id="teamRosterHelp" class="field-help">戦闘員を選んだ場合のみ、自チームの人数にプレイヤーを含みます。各チームにオペレーターが1人付きます。</small>
             </div>
+            <div id="defenseScenarioField" class="hidden">
+              <label class="field-label" for="defenseScenario">防衛戦シナリオ</label>
+              <select id="defenseScenario">
+                <option value="blackTrigger" selected>ブラックトリガー</option>
+                <option value="hyakki">百鬼夜行</option>
+              </select>
+              <small id="defenseScenarioHelp" class="field-help">従来のブラックトリガー防衛戦を遊びます。</small>
+            </div>
 
             <label class="field-label" for="mapId">戦場</label>
             <select id="mapId">
               <option value="city" selected>市街</option>
               <option value="desert">砂漠</option>
               <option value="snowShrine">雪山神殿</option>
+              <option value="underground">地下通路</option>
             </select>
             <small id="mapHelp" class="field-help">道路・河川・林・ビルが混在する市街戦マップです。</small>
 
@@ -610,6 +619,6 @@
   <script src="js/trigger-data.js?v=32"></script>
   <script src="js/online.js?v=32"></script>
   <script src="js/community.js?v=32"></script>
-  <script src="js/game.js?v=32"></script>
+  <script src="js/game.js?v=34"></script>
 </body>
 </html>

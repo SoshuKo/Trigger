@@ -29,9 +29,10 @@
   const BASE_PICKUP_COUNT = 320;
   const TIME_PHASES = ['morning', 'day', 'night'];
   const WEATHER_TYPES = ['clear', 'cloudy', 'rain'];
-  const MAP_IDS = ['city', 'desert', 'snowShrine'];
-  const MAP_LABELS = { city: '市街', desert: '砂漠', snowShrine: '雪山神殿' };
+  const MAP_IDS = ['city', 'desert', 'snowShrine', 'underground'];
+  const MAP_LABELS = { city: '市街', desert: '砂漠', snowShrine: '雪山神殿', underground: '地下通路' };
   const MODE_LABELS = { solo: '個人戦', team: 'チーム戦', defense: '防衛戦' };
+  const DEFENSE_SCENARIO_LABELS = { blackTrigger: 'ブラックトリガー', hyakki: '百鬼夜行' };
   const isSquadModeValue = (mode) => mode === 'team' || mode === 'defense';
   const TIME_LABELS = { morning: '朝', day: '昼', night: '夜' };
   const WEATHER_LABELS = { clear: '晴', cloudy: '曇り', rain: '雨' };
@@ -59,7 +60,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 32;
+  const GAME_VERSION = 34;
   const BEGINNER_SKILLS = {
     none: { label: '使用しない', budget: 18, description: '従来どおり18ポイントを能力へ配分します。' },
     autoGuard: { label: 'オートガード', budget: 12, description: 'シールドまたはレイガスト装備時、被弾直前に自動防御します。' },
@@ -351,6 +352,7 @@
     playerRole: 'combatant',
     teamCount: 2,
     teamSize: 3,
+    defenseScenario: 'blackTrigger',
     timeOfDay: 'day',
     timeProgression: false,
     weather: 'clear',
@@ -567,6 +569,11 @@
     $('#teamCountFields')?.classList.toggle('hidden', !isSquad);
     $('#teamCountOnly')?.classList.toggle('hidden', !isTeam);
     $('#matchLengthFields')?.classList.toggle('hidden', isDefense);
+    $('#defenseScenarioField')?.classList.toggle('hidden', !isDefense);
+    if ($('#defenseScenario')) $('#defenseScenario').value = setup.defenseScenario;
+    if ($('#defenseScenarioHelp')) $('#defenseScenarioHelp').textContent = setup.defenseScenario === 'hyakki'
+      ? '骸骨兵と五体の妖怪ボスが襲来する百鬼夜行の防衛戦です。'
+      : '従来のブラックトリガー・近界民迎撃シナリオです。';
     const roleSelect = $('#participationRole');
     if (roleSelect) {
       const operatorOption = roleSelect.querySelector('option[value="operator"]');
@@ -586,7 +593,9 @@
         ? '自チームの戦闘員数にプレイヤーを1人として含みます。各チームにオペレーターが1人付きます。'
         : 'プレイヤーは戦闘員数に含まれません。全チームが設定人数ぶんのCPU戦闘員を持ちます。';
     const rule = $('#mapRuleText');
-    if (rule && isDefense) rule.textContent = 'フラッグを守りながら、ラウンドごとに現れるトリオン兵を撃退します。Fキーで自分のトリオンを注ぎ、フラッグを修復できます。';
+    if (rule && isDefense) rule.textContent = setup.defenseScenario === 'hyakki'
+      ? 'フラッグを守りながら、骸骨兵と百鬼夜行の妖怪ボスを迎撃します。Fキーで自分のトリオンを注ぎ、フラッグを修復できます。'
+      : 'フラッグを守りながら、ラウンドごとに現れるトリオン兵を撃退します。Fキーで自分のトリオンを注ぎ、フラッグを修復できます。';
     else syncMapWeatherUi();
     buildCpuConfigList();
   }
@@ -809,6 +818,7 @@
     $('#participationRole').addEventListener('change', (event) => { setup.playerRole = PLAYER_ROLES.includes(event.target.value) ? event.target.value : 'combatant'; syncModeFields(); saveSetup(); });
     $('#teamCount').addEventListener('input', (event) => { setup.teamCount = clamp(Number(event.target.value), 2, 4); $('#teamCountValue').textContent = setup.teamCount; buildCpuConfigList(); saveSetup(); });
     $('#teamSize').addEventListener('input', (event) => { setup.teamSize = Number(event.target.value); $('#teamSizeValue').textContent = event.target.value; buildCpuConfigList(); saveSetup(); });
+    $('#defenseScenario')?.addEventListener('change', (event) => { setup.defenseScenario = DEFENSE_SCENARIO_LABELS[event.target.value] ? event.target.value : 'blackTrigger'; syncModeFields(); saveSetup(); });
     $('#timeOfDay').addEventListener('change', (event) => { setup.timeOfDay = event.target.value; saveSetup(); });
     $('#timeProgression').addEventListener('change', (event) => { setup.timeProgression = event.target.value === 'on'; saveSetup(); });
     $('#weather').addEventListener('change', (event) => { setup.weather = event.target.value; saveSetup(); });
@@ -903,6 +913,7 @@
         playerRole: setup.playerRole,
         teamCount: setup.teamCount,
         teamSize: setup.teamSize,
+        defenseScenario: setup.defenseScenario,
         timeOfDay: setup.timeOfDay,
         timeProgression: setup.timeProgression,
         weather: setup.weather,
@@ -935,6 +946,7 @@
       if (PLAYER_ROLES.includes(saved.playerRole)) setup.playerRole = saved.playerRole;
       if (saved.teamCount) setup.teamCount = clamp(Number(saved.teamCount), 2, 4);
       if (saved.teamSize) setup.teamSize = clamp(Number(saved.teamSize), 1, 4);
+      if (DEFENSE_SCENARIO_LABELS[saved.defenseScenario]) setup.defenseScenario = saved.defenseScenario;
       if (TIME_PHASES.includes(saved.timeOfDay)) setup.timeOfDay = saved.timeOfDay;
       setup.timeProgression = Boolean(saved.timeProgression);
       if (WEATHER_TYPES.includes(saved.weather)) setup.weather = saved.weather;
@@ -955,24 +967,47 @@
     const mapId = MAP_IDS.includes(setup.mapId) ? setup.mapId : 'city';
     const weatherSelect = $('#weather');
     const rainOption = weatherSelect?.querySelector('option[value="rain"]');
+    const timeSelect = $('#timeOfDay');
+    const timeProgression = $('#timeProgression');
+    const weatherChange = $('#weatherChange');
     if (rainOption) {
-      rainOption.disabled = mapId === 'desert';
-      rainOption.hidden = mapId === 'desert';
+      rainOption.disabled = mapId === 'desert' || mapId === 'underground';
+      rainOption.hidden = mapId === 'desert' || mapId === 'underground';
     }
+    const fixedUnderground = mapId === 'underground';
     if (mapId === 'desert' && setup.weather === 'rain') setup.weather = 'clear';
-    if (weatherSelect) weatherSelect.value = setup.weather;
+    if (fixedUnderground) {
+      setup.weather = 'clear';
+      setup.weatherChange = false;
+      setup.timeOfDay = 'day';
+      setup.timeProgression = false;
+    }
+    if (weatherSelect) {
+      weatherSelect.disabled = fixedUnderground;
+      weatherSelect.value = setup.weather;
+    }
+    if (timeSelect) {
+      timeSelect.disabled = fixedUnderground;
+      timeSelect.value = setup.timeOfDay;
+    }
+    if (timeProgression) timeProgression.disabled = fixedUnderground;
+    if (weatherChange) weatherChange.disabled = fixedUnderground;
     const help = $('#mapHelp');
     const rule = $('#mapRuleText');
     if (help) help.textContent = mapId === 'desert'
       ? '古代要塞、崖、流砂、砂丘、オアシス、松明、ガス田がある乾燥地帯です。雨は降りません。'
       : mapId === 'snowShrine'
         ? '寝殿造の廊下と大部屋が雪庭を囲む和風神殿です。障子、酒樽、人魂、神像が配置されています。'
-        : '道路・河川・林・ビルが混在する市街戦マップです。';
+        : mapId === 'underground'
+          ? '旅客用ホームと業務用通路が連結した地下通路です。通過電車、水路、汚泥、ブレーカーなどのギミックがあります。'
+          : '道路・河川・林・ビルが混在する市街戦マップです。';
     if (rule && setup.mode !== 'defense') rule.textContent = mapId === 'desert'
       ? '砂漠では昼は日陰・オアシス、夜は火のそばで環境によるトリオン消費増加を解除できます。ガス田付近で爆発攻撃を使うと大爆発します。'
       : mapId === 'snowShrine'
         ? '雪庭ではトリオン消費が34%増加します。障子と人魂は再生し、酒樽は爆発攻撃で誘爆します。東西の神像は一定間隔でトリオンを分けます。'
-        : '撃破・トリオン粒子回収でポイント獲得。時間終了時の個人／チームスコアで順位を決定します。';
+        : mapId === 'underground'
+          ? '電光掲示板の残り時間が0になると通過電車が走ります。ホームドア、水門、ブレーカーは攻撃で切り替えられます。停電中は非常灯とプレイヤーの光だけが頼りです。'
+          : '撃破・トリオン粒子回収でポイント獲得。時間終了時の個人／チームスコアで順位を決定します。';
   }
 
   function syncSetupUI() {
@@ -985,6 +1020,7 @@
     $('#teamCountValue').textContent = setup.teamCount;
     $('#teamSize').value = setup.teamSize;
     $('#teamSizeValue').textContent = setup.teamSize;
+    if ($('#defenseScenario')) $('#defenseScenario').value = setup.defenseScenario;
     $('#timeOfDay').value = setup.timeOfDay;
     $('#timeProgression').value = setup.timeProgression ? 'on' : 'off';
     $('#weather').value = setup.weather;
@@ -1007,6 +1043,7 @@
       cpuCount: requiredCpuCount(),
       teamCount: setup.mode === 'team' ? setup.teamCount : setup.mode === 'defense' ? 1 : 0,
       teamSize: setup.teamSize,
+      defenseScenario: setup.defenseScenario,
       matchLength: setup.mode === 'defense' ? 0 : Number($('#matchLength').value),
       difficulty: setup.difficulty,
       mapId: setup.mapId,
@@ -1384,6 +1421,7 @@
       this.playerRole = PLAYER_ROLES.includes(config.playerRole) ? config.playerRole : 'combatant';
       this.playerTeam = Number(this.onlineLocalMember?.team || 0);
       this.isDefenseMode = config.mode === 'defense';
+      this.defenseScenario = DEFENSE_SCENARIO_LABELS[config.defenseScenario] ? config.defenseScenario : 'blackTrigger';
       this.teamCount = config.mode === 'team' ? clamp(Number(config.teamCount || 2), 2, 4) : this.isDefenseMode ? 1 : 0;
       this.isPlayerCombatant = this.playerRole === 'combatant';
       this.isPlayerOperator = (config.mode === 'team' || this.isDefenseMode) && this.playerRole === 'operator';
@@ -1408,7 +1446,7 @@
       this.scopeTargetDistance = 0;
       this.scopeReticle = { x: 0, y: 0 };
       this.scopeTargetPoint = { x: 0, y: 0 };
-      this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [], shrineGardens: [], shrineRooms: [], shrineCorridors: [], shrineCourts: [], shrineStatues: [], torii: [], frozenPonds: [], snowDrifts: [], shrineApproaches: [], shrineSteps: [], shrineDecor: [] };
+      this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [], shrineGardens: [], shrineRooms: [], shrineCorridors: [], shrineCourts: [], shrineStatues: [], torii: [], frozenPonds: [], snowDrifts: [], shrineApproaches: [], shrineSteps: [], shrineDecor: [], subwayTracks: [], subwayPlatforms: [], subwayPassengerZones: [], subwayServiceZones: [], subwayWaterways: [], subwaySludge: [], subwayWires: [], subwayProps: [], subwaySigns: [] };
       this.terrainChunkSize = 640;
       this.terrainChunks = new Map();
       this.maxTerrainChunks = this.onlineMirror ? 12 : 24;
@@ -1429,10 +1467,12 @@
       this.operatorSupportDurations = { scan: 24, supply: 32, flare: 26, barrier: 36, rally: 30, decoy: 28, flagRepair: 42 };
       this.operatorSupportPending = null;
       this.operatorStats = { ordersIssued: 0, supportsUsed: 0, scan: 0, supply: 0, flare: 0, barrier: 0, rally: 0, decoy: 0, flagRepair: 0 };
-      const initialWeather = this.mapId === 'desert' && config.weather === 'rain' ? 'clear' : (WEATHER_TYPES.includes(config.weather) ? config.weather : 'clear');
+      const initialWeather = (this.mapId === 'desert' || this.mapId === 'underground') && config.weather === 'rain' ? 'clear' : (WEATHER_TYPES.includes(config.weather) ? config.weather : 'clear');
       this.environment = { timeOfDay: TIME_PHASES.includes(config.timeOfDay) ? config.timeOfDay : 'day', timeProgression: Boolean(config.timeProgression), timeTimer: 0, weather: initialWeather, weatherChange: Boolean(config.weatherChange), weatherTimer: rand(75, 115) };
       this.players = [];
       this.defenseFlag = null;
+      this.defenseAreas = [];
+      this.defenseUltimateUsed = false;
       this.defenseRound = 0;
       this.defenseTier = 0;
       this.defenseWaveActive = false;
@@ -1440,6 +1480,9 @@
       this.defenseEnemiesDefeated = 0;
       this.defenseBossesDefeated = 0;
       this.defenseHazards = [];
+      this.defenseAreas = [];
+      this.defenseAreaSerial = 0;
+      this.defenseUltimateUsed = false;
       this.defenseEnemySerial = 0;
       this.flagChannelTimer = 0;
       this.defenseBuildPoints = 0;
@@ -2516,8 +2559,15 @@
       }
     }
 
-    availableWeatherTypes(){ return this.mapId === 'desert' ? ['clear','cloudy'] : WEATHER_TYPES; }
+    availableWeatherTypes(){ return this.mapId === 'desert' ? ['clear','cloudy'] : this.mapId === 'underground' ? ['clear'] : WEATHER_TYPES; }
     updateEnvironment(dt){
+      if (this.mapId === 'underground') {
+        this.environment.timeOfDay = 'day';
+        this.environment.timeProgression = false;
+        this.environment.weather = 'clear';
+        this.environment.weatherChange = false;
+        this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false };
+      }
       if(this.environment.timeProgression){
         this.environment.timeTimer+=dt;
         if(this.environment.timeTimer>=90){
@@ -2526,7 +2576,7 @@
           this.logEvent('time_change',TIME_LABELS[this.environment.timeOfDay]);
         }
       }
-      if(this.mapId === 'desert' && this.environment.weather === 'rain') this.environment.weather = 'clear';
+      if((this.mapId === 'desert' || this.mapId === 'underground') && this.environment.weather === 'rain') this.environment.weather = 'clear';
       if(this.environment.weatherChange){
         this.environment.weatherTimer-=dt;
         if(this.environment.weatherTimer<=0){
@@ -2541,7 +2591,17 @@
     }
     updateEnvironmentLabel(){
       const el=$('#environmentLabel');
-      if(el) el.textContent=`${MAP_LABELS[this.mapId]}・${TIME_LABELS[this.environment.timeOfDay]}・${WEATHER_LABELS[this.environment.weather]}`;
+      if(!el) return;
+      if(this.mapId === 'underground'){
+        const subway=this.environment.subway||{};
+        const states=[];
+        states.push(subway.breakerOff ? '停電中' : '通常照明');
+        states.push(subway.homeDoorsClosed ? 'ホームドア閉' : 'ホームドア開');
+        states.push(subway.waterDrained ? '水路排水済み' : '水路通水中');
+        el.textContent=`${MAP_LABELS[this.mapId]}・人工照明・${states.join('・')}`;
+        return;
+      }
+      el.textContent=`${MAP_LABELS[this.mapId]}・${TIME_LABELS[this.environment.timeOfDay]}・${WEATHER_LABELS[this.environment.weather]}`;
     }
     isInCircleZone(x,y,zone){ return Math.hypot(x-zone.x,y-zone.y) <= zone.radius; }
     isInDesertShade(p){ return this.terrain.shades.some(zone=>this.isPointInRect(p.x,p.y,zone)); }
@@ -2643,6 +2703,21 @@
         if(this.terrain.frozenPonds.some(r=>this.isPointInRect(p.x,p.y,r))){
           factor*=1.08;
           p.vx*=1.006; p.vy*=1.006;
+        }
+      }
+      if(this.mapId==='underground'){
+        const subway=this.environment.subway||{};
+        if(!subway.waterDrained){
+          for(const water of this.terrain.subwayWaterways||[]){
+            if(!this.isPointInRect(p.x,p.y,water)) continue;
+            factor*=0.58;
+            p.vx += (water.flowX||0) * dt;
+            p.vy += (water.flowY||0) * dt;
+          }
+        }
+        for(const sludge of this.terrain.subwaySludge||[]){
+          if(sludge.active===false) continue;
+          if(this.isInCircleZone(p.x,p.y,sludge)) factor*=0.76;
         }
       }
       p.groundFrictionBase = this.environment.weather==='rain' ? (onRoad||onPlaza ? .48 : .22) : .0008;
@@ -3077,6 +3152,7 @@
     generateArena() {
       if (this.mapId === 'desert') this.generateDesertArena();
       else if (this.mapId === 'snowShrine') this.generateSnowShrineArena();
+      else if (this.mapId === 'underground') this.generateUndergroundArena();
       else this.generateCityArena();
     }
 
@@ -3267,6 +3343,68 @@
       this.pickupStats.peakTotal = this.pickups.length;
     }
 
+
+    generateUndergroundArena() {
+      const addWall = (id, x, y, w, h, type = 'buildingWall', hp = 520, options = {}) => {
+        const wall = { id, x, y, w, h, type, hp, maxHp: hp, ttl: Infinity, ...options };
+        this.walls.push(wall);
+        return wall;
+      };
+      const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false };
+      subway.trainTimer = 12; subway.trainActive = false; subway.trainDirection = 1; subway.trainX = -1200; subway.homeDoorsClosed = true; subway.breakerOff = false; subway.waterDrained = false;
+      const concourse = { id:'concourse', x: 560, y: 520, w: 5280, h: 720 };
+      const track = { id:'main-track', x: 280, y: 1260, w: 5840, h: 430, safeMargin: 120 };
+      const platform = { id:'main-platform', x: 700, y: 1770, w: 5000, h: 760 };
+      const service = { id:'service-deck', x: 360, y: 2760, w: 5680, h: 1220 };
+      this.terrain.subwayPassengerZones.push(concourse, platform);
+      this.terrain.subwayServiceZones.push(service);
+      this.terrain.subwayTracks.push(track);
+      this.terrain.subwayPlatforms.push(platform);
+      this.terrain.plazas.push({ ...concourse, passenger: true }, { ...platform, passenger: true });
+      this.terrain.roads.push({ id:'service-main', x: 420, y: 2940, w: 5600, h: 150 }, { id:'service-west', x: 560, y: 3090, w: 150, h: 720 }, { id:'service-mid', x: 2280, y: 3090, w: 150, h: 740 }, { id:'service-east', x: 4060, y: 3090, w: 150, h: 760 }, { id:'service-far-east', x: 5480, y: 3090, w: 150, h: 730 }, { id:'service-south-a', x: 560, y: 3660, w: 1900, h: 130 }, { id:'service-south-b', x: 2280, y: 3660, w: 1920, h: 130 }, { id:'service-south-c', x: 4060, y: 3660, w: 1560, h: 130 });
+      this.terrain.buildings.push({ id:'electrical-room', x: 4520, y: 2860, w: 1180, h: 900, serviceRoom:true }, { id:'pump-room', x: 700, y: 2860, w: 1180, h: 860, serviceRoom:true }, { id:'storage-a', x: 2480, y: 2860, w: 1120, h: 860, serviceRoom:true }, { id:'service-north', x: 390, y: 2860, w: 5620, h: 1120, serviceShell:true });
+      addWall('passenger-top', 500, 460, 5400, 34); addWall('passenger-left', 500, 460, 34, 2150); addWall('passenger-right', 5866, 460, 34, 2150); addWall('passenger-bottom-west', 500, 2560, 1260, 34); addWall('passenger-bottom-east', 4640, 2560, 1260, 34); addWall('platform-stair-west', 1450, 2380, 170, 220, 'buildingWall', 520, { lowCover:true }); addWall('platform-stair-east', 4780, 2380, 170, 220, 'buildingWall', 520, { lowCover:true }); addWall('track-lip-top', track.x, track.y - 26, track.w, 18, 'platformEdge', 9999, { indestructible:true }); addWall('track-lip-bottom', track.x, track.y + track.h + 8, track.w, 18, 'platformEdge', 9999, { indestructible:true, nonBlocking:true });
+      const doorY = platform.y - 28; for (let i = 0; i < 18; i++) { const x = 860 + i * 255; addWall(`platform-door-${i}`, x, doorY, 180, 20, 'platformDoor', 240, { subwayDoor: true, indestructible: true }); }
+      for (let i = 0; i < 8; i++) addWall(`ticket-gate-${i}`, 1540 + i * 260, 1180, 86, 46, 'ticketGate', 320, { lowCover:true, respawnable:true, respawnDelay:[55,78] });
+      for (let i = 0; i < 12; i++) this.terrain.subwayProps.push({ kind:'pillar', x: 980 + i * 390, y: 2050, w: 44, h: 44 });
+      this.terrain.subwayProps.push({ kind:'bench', x: 1240, y: 2140, w: 148, h: 34 }, { kind:'bench', x: 2040, y: 2140, w: 148, h: 34 }, { kind:'bench', x: 2840, y: 2140, w: 148, h: 34 }, { kind:'bench', x: 3640, y: 2140, w: 148, h: 34 }, { kind:'bench', x: 4440, y: 2140, w: 148, h: 34 }, { kind:'locker', x: 760, y: 680, w: 170, h: 76 }, { kind:'locker', x: 5400, y: 680, w: 170, h: 76 }, { kind:'vending', x: 1060, y: 760, w: 86, h: 120 }, { kind:'vending', x: 5220, y: 760, w: 86, h: 120 }, { kind:'ticketBooth', x: 3200, y: 730, w: 240, h: 110 }, { kind:'warningStripe', x: platform.x, y: platform.y - 48, w: platform.w, h: 18 }, { kind:'stairs', x: 1580, y: 2510, w: 230, h: 82 }, { kind:'stairs', x: 4590, y: 2510, w: 230, h: 82 });
+      addWall('service-top', 360, 2760, 5680, 34); addWall('service-left', 360, 2760, 34, 1260); addWall('service-right', 6006, 2760, 34, 1260); addWall('service-bottom', 360, 3986, 5680, 34);
+      const mazeWalls = [['svc-a', 1220, 2920, 32, 860], ['svc-b', 1760, 2920, 32, 600], ['svc-c', 2820, 2920, 32, 860], ['svc-d', 3360, 3040, 32, 760], ['svc-e', 4600, 2920, 32, 820], ['svc-f', 5140, 3040, 32, 740], ['svc-g', 940, 3490, 1080, 32], ['svc-h', 2460, 3480, 1020, 32], ['svc-i', 3890, 3480, 1260, 32], ['svc-j', 880, 3200, 420, 32], ['svc-k', 1500, 3210, 280, 32], ['svc-l', 3020, 3200, 260, 32], ['svc-m', 4820, 3200, 240, 32], ['svc-n', 2080, 3820, 1140, 32], ['svc-o', 4080, 3820, 1180, 32]];
+      for (const [id, x, y, w, h] of mazeWalls) addWall(id, x, y, w, h, 'maintenanceWall', 470, { respawnable:true, respawnDelay:[64,92] });
+      addWall('service-connector-west', 1100, 2558, 220, 202, 'maintenanceWall', 470); addWall('service-connector-east', 4920, 2558, 220, 202, 'maintenanceWall', 470);
+      this.terrain.subwayWaterways.push({ id:'channel-west', x: 520, y: 3330, w: 820, h: 150, flowX: 62, flowY: 0 }, { id:'channel-mid', x: 2140, y: 3330, w: 860, h: 150, flowX: 74, flowY: 0 }, { id:'channel-drop', x: 2920, y: 3140, w: 150, h: 540, flowX: 0, flowY: 66 });
+      this.terrain.subwaySludge.push({ id:'sludge-0', x: 930, y: 3050, radius: 84, active: true, cooldown: 0 }, { id:'sludge-1', x: 1910, y: 3660, radius: 76, active: true, cooldown: 0 }, { id:'sludge-2', x: 3620, y: 3170, radius: 82, active: true, cooldown: 0 }, { id:'sludge-3', x: 5410, y: 3650, radius: 88, active: true, cooldown: 0 });
+      this.terrain.subwayWires.push({ x1: 3200, y1: 1100, x2: 4620, y2: 3060 }, { x1: 3200, y1: 1100, x2: 1180, y2: 3070 }, { x1: 4620, y1: 3060, x2: 5200, y2: 3060 }, { x1: 1180, y1: 3070, x2: 2720, y2: 3410 });
+      this.terrain.subwayProps.push({ kind:'pipeRack', x: 1020, y: 2860, w: 780, h: 34 }, { kind:'pipeRack', x: 4540, y: 2860, w: 960, h: 34 }, { kind:'generator', x: 5060, y: 3300, w: 190, h: 110 }, { kind:'pump', x: 1180, y: 3300, w: 190, h: 96 }, { kind:'crate', x: 2640, y: 3090, w: 74, h: 74 }, { kind:'crate', x: 2720, y: 3174, w: 74, h: 74 }, { kind:'cart', x: 4360, y: 3570, w: 130, h: 72 }, { kind:'grate', x: 3170, y: 3680, w: 170, h: 70 });
+      this.terrain.subwaySigns.push({ id:'board-a', x: 2100, y: 1865 }, { id:'board-b', x: 4300, y: 1865 });
+      const utilityPoints = [['barricade', 1180, 2100], ['turret', 3220, 2120], ['trap', 5200, 2130], ['barricade', 900, 3560], ['trap', 2560, 3570], ['turret', 5200, 3560]];
+      utilityPoints.forEach(([type, x, y], i) => this.installations.push({ id:`underground-facility-${i}`, type, x, y, radius:24, hp:type==='barricade'?280:205, maxHp:type==='barricade'?280:205, active:false, team:null, work:0, cooldown:0, activeTimer:0, respawnTimer:0, destroyedLogged:false, subway:true }));
+      const lamps = [[1080, 620], [1880, 620], [2680, 620], [3480, 620], [4280, 620], [5080, 620], [1320, 1960], [2380, 1960], [3440, 1960], [4500, 1960]];
+      lamps.forEach(([x, y], i) => this.lightSources.push({ id:`fluorescent-${i}`, kind:'fluorescent', x, y, radius:13, hp:84, maxHp:84, length: 92, lightRadius: 250, respawnTimer:0, destroyedLogged:false }));
+      [[760, 1760], [3200, 1760], [5640, 1760], [620, 2960], [3200, 2960], [5740, 2960], [3200, 3880]].forEach(([x,y], i) => this.lightSources.push({ id:`emergency-${i}`, kind:'emergencyLight', x, y, radius:11, hp:72, maxHp:72, lightRadius: 170, respawnTimer:0, destroyedLogged:false, emergency:true }));
+      this.lightSources.push({ id:'platform-switch', kind:'platformSwitch', x: 3180, y: 2065, radius:18, hp:24, maxHp:24, lightRadius:0, respawnTimer:0, destroyedLogged:false }, { id:'watergate-switch', kind:'waterGateSwitch', x: 1180, y: 3095, radius:18, hp:24, maxHp:24, lightRadius:0, respawnTimer:0, destroyedLogged:false }, { id:'breaker-switch', kind:'breakerSwitch', x: 5200, y: 3095, radius:18, hp:24, maxHp:24, lightRadius:0, respawnTimer:0, destroyedLogged:false });
+      for (let i = 0; i < BASE_PICKUP_COUNT; i++) this.pickups.push(this.makePickup());
+      this.pickupStats.baseSpawned = BASE_PICKUP_COUNT; this.pickupStats.peakTotal = this.pickups.length; this.syncUndergroundMechanisms();
+    }
+
+    syncUndergroundMechanisms() {
+      if (this.mapId !== 'underground') return;
+      const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false };
+      for (const wall of this.walls) if (wall.subwayDoor) wall.hp = subway.homeDoorsClosed ? wall.maxHp : 0;
+    }
+
+    subwayTrainCountdown() { const subway = this.environment.subway || {}; if (subway.trainActive) return 0; return Math.max(0, Math.ceil(subway.trainTimer || 0)); }
+    subwayTrainRect() { if (this.mapId !== 'underground') return null; const subway = this.environment.subway || {}; const track = this.terrain.subwayTracks?.[0]; if (!track || !subway.trainActive) return null; return { x: subway.trainX - 460, y: track.y + 30, w: 920, h: track.h - 60 }; }
+    updateSubwaySystems(dt) {
+      if (this.mapId !== 'underground') return; const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false }; const track = this.terrain.subwayTracks?.[0]; if (!track) return; this.syncUndergroundMechanisms();
+      for (const sludge of this.terrain.subwaySludge || []) { if (sludge.active !== false) continue; sludge.cooldown = Math.max(0, (sludge.cooldown || 0) - dt); if (sludge.cooldown <= 0) sludge.active = true; }
+      if (subway.trainActive) { subway.trainX += subway.trainDirection * dt * 1850; const out = subway.trainDirection > 0 ? subway.trainX - 460 > this.world.w + 220 : subway.trainX + 460 < -220; if (out) { subway.trainActive = false; subway.trainTimer = rand(12, 19); subway.trainDirection *= -1; subway.trainX = subway.trainDirection > 0 ? -600 : this.world.w + 600; } }
+      else { subway.trainTimer -= dt; if (subway.trainTimer <= 0) { subway.trainActive = true; subway.trainDirection = Math.random() < .5 ? 1 : -1; subway.trainX = subway.trainDirection > 0 ? -600 : this.world.w + 600; this.logEvent('subway_train_arrive', '通過電車が進入'); } }
+    }
+    applyUndergroundRailSafety(p, dt) { if (this.mapId !== 'underground' || p.dead) return; const track = this.terrain.subwayTracks?.[0]; const subway = this.environment.subway || {}; if (!track) return; const imminent = subway.trainActive || (subway.trainTimer || 0) < 3.3; if (!imminent) return; const warnZone = { x: track.x, y: track.y - 90, w: track.w, h: track.h + 180 }; if (!this.isPointInRect(p.x, p.y, warnZone)) return; if (p.human && !subway.trainActive) return; const centerY = track.y + track.h / 2; const push = p.y < centerY ? -1 : 1; p.vy += push * p.speed * dt * (subway.trainActive ? 5.4 : 3.2); if (!p.human) p.vx += (p.x < this.world.w / 2 ? -1 : 1) * dt * 12; }
+    checkUndergroundHazards(p) { if (this.mapId !== 'underground' || p.dead) return; const train = this.subwayTrainRect(); if (train && circleRectOverlap(p, train)) { const before = p.hp; this.damagePlayer(p, 9999, null, { x: train.x + train.w / 2, y: train.y + train.h / 2, type:'hazard', name:'通過電車', sourceKey:'subwayTrain' }); if (before > 0 && p.dead) { p.vx += (this.environment.subway?.trainDirection || 1) * 460; this.effects.push({ type:'slash', x:p.x, y:p.y, range:145, angle:0, arc:TAU, ttl:.3, maxTtl:.3, color:'#ffd17a' }); } } }
+    igniteSubwaySludge(sludge, ownerId, team) { if (!sludge || sludge.active === false) return; sludge.active = false; sludge.cooldown = rand(34, 52); this.effects.push({ type:'gasBurst', x: sludge.x, y: sludge.y, radius: 210, ttl:.72, maxTtl:.72 }); this.explode(sludge.x, sludge.y, 210, 112, ownerId, team, null, '汚泥爆発', { sourceKey:'subwaySludgeExplosion', sludgeChain:true }); }
+
     generateDesertArena() {
       this.terrain.roads.push(
         { x: 0, y: 1960, w: this.world.w, h: 250, desertRoad: true },
@@ -3420,6 +3558,20 @@
     updateLightSources(dt){
       for(let i=this.lightSources.length-1;i>=0;i--){
         const light=this.lightSources[i];
+        if(['platformSwitch','waterGateSwitch','breakerSwitch'].includes(light.kind)){
+          light.cooldown = Math.max(0, (light.cooldown || 0) - dt);
+          if(light.hp <= 0 && light.cooldown <= 0){
+            const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false };
+            if(light.kind === 'platformSwitch') subway.homeDoorsClosed = !subway.homeDoorsClosed;
+            else if(light.kind === 'waterGateSwitch') subway.waterDrained = !subway.waterDrained;
+            else if(light.kind === 'breakerSwitch') subway.breakerOff = !subway.breakerOff;
+            light.hp = light.maxHp;
+            light.cooldown = .7;
+            this.syncUndergroundMechanisms();
+            this.logEvent('subway_switch_toggle', `${light.kind} ${subway.homeDoorsClosed ? 'closed' : 'open'}` , false);
+          }
+          continue;
+        }
         if(light.kind==='sakeBarrel'){
           if(light.hp>0){ light.ignited=false; continue; }
           if(!light.destroyedLogged){ light.destroyedLogged=true; light.respawnTimer=rand(52,76); this.lifecycleStats.lightsDestroyed += 1; this.logEvent('sake_barrel_destroyed',light.id,false); }
@@ -3697,6 +3849,86 @@
     }
 
 
+    getDefenseScenarioLabel() {
+      return DEFENSE_SCENARIO_LABELS[this.defenseScenario] || DEFENSE_SCENARIO_LABELS.blackTrigger;
+    }
+
+    isHyakkiDefense() {
+      return this.defenseScenario === 'hyakki';
+    }
+
+    spawnDefenseArea(area = {}) {
+      const patch = {
+        id: `defense-area-${++this.defenseAreaSerial}`,
+        kind: area.kind || 'fire', x: area.x || 0, y: area.y || 0,
+        radius: area.radius || 90, ttl: area.ttl || 4.2, maxTtl: area.ttl || 4.2,
+        damage: area.damage || 12, interval: area.interval || .45, tick: 0,
+        owner: area.owner || null, hitsFlag: Boolean(area.hitsFlag),
+        name: area.name || (area.kind === 'mist' ? '黒い霧' : '残火'),
+        vx: area.vx || 0, vy: area.vy || 0,
+      };
+      this.defenseAreas.push(patch);
+      return patch;
+    }
+
+    updateDefenseAreas(dt) {
+      if (!this.isDefenseMode) return;
+      for (let i = this.defenseAreas.length - 1; i >= 0; i--) {
+        const area = this.defenseAreas[i];
+        area.ttl -= dt; area.tick -= dt;
+        area.x += (area.vx || 0) * dt;
+        area.y += (area.vy || 0) * dt;
+        area.vx *= Math.max(0, 1 - dt * .8);
+        area.vy *= Math.max(0, 1 - dt * .8);
+        if (area.tick <= 0) {
+          area.tick = area.interval || .45;
+          for (const target of this.players.filter((player) => !player.isDefenseEnemy && !player.dead)) {
+            if (Math.hypot(target.x - area.x, target.y - area.y) > area.radius + target.radius) continue;
+            if (area.kind === 'mist') {
+              this.damagePlayer(target, area.damage, area.owner, { x: area.x, y: area.y, type: 'poison', name: area.name, sourceKey: 'hyakkiMist' });
+              target.defensePoisonTimer = Math.max(target.defensePoisonTimer || 0, 2.8);
+            } else {
+              this.damagePlayer(target, area.damage, area.owner, { x: area.x, y: area.y, type: 'fire', name: area.name, sourceKey: 'hyakkiFire', shieldPierce: false });
+            }
+          }
+          if (area.hitsFlag && this.defenseFlag && Math.hypot(this.defenseFlag.x - area.x, this.defenseFlag.y - area.y) <= area.radius + this.defenseFlag.radius) {
+            this.damageDefenseFlag(area.damage * .42, area.owner, area.name);
+          }
+          for (const decoy of this.beacons.filter((beacon) => beacon.defenseDecoy && beacon.hp > 0)) {
+            if (Math.hypot(decoy.x - area.x, decoy.y - area.y) <= area.radius + decoy.radius) this.damageDefenseDecoy(decoy, area.damage * .75, area.owner, area.name);
+          }
+        }
+        if (area.ttl <= 0) this.defenseAreas.splice(i, 1);
+      }
+    }
+
+    fireDefenseProjectile(enemy, target, options = {}) {
+      if (!enemy || !target) return null;
+      const tx = target.x + (target.vx || 0) * (options.leadTime || .18);
+      const ty = target.y + (target.vy || 0) * (options.leadTime || .18);
+      const angle = Math.atan2(ty - enemy.y, tx - enemy.x);
+      enemy.aim = angle;
+      return this.spawnProjectile(enemy, 'main', {
+        angle,
+        speed: options.speed || 700,
+        damage: options.damage || 18,
+        radius: options.radius || 5,
+        life: options.life || 1.6,
+        color: options.color || '#ffffff',
+        explosive: Boolean(options.explosive),
+        explosionRadius: options.explosionRadius || 80,
+        homing: options.homing || 0,
+        targetId: options.targetId || target.id || null,
+        penetration: options.penetration || 0,
+        trail: Boolean(options.trail),
+        shieldPierce: Boolean(options.shieldPierce),
+        lead: Boolean(options.lead),
+        leadWeight: options.leadWeight || 1,
+        sourceKey: options.sourceKey || 'asteroid',
+        sourceName: options.sourceName || '射撃',
+      });
+    }
+
     initializeDefenseMode() {
       const home = this.getTeamHome(0);
       this.walls = this.walls.filter((wall) => Math.hypot((wall.x + wall.w / 2) - home.x, (wall.y + wall.h / 2) - home.y) > 260);
@@ -3752,16 +3984,24 @@
       const tier = this.defenseTier;
       const hpScale = .76 + tier * .17;
       const damageScale = .70 + tier * .105;
-      const speedScale = 1 + Math.min(.2, tier * .035);
+      const speedScale = 1 + Math.min(.22, tier * .035);
       const definitions = {
-        marmod: { name: 'モールモッド', hp: 112, speed: 184, radius: 24, damage: 16, color: '#c8c9c7', archetype: '戦闘用トリオン兵' },
-        ilgar: { name: 'イルガー', hp: 395, speed: 82, radius: 58, damage: 19, color: '#e2bd38', archetype: '爆撃用トリオン兵', flying: true },
-        rabbit: { name: 'ラービット', hp: 485, speed: 114, radius: 33, damage: 25, color: '#f2f3ef', archetype: '捕獲用トリオン兵' },
-        fujin: { name: '風刃', hp: 1650, speed: 137, radius: 27, damage: 35, color: '#39d57a', archetype: 'ブラックトリガー', boss: true },
-        seals: { name: '印', hp: 1780, speed: 151, radius: 27, damage: 32, color: '#d7d7df', archetype: 'ブラックトリガー', boss: true },
-        alektor: { name: 'アレクトール', hp: 1920, speed: 116, radius: 29, damage: 29, color: '#b4e2a0', archetype: 'ブラックトリガー', boss: true },
-        borboros: { name: 'ボルボロス', hp: 1840, speed: 139, radius: 29, damage: 33, color: '#a37ad7', archetype: 'ブラックトリガー', boss: true },
-        organon: { name: 'オルガノン', hp: 2150, speed: 101, radius: 29, damage: 39, color: '#d3c9a8', archetype: 'ブラックトリガー', boss: true },
+        marmod: { name: 'モールモッド', hp: 112, speed: 184, radius: 24, damage: 16, color: '#c8c9c7', archetype: '戦闘用トリオン兵', resource: 4, drops: 3, score: 100 },
+        ilgar: { name: 'イルガー', hp: 395, speed: 82, radius: 58, damage: 19, color: '#e2bd38', archetype: '爆撃用トリオン兵', flying: true, resource: 6, drops: 5, score: 180 },
+        rabbit: { name: 'ラービット', hp: 485, speed: 114, radius: 33, damage: 25, color: '#f2f3ef', archetype: '捕獲用トリオン兵', resource: 8, drops: 5, score: 220 },
+        fujin: { name: '風刃', hp: 1650, speed: 137, radius: 27, damage: 35, color: '#39d57a', archetype: 'ブラックトリガー', boss: true, resource: 28, drops: 10, score: 1000 },
+        seals: { name: '印', hp: 1780, speed: 151, radius: 27, damage: 32, color: '#d7d7df', archetype: 'ブラックトリガー', boss: true, resource: 28, drops: 10, score: 1000 },
+        alektor: { name: 'アレクトール', hp: 1920, speed: 116, radius: 29, damage: 29, color: '#b4e2a0', archetype: 'ブラックトリガー', boss: true, resource: 28, drops: 10, score: 1000 },
+        borboros: { name: 'ボルボロス', hp: 1840, speed: 139, radius: 29, damage: 33, color: '#a37ad7', archetype: 'ブラックトリガー', boss: true, resource: 28, drops: 10, score: 1000 },
+        organon: { name: 'オルガノン', hp: 2150, speed: 101, radius: 29, damage: 39, color: '#d3c9a8', archetype: 'ブラックトリガー', boss: true, resource: 28, drops: 10, score: 1200 },
+        skeletonAttacker: { name: '骸骨アタッカー', hp: 118, speed: 168, radius: 18, damage: 18, color: '#d9ddd8', accent: '#c84f4f', archetype: '百鬼夜行', faction: 'hyakki', role: 'attacker', resource: 4, drops: 3, score: 115 },
+        skeletonShooter: { name: '骸骨シューター', hp: 98, speed: 146, radius: 18, damage: 17, color: '#dbe1dd', accent: '#4ea3dc', archetype: '百鬼夜行', faction: 'hyakki', role: 'shooter', resource: 4, drops: 3, score: 115 },
+        skeletonSniper: { name: '骸骨スナイパー', hp: 92, speed: 136, radius: 18, damage: 21, color: '#dfe4da', accent: '#74bf7a', archetype: '百鬼夜行', faction: 'hyakki', role: 'sniper', resource: 5, drops: 3, score: 130 },
+        yamagu: { name: '山狗', hp: 2050, speed: 124, radius: 56, damage: 31, color: '#d9b274', accent: '#9e4735', archetype: '百鬼夜行', faction: 'hyakki', boss: true, role: 'boss', resource: 28, drops: 10, score: 1000 },
+        yagarasu: { name: '夜鴉', hp: 2140, speed: 142, radius: 58, damage: 28, color: '#24272c', accent: '#8b8f98', archetype: '百鬼夜行', faction: 'hyakki', boss: true, flying: true, role: 'boss', resource: 28, drops: 10, score: 1000 },
+        whitefox: { name: '白狐', hp: 2230, speed: 152, radius: 55, damage: 30, color: '#eef2f7', accent: '#8ed5ff', archetype: '百鬼夜行', faction: 'hyakki', boss: true, role: 'boss', resource: 28, drops: 10, score: 1050 },
+        nekomata: { name: '猫又', hp: 2360, speed: 146, radius: 58, damage: 32, color: '#676a77', accent: '#af72ff', archetype: '百鬼夜行', faction: 'hyakki', boss: true, role: 'boss', resource: 28, drops: 10, score: 1100 },
+        orochi: { name: '大蛇', hp: 3560, speed: 86, radius: 72, damage: 36, color: '#658a46', accent: '#ff8e3c', archetype: '百鬼夜行', faction: 'hyakki', boss: true, role: 'boss', resource: 36, drops: 14, score: 1600, reflectThreshold: 24 },
       };
       const def = definitions[type] || definitions.marmod;
       const enemy = this.createPlayer({
@@ -3772,16 +4012,17 @@
         stats: { trion: 6, technique: 6, combat: 6 },
         loadout: { main: ['empty', 'empty', 'empty', 'empty'], sub: ['empty', 'empty', 'empty', 'empty'] },
         archetype: def.archetype,
-        appearance: { bodyColor: def.color },
-        squadName: '近界侵攻群',
-        emblemPixels: emblemToString(makeEmblemPreset('fang')),
+        appearance: { bodyColor: def.color, accentColor: def.accent || '#ffffff' },
+        squadName: def.faction === 'hyakki' ? '百鬼夜行' : '近界侵攻群',
+        emblemPixels: emblemToString(makeEmblemPreset(def.faction === 'hyakki' ? 'wing' : 'fang')),
       });
       const point = this.getDefenseSpawnPoint(index, total);
       enemy.x = point.x; enemy.y = point.y;
       enemy.isDefenseEnemy = true;
       enemy.defenseType = type;
       enemy.isDefenseBoss = Boolean(def.boss);
-      enemy.defenseCore = def.boss ? null : {
+      enemy.defenseFaction = def.faction || 'bt';
+      enemy.defenseCore = def.faction === 'hyakki' || def.boss ? null : {
         angle: type === 'ilgar' ? Math.PI : type === 'rabbit' ? 0 : Math.PI * .5,
         distance: type === 'ilgar' ? 34 : type === 'rabbit' ? 12 : 8,
         radius: type === 'ilgar' ? 11 : type === 'rabbit' ? 9 : 7,
@@ -3793,17 +4034,20 @@
       enemy.radius = def.radius;
       enemy.invulnTimer = .65;
       enemy.flying = Boolean(def.flying);
+      enemy.resourceReward = def.resource;
+      enemy.dropCount = def.drops;
+      enemy.reflectThreshold = def.reflectThreshold || 0;
       enemy.defenseAI = {
         attackCooldown: rand(.5, 1.4), specialCooldown: rand(1.5, 3.2), phaseTimer: 3.5,
         phase: type === 'borboros' ? 'solid' : 'normal', selfDestruct: false, selfDestructTimer: 0,
         rearBurstCooldown: 0, shieldTimer: 0, sealCount: 0, damage: def.damage * damageScale,
-        objectiveMode: (def.boss || index % 3 === 0 || (type === 'ilgar' && index % 2 === 0))
-          ? 'flag'
-          : (Math.random() < (type === 'rabbit' ? .46 : .68) ? 'flag' : 'defender'),
+        objectiveMode: (def.boss || index % 3 === 0 || (type === 'ilgar' && index % 2 === 0)) ? 'flag' : (Math.random() < .58 ? 'flag' : 'defender'),
         objectiveTimer: rand(2.4, 5.2), flagAttacks: 0,
+        role: def.role || null, chameleonTimer: 0, castTimer: 0, castMode: null,
+        trailTimer: .4, bodyHistory: [], bodySegments: [], enraged: false, ultimateUsed: false,
       };
       enemy.respawnTimer = Infinity;
-      enemy.scoreValue = def.boss ? 1000 : type === 'rabbit' ? 220 : type === 'ilgar' ? 180 : 100;
+      enemy.scoreValue = def.score || (def.boss ? 1000 : 100);
       this.players.push(enemy);
       return enemy;
     }
@@ -3812,7 +4056,28 @@
       this.defenseRound += 1;
       this.defenseTier = Math.floor(this.defenseRound / 5);
       const isBossRound = this.defenseRound % 5 === 0;
-      if (isBossRound) {
+      if (this.isHyakkiDefense()) {
+        if (isBossRound) {
+          const bosses = ['yamagu', 'yagarasu', 'whitefox', 'nekomata', 'orochi'];
+          const type = bosses[(Math.floor(this.defenseRound / 5) - 1) % bosses.length];
+          const boss = this.createDefenseEnemy(type, 0, 1);
+          this.showCenterMessage(`ROUND ${this.defenseRound}`, `百鬼夜行：${boss.name}`, 2.8);
+          this.logEvent('defense_boss_round', `Round ${this.defenseRound} / 百鬼夜行 ${boss.name}`);
+        } else {
+          const teamSize = this.config.teamSize || 3;
+          const count = Math.min(16, 2 + teamSize + Math.floor(this.defenseRound * .68));
+          for (let i = 0; i < count; i++) {
+            const roll = Math.random();
+            let type = 'skeletonAttacker';
+            if (this.defenseRound > 15) type = roll > .72 ? 'skeletonSniper' : roll > .34 ? 'skeletonShooter' : 'skeletonAttacker';
+            else if (this.defenseRound > 8) type = roll > .78 ? 'skeletonSniper' : roll > .42 ? 'skeletonShooter' : 'skeletonAttacker';
+            else type = roll > .65 ? 'skeletonShooter' : 'skeletonAttacker';
+            this.createDefenseEnemy(type, i, count);
+          }
+          this.showCenterMessage(`ROUND ${this.defenseRound}`, `百鬼夜行 ${count}体`, 2.1);
+          this.logEvent('defense_round', `Round ${this.defenseRound} / 百鬼夜行 ${count}`);
+        }
+      } else if (isBossRound) {
         const bosses = ['fujin', 'seals', 'alektor', 'borboros', 'organon'];
         const type = bosses[(Math.floor(this.defenseRound / 5) - 1) % bosses.length];
         this.createDefenseEnemy(type, 0, 1);
@@ -3838,6 +4103,7 @@
     updateDefenseMode(dt) {
       if (!this.isDefenseMode || this.ended) return;
       this.updateDefenseHazards(dt);
+      this.updateDefenseAreas(dt);
       this.updateDefenseFlag(dt);
       for (const key of Object.keys(this.defenseBuildCooldowns)) this.defenseBuildCooldowns[key] = Math.max(0, (this.defenseBuildCooldowns[key] || 0) - dt);
       this.updateDefenseNpcConstruction(dt);
@@ -3912,7 +4178,7 @@
       const flag = this.defenseFlag;
       $('#defenseRoundLabel').textContent = String(Math.max(1, this.defenseRound || 1));
       $('#defenseFlagLabel').textContent = flag ? `${Math.ceil(flag.hp / flag.maxHp * 100)}%` : '---';
-      $('#modeLabel').textContent = '防衛戦';
+      $('#modeLabel').textContent = `防衛戦 / ${this.getDefenseScenarioLabel()}`;
       $('#timerLabel').textContent = this.defenseWaveActive ? `R${Math.max(1, this.defenseRound)}` : `NEXT ${Math.max(0, Math.ceil(this.defenseRoundTimer))}`;
       this.updateDefenseBuildUi();
     }
@@ -4109,11 +4375,17 @@
       ai.objectiveTimer = (ai.objectiveTimer || 0) - dt;
       ai.rearBurstCooldown = Math.max(0, ai.rearBurstCooldown - dt);
       ai.shieldTimer = Math.max(0, ai.shieldTimer - dt);
+      ai.castTimer = Math.max(0, (ai.castTimer || 0) - dt);
+      ai.chameleonTimer = Math.max(0, (ai.chameleonTimer || 0) - dt);
       const defenders = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
       const nearest = defenders.length ? [...defenders].sort((a, b) => dist2(enemy, a) - dist2(enemy, b))[0] : null;
       const flag = this.defenseFlag;
       const objective = this.selectDefenseObjective(enemy, defenders, flag);
       const type = enemy.defenseType;
+      if (['skeletonAttacker', 'skeletonShooter', 'skeletonSniper', 'yamagu', 'yagarasu', 'whitefox', 'nekomata', 'orochi'].includes(type)) {
+        this.updateHyakkiEnemyAI(enemy, dt, objective, nearest, flag);
+        return;
+      }
       if (this.tryDefenseEnemyAttackBarrier(enemy, objective || flag, dt)) return;
       if (type === 'ilgar') {
         if (!ai.selfDestruct && enemy.hp <= enemy.maxHp * .34) {
@@ -4166,6 +4438,220 @@
         return;
       }
       this.updateBlackTriggerAI(enemy, dt, objective, nearest, flag);
+    }
+
+    updateHyakkiEnemyAI(enemy, dt, objective, nearest, flag) {
+      const ai = enemy.defenseAI || (enemy.defenseAI = {});
+      const type = enemy.defenseType;
+      const target = objective || nearest || flag;
+      const round = this.defenseRound;
+      enemy.toggles.chameleon = ai.chameleonTimer > 0;
+      if (['yamagu', 'yagarasu', 'whitefox', 'nekomata', 'orochi'].includes(type)) {
+        this.updateHyakkiBossAI(enemy, dt, target, nearest, flag);
+        return;
+      }
+      if (this.tryDefenseEnemyAttackBarrier(enemy, target || flag, dt) && type !== 'skeletonSniper') return;
+      if (type === 'skeletonAttacker') {
+        const d = this.moveDefenseEnemy(enemy, target, dt, ai.chameleonTimer > 0 ? 1.18 : 1.02);
+        if (round > 20 && ai.specialCooldown <= 0 && ai.chameleonTimer <= 0 && nearest && d > 170 && d < 520) {
+          ai.chameleonTimer = 2.7; ai.specialCooldown = 6.2;
+        }
+        if (round > 10 && ai.specialCooldown <= 0 && target && d < 240 && d > 70) {
+          this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x, y2: target.y, width: 38, delay: .32, damage: ai.damage * 1.45, owner: enemy, name: '旋空', hitsFlag: target === flag, color: '#d7f0ff' });
+          ai.specialCooldown = 4.4; ai.attackCooldown = .95;
+        } else if (ai.attackCooldown <= 0 && target && d < (target === flag ? 175 : 78)) {
+          if (target === flag) this.damageDefenseFlag(ai.damage * .95, enemy, '孤月');
+          else if (target.defenseDecoy) this.damageDefenseDecoy(target, ai.damage, enemy, '孤月');
+          else this.damagePlayer(target, ai.damage, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: '孤月', sourceKey: 'kogetsu' });
+          ai.attackCooldown = .82;
+        }
+        return;
+      }
+      if (type === 'skeletonShooter') {
+        const d = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
+        this.moveDefenseEnemy(enemy, target, dt, d > 390 ? .82 : d < 250 ? -.38 : .15);
+        if (round > 20 && ai.specialCooldown <= 0 && target) {
+          if (target === flag) this.queueDefenseHazard({ type: 'circle', x: flag.x, y: flag.y, radius: 110, delay: .65, damage: ai.damage * 1.05, owner: enemy, name: '合成弾', hitsFlag: true, color: '#d28dff' });
+          else {
+            this.fireDefenseProjectile(enemy, target, { sourceKey: 'asteroid', sourceName: '合成弾', speed: 760, damage: ai.damage * .82, radius: 6, explosive: true, explosionRadius: 92, homing: 1.15, targetId: target.id, color: '#d28dff' });
+            this.fireDefenseProjectile(enemy, target, { sourceKey: 'asteroid', sourceName: '合成弾', speed: 720, damage: ai.damage * .66, radius: 5, homing: 1.45, targetId: target.id, color: '#7dffb8' });
+          }
+          ai.specialCooldown = 5.4;
+        } else if (round > 10 && ai.specialCooldown <= 0 && target) {
+          if (target === flag) this.queueDefenseHazard({ type: 'circle', x: flag.x, y: flag.y, radius: 102, delay: .75, damage: ai.damage, owner: enemy, name: 'メテオラ', hitsFlag: true, color: '#ffb95d' });
+          else this.fireDefenseProjectile(enemy, target, { sourceKey: 'meteor', sourceName: 'メテオラ', speed: 620, damage: ai.damage, radius: 8, explosive: true, explosionRadius: 108, color: '#ffb95d', life: 1.8 });
+          ai.specialCooldown = 5.8;
+        }
+        if (ai.attackCooldown <= 0 && target) {
+          if (target === flag) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: flag.x, y2: flag.y, width: 24, delay: .24, damage: ai.damage * .88, owner: enemy, name: 'アステロイド', hitsFlag: true, color: '#72e8ff' });
+          else this.fireDefenseProjectile(enemy, target, { sourceKey: 'asteroid', sourceName: 'アステロイド', speed: 760, damage: ai.damage * .9, radius: 5, color: '#72e8ff' });
+          ai.attackCooldown = 1.08;
+        }
+        return;
+      }
+      if (type === 'skeletonSniper') {
+        const d = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
+        this.moveDefenseEnemy(enemy, target, dt, d > 760 ? .72 : d < 500 ? -.34 : .05);
+        if (round > 20 && ai.specialCooldown <= 0 && nearest) {
+          this.fireDefenseProjectile(enemy, nearest, { sourceKey: 'egret', sourceName: '鉛弾', speed: 840, damage: 0, radius: 5, trail: true, shieldPierce: true, lead: true, leadWeight: 3 + Math.min(2, this.defenseTier), color: '#c6e0ff' });
+          ai.specialCooldown = 6.2;
+        } else if (round > 10 && ai.specialCooldown <= 0 && target) {
+          if (target === flag) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: flag.x, y2: flag.y, width: 28, delay: .42, damage: ai.damage * 1.72, owner: enemy, name: 'アイビス', hitsFlag: true, color: '#ffd1a6' });
+          else this.fireDefenseProjectile(enemy, target, { sourceKey: 'ibis', sourceName: 'アイビス', speed: 1120, damage: ai.damage * 1.75, radius: 8, trail: true, penetration: 2, color: '#ffd1a6' });
+          ai.specialCooldown = 5.2;
+        }
+        if (ai.attackCooldown <= 0 && target) {
+          if (target === flag) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: flag.x, y2: flag.y, width: 18, delay: .2, damage: ai.damage * 1.05, owner: enemy, name: 'イーグレット', hitsFlag: true, color: '#f2f8ff' });
+          else this.fireDefenseProjectile(enemy, target, { sourceKey: 'egret', sourceName: 'イーグレット', speed: 1380, damage: ai.damage * 1.05, radius: 4, trail: true, penetration: 1, color: '#f2f8ff' });
+          ai.attackCooldown = 1.55;
+        }
+      }
+    }
+
+    updateHyakkiBossAI(enemy, dt, target, nearest, flag) {
+      const ai = enemy.defenseAI || (enemy.defenseAI = {});
+      const type = enemy.defenseType;
+      if (!target) target = nearest || flag;
+      if (type === 'yamagu') {
+        const d = this.moveDefenseEnemy(enemy, target, dt, ai.castMode === 'dash' ? 1.45 : .96);
+        if (ai.attackCooldown <= 0 && d < (target === flag ? 190 : 95)) {
+          if (target === flag) this.damageDefenseFlag(ai.damage, enemy, '山狗の爪');
+          else this.damagePlayer(target, ai.damage, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: '山狗の爪', sourceKey: 'yamaguClaw' });
+          ai.attackCooldown = .88;
+        }
+        if (ai.castMode === 'sharpen' && ai.castTimer <= 0 && target) {
+          for (let i = -1; i <= 1; i++) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x + i * 30, y2: target.y + i * 16, width: 34, delay: .18 + (i + 1) * .08, damage: ai.damage * 1.2, owner: enemy, name: '連続引っ掻き', hitsFlag: target === flag, color: '#ffd5a0' });
+          ai.castMode = null;
+        } else if (ai.castMode === 'dash' && ai.castTimer <= 0 && target) {
+          this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x, y2: target.y, width: 56, delay: .12, damage: ai.damage * 1.35, owner: enemy, name: 'ダッシュ突進', hitsFlag: true, color: '#ffc46c' });
+          ai.castMode = null;
+        }
+        if (ai.specialCooldown <= 0 && target) {
+          if (d < 240) { ai.castMode = 'sharpen'; ai.castTimer = .8; ai.specialCooldown = 5.8; }
+          else if (d < 620) { ai.castMode = 'dash'; ai.castTimer = .35; ai.specialCooldown = 6.4; }
+        }
+        return;
+      }
+      if (type === 'yagarasu') {
+        this.moveDefenseEnemy(enemy, target, dt, .78);
+        if (ai.attackCooldown <= 0 && target) {
+          this.spawnDefenseArea({ kind: 'mist', x: target === flag ? flag.x + rand(-40, 40) : target.x + rand(-65, 65), y: target === flag ? flag.y + rand(-40, 40) : target.y + rand(-65, 65), radius: 118, ttl: 5.6, damage: ai.damage * .16, interval: .7, owner: enemy, name: '黒い霧', hitsFlag: target === flag });
+          ai.attackCooldown = 1.45;
+        }
+        if (ai.specialCooldown <= 0 && target) {
+          if (Math.random() < .58) {
+            const angle = Math.atan2(target.y - enemy.y, target.x - enemy.x);
+            this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x, y2: target.y, width: 92, delay: .32, damage: ai.damage * .58, owner: enemy, name: '羽ばたき', status: 'bounce', hitsFlag: true, color: '#8a939d' });
+            for (const area of this.defenseAreas.filter((patch) => patch.kind === 'mist')) { area.vx += Math.cos(angle) * 80; area.vy += Math.sin(angle) * 80; }
+            ai.specialCooldown = 4.1;
+          } else {
+            this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x, y2: target.y, width: 86, delay: 1.02, damage: ai.damage * 1.52, owner: enemy, name: '闇のブレス', hitsFlag: true, color: '#6c5975' });
+            ai.specialCooldown = 6.5;
+          }
+        }
+        return;
+      }
+      if (type === 'whitefox') {
+        const whitefoxDistance = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
+        const d = this.moveDefenseEnemy(enemy, target, dt, whitefoxDistance > 160 ? .82 : -.08);
+        if (ai.attackCooldown <= 0 && target && d < (target === flag ? 175 : 88)) {
+          if (target === flag) this.damageDefenseFlag(ai.damage * .94, enemy, '瞬歩斬り');
+          else {
+            this.damagePlayer(target, ai.damage, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: '瞬歩斬り', sourceKey: 'whitefoxSlash' });
+            target.slowTimer = Math.max(target.slowTimer, 3.6); target.slowFactor = Math.min(target.slowFactor, .58);
+          }
+          ai.attackCooldown = .9;
+        }
+        if (ai.specialCooldown <= 0) {
+          if (nearest && Math.random() < .55) {
+            enemy.x = clamp(nearest.x + rand(-72, 72), 60, this.world.w - 60);
+            enemy.y = clamp(nearest.y + rand(-72, 72), 60, this.world.h - 60);
+            this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: nearest.x, y2: nearest.y, width: 38, delay: .18, damage: ai.damage * 1.05, owner: enemy, name: '白狐・斬', color: '#e6f7ff' });
+          } else {
+            ai.castMode = 'clock'; ai.castTimer = 1.05;
+            this.queueDefenseHazard({ type: 'ring', x: enemy.x, y: enemy.y, radius: 164, width: 32, delay: 1.05, damage: ai.damage * 1.58, owner: enemy, name: '時計輪剣', hitsFlag: true, color: '#d6f0ff' });
+          }
+          ai.specialCooldown = 5.6;
+        }
+        return;
+      }
+      if (type === 'nekomata') {
+        const d = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
+        this.moveDefenseEnemy(enemy, target, dt, d > 260 ? .84 : d < 160 ? -.18 : .08);
+        if (ai.attackCooldown <= 0 && target) {
+          if (d < 215) {
+            for (const shift of [-18, 18]) this.queueDefenseHazard({ type: 'line', x: enemy.x + shift, y: enemy.y, x2: target.x, y2: target.y, width: 24, delay: .22, damage: ai.damage * .72, owner: enemy, name: '双尾突き', hitsFlag: true, color: '#b073ff' });
+          } else if (nearest) this.fireDefenseProjectile(enemy, nearest, { sourceKey: 'egret', sourceName: '妖尾狙撃', speed: 1280, damage: ai.damage, radius: 4, trail: true, color: '#b073ff' });
+          ai.attackCooldown = 1.2;
+        }
+        if (ai.specialCooldown <= 0 && (nearest || flag)) {
+          const beamTarget = nearest || flag;
+          this.queueDefenseHazard({ type: 'line', x: beamTarget.x, y: beamTarget.y - 280, x2: beamTarget.x, y2: beamTarget.y, width: 70, delay: 1.0, damage: ai.damage * 1.62, owner: enemy, name: '空中妖光レーザー', hitsFlag: beamTarget === flag, color: '#ff6ad5' });
+          ai.specialCooldown = 5.9;
+        }
+        return;
+      }
+      if (type === 'orochi') {
+        const focus = flag && flag.hp < flag.maxHp * .64 ? flag : (nearest || flag);
+        this.moveDefenseEnemy(enemy, focus, dt, .44);
+        const history = ai.bodyHistory || (ai.bodyHistory = []);
+        history.unshift({ x: enemy.x, y: enemy.y });
+        if (history.length > 180) history.pop();
+        ai.bodySegments = [];
+        for (let i = 1; i <= 8; i++) {
+          const sample = history[Math.min(history.length - 1, i * 14)] || history[history.length - 1] || { x: enemy.x, y: enemy.y };
+          ai.bodySegments.push({ x: sample.x, y: sample.y, radius: Math.max(26, 56 - i * 4) });
+        }
+        const crushDamage = ai.enraged ? ai.damage * .92 : ai.damage * .74;
+        for (const defender of this.players.filter((player) => !player.isDefenseEnemy && !player.dead)) {
+          let hit = Math.hypot(defender.x - enemy.x, defender.y - enemy.y) <= enemy.radius + defender.radius;
+          if (!hit) for (const segment of ai.bodySegments) if (Math.hypot(defender.x - segment.x, defender.y - segment.y) <= segment.radius + defender.radius) { hit = true; break; }
+          if (!hit || this.elapsed - (defender.lastOrochiBodyHitAt || -999) < .55) continue;
+          defender.lastOrochiBodyHitAt = this.elapsed;
+          this.damagePlayer(defender, crushDamage, enemy, { x: enemy.x, y: enemy.y, type: 'hazard', name: '大蛇の巨体', sourceKey: 'orochiBody', skipJustCut: true });
+        }
+        if (!ai.enraged && enemy.hp <= enemy.maxHp * .62) {
+          ai.enraged = true;
+          this.showCenterMessage('大蛇覚醒', '大蛇が炎を纏った', 1.8);
+        }
+        if (ai.enraged) {
+          ai.trailTimer -= dt;
+          if (ai.trailTimer <= 0) {
+            ai.trailTimer = .34;
+            this.spawnDefenseArea({ kind: 'fire', x: enemy.x + rand(-18, 18), y: enemy.y + rand(-18, 18), radius: 88, ttl: 4.8, damage: ai.damage * .2, interval: .42, owner: enemy, name: '大蛇の残火', hitsFlag: true });
+          }
+        }
+        if (ai.specialCooldown <= 0 && focus) {
+          if (Math.random() < .52) {
+            const targets = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
+            const points = targets.slice(0, 4).map((player) => ({ x: player.x + rand(-50, 50), y: player.y + rand(-50, 50) }));
+            if (flag) points.push({ x: flag.x + rand(-65, 65), y: flag.y + rand(-65, 65) });
+            points.slice(0, 5).forEach((point, index) => this.queueDefenseHazard({ type: 'circle', x: point.x, y: point.y, radius: 92 + index * 4, delay: .58 + index * .12, damage: ai.damage * (ai.enraged ? 1.15 : .95), owner: enemy, name: '落星火', hitsFlag: true, color: '#ff954a' }));
+          } else {
+            this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: focus.x, y2: focus.y, width: 120, delay: .88, damage: ai.damage * (ai.enraged ? 2.05 : 1.6), owner: enemy, name: '極炎ブレス', hitsFlag: true, color: '#ff8d46' });
+            for (let i = 1; i <= 5; i++) {
+              const x = enemy.x + (focus.x - enemy.x) * (i / 5);
+              const y = enemy.y + (focus.y - enemy.y) * (i / 5);
+              this.spawnDefenseArea({ kind: 'fire', x, y, radius: 82 + i * 8, ttl: 4.2, damage: ai.damage * .22, interval: .36, owner: enemy, name: '灼熱の残火', hitsFlag: true });
+            }
+          }
+          ai.specialCooldown = 5.9;
+        }
+        if (ai.attackCooldown <= 0 && flag && Math.hypot(flag.x - enemy.x, flag.y - enemy.y) < 210) {
+          this.damageDefenseFlag(ai.damage * (ai.enraged ? .95 : .7), enemy, '大蛇の牙');
+          ai.attackCooldown = 1.35;
+        }
+        if (!ai.ultimateUsed && enemy.hp <= enemy.maxHp * .28 && flag) {
+          ai.ultimateUsed = true;
+          for (let i = 0; i < 24; i++) {
+            let x, y, tries = 0;
+            do { x = rand(90, this.world.w - 90); y = rand(90, this.world.h - 90); tries += 1; } while (Math.hypot(x - flag.x, y - flag.y) < 360 && tries < 20);
+            this.spawnDefenseArea({ kind: 'fire', x, y, radius: 150 + rand(-15, 26), ttl: 5.6, damage: ai.damage * (ai.enraged ? .36 : .3), interval: .32, owner: enemy, name: '終焉の炎', hitsFlag: false });
+          }
+          this.showCenterMessage('終焉の炎', 'フラッグ周辺へ退避せよ', 2.1);
+        }
+        return;
+      }
     }
 
     updateBlackTriggerAI(enemy, dt, objective, nearest, flag) {
@@ -4327,13 +4813,13 @@
       enemy.hp = 0; enemy.dead = true; enemy.respawnTimer = Infinity; enemy.corpseTimer = .8;
       this.defenseEnemiesDefeated += 1;
       if (enemy.isDefenseBoss) this.defenseBossesDefeated += 1;
-      const resourceReward = enemy.isDefenseBoss ? 28 : enemy.defenseType === 'rabbit' ? 8 : enemy.defenseType === 'ilgar' ? 6 : 4;
+      const resourceReward = enemy.resourceReward ?? (enemy.isDefenseBoss ? 28 : enemy.defenseType === 'rabbit' ? 8 : enemy.defenseType === 'ilgar' ? 6 : 4);
       this.defenseBuildPoints = Math.min(this.defenseBuildMaxPoints, this.defenseBuildPoints + resourceReward);
       if (attacker && !attacker.isDefenseEnemy) {
         attacker.kills += 1;
         attacker.score += enemy.scoreValue || 100;
       }
-      const drops = enemy.isDefenseBoss ? 10 : enemy.defenseType === 'rabbit' ? 5 : 3;
+      const drops = enemy.dropCount ?? (enemy.isDefenseBoss ? 10 : enemy.defenseType === 'rabbit' ? 5 : 3);
       for (let i = 0; i < drops; i++) this.pickups.push(this.makePickup(enemy.x + rand(-55, 55), enemy.y + rand(-55, 55), rand(2, 5), { temporary: true, ttl: rand(12, 16) }));
       this.effects.push({ type: 'bailout', x: enemy.x, y: enemy.y, ttl: .9, maxTtl: .9 });
       this.addKillFeed(`${enemy.name}撃破`);
@@ -4697,6 +5183,7 @@
       this.updateInstallations(dt);
       this.updateLightSources(dt);
       this.updateGasFields(dt);
+      this.updateSubwaySystems(dt);
       if (this.isPlayerOperator) this.updateOperatorCamera(dt);
       else if (this.isPlayerCombatant && !this.spectating) this.updateHuman(dt);
       for (const player of [...this.players]) {
@@ -5736,6 +6223,7 @@
         p.vy *= factor;
       }
       if (!p.flying) this.applyTerrainPhysics(p, dt);
+      this.applyUndergroundRailSafety(p, dt);
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       const movementSpeed = Math.hypot(p.vx, p.vy);
@@ -5757,6 +6245,7 @@
       if (!p.flying) this.resolveWallCollision(p);
       this.resolvePlayerCollision(p);
       this.checkWireContact(p, dt);
+      this.checkUndergroundHazards(p);
     }
 
     resolveWallCollision(p) {
@@ -7158,6 +7647,10 @@
         const barrels = this.lightSources.filter((light) => light.kind==='sakeBarrel'&&light.hp>0&&Math.hypot(light.x-x,light.y-y)<=radius+light.radius+28);
         for(const barrel of barrels) this.igniteSakeBarrel(barrel,ownerId,team);
       }
+      if (this.mapId === 'underground' && !context.sludgeChain) {
+        const sludges = (this.terrain.subwaySludge || []).filter((sludge) => sludge.active !== false && Math.hypot(sludge.x - x, sludge.y - y) <= radius + sludge.radius + 24);
+        for (const sludge of sludges) this.igniteSubwaySludge(sludge, ownerId, team);
+      }
       this.effects.push({ type: 'explosion', x, y, radius, ttl: .44, maxTtl: .44 });
       const owner = this.players.find((player) => player.id === ownerId) || null;
       let hitCount = 0;
@@ -7268,6 +7761,9 @@
         if (target.defenseType === 'ilgar' && target.defenseAI?.selfDestruct) amount *= .44;
         if (target.defenseType === 'seals' && target.defenseAI?.shieldTimer > 0) amount *= .28;
         if (target.defenseType === 'borboros' && ['liquid', 'gas'].includes(target.defenseAI?.phase)) amount *= .08;
+        if (target.defenseType === 'orochi' && attacker && amount <= (target.reflectThreshold || 0) && !attacker.dead) {
+          this.damagePlayer(attacker, Math.max(8, amount * .72), target, { x: target.x, y: target.y, type: 'fire', name: '大蛇の反火', sourceKey: 'orochiReflect', skipJustCut: true, shieldPierce: true });
+        }
         if (target.defenseType === 'ilgar' && attacker && target.defenseAI?.rearBurstCooldown <= 0) {
           const behind = Math.abs(Math.abs(angleDiff(sourceAngle, target.aim)) - Math.PI) < .78;
           if (behind) {
@@ -7797,6 +8293,7 @@
       this.drawInstallations(ctx);
       this.drawDesertFeatures(ctx);
       this.drawSnowShrineFeatures(ctx);
+      this.drawUndergroundFeatures(ctx);
       this.drawLightSources(ctx);
       this.drawDefenseFlag(ctx);
       this.drawDefenseHazards(ctx);
@@ -7864,6 +8361,7 @@
     renderTerrainChunk(chunk) {
       if (this.mapId === 'desert') this.renderDesertTerrainChunk(chunk);
       else if (this.mapId === 'snowShrine') this.renderSnowShrineTerrainChunk(chunk);
+      else if (this.mapId === 'underground') this.renderUndergroundTerrainChunk(chunk);
       else this.renderCityTerrainChunk(chunk);
     }
 
@@ -7901,6 +8399,107 @@
           }
         }
       }
+      ctx.restore();
+    }
+
+
+renderUndergroundTerrainChunk(chunk) {
+  const ctx = chunk.canvas.getContext('2d', { alpha: false });
+  ctx.imageSmoothingEnabled = false;
+  ctx.save();
+  ctx.translate(-chunk.x, -chunk.y);
+  ctx.beginPath(); ctx.rect(chunk.x, chunk.y, chunk.width, chunk.height); ctx.clip();
+  const x0 = chunk.x, y0 = chunk.y, x1 = x0 + chunk.width, y1 = y0 + chunk.height;
+  const inChunk = r => !(r.x > x1 || r.x + r.w < x0 || r.y > y1 || r.y + r.h < y0);
+  ctx.fillStyle = '#17242b'; ctx.fillRect(x0, y0, chunk.width, chunk.height);
+  for (let y = Math.floor(y0 / 32) * 32; y < y1; y += 32) {
+    for (let x = Math.floor(x0 / 32) * 32; x < x1; x += 32) {
+      const n = (((x / 32) | 0) * 7 + ((y / 32) | 0) * 13) & 3;
+      ctx.fillStyle = n === 0 ? '#203039' : n === 1 ? '#1c2b33' : n === 2 ? '#22343d' : '#19272e';
+      ctx.fillRect(x, y, 32, 32);
+      ctx.fillStyle = 'rgba(255,255,255,.04)'; ctx.fillRect(x + 3, y + 3, 20, 2);
+      ctx.fillStyle = 'rgba(0,0,0,.12)'; ctx.fillRect(x + 20, y + 24, 8, 2);
+    }
+  }
+  for (const zone of this.terrain.subwayPassengerZones || []) {
+    if (!inChunk(zone)) continue;
+    ctx.fillStyle = zone.id === 'main-platform' ? '#5e6870' : '#3d4950';
+    ctx.fillRect(zone.x, zone.y, zone.w, zone.h);
+    for (let y = zone.y; y < zone.y + zone.h; y += 40) {
+      for (let x = zone.x; x < zone.x + zone.w; x += 56) {
+        const n = (((x - zone.x) / 56) | 0) + (((y - zone.y) / 40) | 0);
+        ctx.fillStyle = zone.id === 'main-platform' ? (n & 1 ? '#7b858e' : '#8b949b') : (n & 1 ? '#49565e' : '#55626a');
+        ctx.fillRect(x + 2, y + 2, Math.min(52, zone.x + zone.w - x - 4), Math.min(36, zone.y + zone.h - y - 4));
+      }
+    }
+  }
+  for (const track of this.terrain.subwayTracks || []) {
+    if (!inChunk(track)) continue;
+    ctx.fillStyle = '#0b1418'; ctx.fillRect(track.x, track.y, track.w, track.h);
+    ctx.fillStyle = '#2c3b41'; ctx.fillRect(track.x, track.y + 44, track.w, track.h - 88);
+    for (let x = track.x + 12; x < track.x + track.w; x += 64) {
+      ctx.fillStyle = '#645844'; ctx.fillRect(x, track.y + 86, 20, track.h - 172);
+      ctx.fillRect(x + 28, track.y + 86, 20, track.h - 172);
+    }
+    ctx.fillStyle = '#c8d0d2'; ctx.fillRect(track.x, track.y + 112, track.w, 7); ctx.fillRect(track.x, track.y + track.h - 119, track.w, 7);
+    ctx.fillStyle = '#929b9f'; ctx.fillRect(track.x, track.y + 102, track.w, 4); ctx.fillRect(track.x, track.y + track.h - 106, track.w, 4);
+  }
+  for (const zone of this.terrain.subwayServiceZones || []) if (inChunk(zone)) { ctx.fillStyle = '#2a3339'; ctx.fillRect(zone.x, zone.y, zone.w, zone.h); }
+  ctx.strokeStyle = 'rgba(215,178,88,.45)'; ctx.lineWidth = 4;
+  for (const wire of this.terrain.subwayWires || []) {
+    const minX = Math.min(wire.x1, wire.x2), minY = Math.min(wire.y1, wire.y2), maxX = Math.max(wire.x1, wire.x2), maxY = Math.max(wire.y1, wire.y2);
+    if (maxX < x0 || minX > x1 || maxY < y0 || minY > y1) continue;
+    ctx.beginPath(); ctx.moveTo(wire.x1, wire.y1); ctx.lineTo(wire.x2, wire.y2); ctx.stroke();
+  }
+  for (const prop of this.terrain.subwayProps || []) {
+    const rect = { x: (prop.x || 0) - (prop.w || 0) / 2, y: (prop.y || 0) - (prop.h || 0) / 2, w: prop.w || 0, h: prop.h || 0 };
+    if (prop.kind === 'pillar') {
+      if (prop.x + prop.w/2 < x0 || prop.x - prop.w/2 > x1 || prop.y + prop.h/2 < y0 || prop.y - prop.h/2 > y1) continue;
+      ctx.fillStyle = '#4d5960'; ctx.fillRect(prop.x - prop.w / 2, prop.y - prop.h / 2, prop.w, prop.h);
+      ctx.fillStyle = '#98a4aa'; ctx.fillRect(prop.x - prop.w / 2 + 6, prop.y - prop.h / 2 + 6, prop.w - 12, prop.h - 12);
+      continue;
+    }
+    if (!inChunk(rect)) continue;
+    if (prop.kind === 'bench') {
+      ctx.fillStyle = '#394147'; ctx.fillRect(prop.x - prop.w / 2, prop.y - prop.h / 2, prop.w, prop.h);
+      ctx.fillStyle = '#7f4d2d'; ctx.fillRect(prop.x - prop.w / 2 + 6, prop.y - prop.h / 2 + 6, prop.w - 12, 10); ctx.fillRect(prop.x - prop.w / 2 + 10, prop.y + 2, prop.w - 20, 8);
+    } else if (prop.kind === 'locker') {
+      ctx.fillStyle = '#263038'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); for (let i = 0; i < 4; i++) { ctx.fillStyle = i & 1 ? '#4a5c69' : '#536773'; ctx.fillRect(rect.x + 8 + i * 39, rect.y + 8, 32, rect.h - 16); }
+    } else if (prop.kind === 'vending') {
+      ctx.fillStyle = '#202a32'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#4ea0d8'; ctx.fillRect(rect.x + 10, rect.y + 10, rect.w - 20, 36); ctx.fillStyle = '#edf5f6'; for (let i = 0; i < 3; i++) ctx.fillRect(rect.x + 16, rect.y + 56 + i * 16, rect.w - 32, 8);
+    } else if (prop.kind === 'ticketBooth') {
+      ctx.fillStyle = '#29343c'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#6fb8de'; ctx.fillRect(rect.x + 12, rect.y + 12, rect.w - 24, 28); ctx.fillStyle = '#9caab1'; ctx.fillRect(rect.x + 18, rect.y + 52, rect.w - 36, 38);
+    } else if (prop.kind === 'warningStripe') {
+      for (let x = rect.x; x < rect.x + rect.w; x += 22) { ctx.fillStyle = ((x - rect.x) / 22 | 0) & 1 ? '#1b1b1b' : '#dfc04a'; ctx.fillRect(x, rect.y, Math.min(20, rect.x + rect.w - x), rect.h); }
+    } else if (prop.kind === 'stairs') {
+      ctx.fillStyle = '#4d5760'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); for (let y = rect.y + 6; y < rect.y + rect.h; y += 10) { ctx.fillStyle = '#929ca1'; ctx.fillRect(rect.x + 8, y, rect.w - 16, 4); }
+    } else if (prop.kind === 'pipeRack') {
+      ctx.fillStyle = '#364148'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#8b9aa3'; ctx.fillRect(rect.x, rect.y + 6, rect.w, 6); ctx.fillRect(rect.x, rect.y + 18, rect.w, 6);
+    } else if (prop.kind === 'generator') {
+      ctx.fillStyle = '#20282d'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#58666e'; ctx.fillRect(rect.x + 10, rect.y + 10, rect.w - 20, rect.h - 20); ctx.fillStyle = '#e4c65c'; for (let i = 0; i < 4; i++) ctx.fillRect(rect.x + 20 + i * 36, rect.y + 20, 20, 12);
+    } else if (prop.kind === 'pump') {
+      ctx.fillStyle = '#314149'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#688290'; ctx.fillRect(rect.x + 10, rect.y + 14, rect.w - 20, rect.h - 28); ctx.strokeStyle = '#b7d4df'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(rect.x + 26, rect.y + 16); ctx.lineTo(rect.x + 26, rect.y - 24); ctx.lineTo(rect.x + rect.w - 22, rect.y - 24); ctx.stroke();
+    } else if (prop.kind === 'crate') {
+      ctx.fillStyle = '#5a4735'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#82654b'; ctx.fillRect(rect.x + 5, rect.y + 5, rect.w - 10, rect.h - 10);
+    } else if (prop.kind === 'cart') {
+      ctx.fillStyle = '#2c3940'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#8da3ad'; ctx.fillRect(rect.x + 8, rect.y + 8, rect.w - 16, rect.h - 20); ctx.fillStyle = '#1d2428'; ctx.fillRect(rect.x + 12, rect.y + rect.h - 10, 18, 10); ctx.fillRect(rect.x + rect.w - 30, rect.y + rect.h - 10, 18, 10);
+    } else if (prop.kind === 'grate') {
+      ctx.fillStyle = '#1e252a'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.strokeStyle = '#71818a'; ctx.lineWidth = 2; for (let x = rect.x + 8; x < rect.x + rect.w; x += 14) { ctx.beginPath(); ctx.moveTo(x, rect.y + 4); ctx.lineTo(x, rect.y + rect.h - 4); ctx.stroke(); }
+    }
+  }
+  ctx.restore();
+}
+
+
+    renderUndergroundTerrainChunk(chunk) {
+      const ctx = chunk.canvas.getContext('2d', { alpha: false }); ctx.imageSmoothingEnabled = false; ctx.save(); ctx.translate(-chunk.x, -chunk.y); ctx.beginPath(); ctx.rect(chunk.x, chunk.y, chunk.width, chunk.height); ctx.clip();
+      const x0 = chunk.x, y0 = chunk.y, x1 = x0 + chunk.width, y1 = y0 + chunk.height; const inChunk = r => !(r.x > x1 || r.x + r.w < x0 || r.y > y1 || r.y + r.h < y0); ctx.fillStyle = '#17242b'; ctx.fillRect(x0, y0, chunk.width, chunk.height);
+      for (let y = Math.floor(y0 / 32) * 32; y < y1; y += 32) for (let x = Math.floor(x0 / 32) * 32; x < x1; x += 32) { const n = (((x / 32) | 0) * 7 + ((y / 32) | 0) * 13) & 3; ctx.fillStyle = n === 0 ? '#203039' : n === 1 ? '#1c2b33' : n === 2 ? '#22343d' : '#19272e'; ctx.fillRect(x, y, 32, 32); }
+      for (const zone of this.terrain.subwayPassengerZones || []) { if (!inChunk(zone)) continue; ctx.fillStyle = zone.id === 'main-platform' ? '#5e6870' : '#3d4950'; ctx.fillRect(zone.x, zone.y, zone.w, zone.h); }
+      for (const track of this.terrain.subwayTracks || []) { if (!inChunk(track)) continue; ctx.fillStyle = '#0b1418'; ctx.fillRect(track.x, track.y, track.w, track.h); ctx.fillStyle = '#2c3b41'; ctx.fillRect(track.x, track.y + 44, track.w, track.h - 88); for (let x = track.x + 12; x < track.x + track.w; x += 64) { ctx.fillStyle = '#645844'; ctx.fillRect(x, track.y + 86, 20, track.h - 172); ctx.fillRect(x + 28, track.y + 86, 20, track.h - 172); } ctx.fillStyle = '#c8d0d2'; ctx.fillRect(track.x, track.y + 112, track.w, 7); ctx.fillRect(track.x, track.y + track.h - 119, track.w, 7); }
+      for (const zone of this.terrain.subwayServiceZones || []) if (inChunk(zone)) { ctx.fillStyle = '#2a3339'; ctx.fillRect(zone.x, zone.y, zone.w, zone.h); }
+      ctx.strokeStyle = 'rgba(215,178,88,.45)'; ctx.lineWidth = 4; for (const wire of this.terrain.subwayWires || []) { const minX = Math.min(wire.x1, wire.x2), minY = Math.min(wire.y1, wire.y2), maxX = Math.max(wire.x1, wire.x2), maxY = Math.max(wire.y1, wire.y2); if (maxX < x0 || minX > x1 || maxY < y0 || minY > y1) continue; ctx.beginPath(); ctx.moveTo(wire.x1, wire.y1); ctx.lineTo(wire.x2, wire.y2); ctx.stroke(); }
+      for (const prop of this.terrain.subwayProps || []) { const rect = { x: (prop.x || 0) - (prop.w || 0) / 2, y: (prop.y || 0) - (prop.h || 0) / 2, w: prop.w || 0, h: prop.h || 0 }; if (prop.kind === 'pillar') { if (prop.x + prop.w/2 < x0 || prop.x - prop.w/2 > x1 || prop.y + prop.h/2 < y0 || prop.y - prop.h/2 > y1) continue; ctx.fillStyle = '#4d5960'; ctx.fillRect(prop.x - prop.w / 2, prop.y - prop.h / 2, prop.w, prop.h); ctx.fillStyle = '#98a4aa'; ctx.fillRect(prop.x - prop.w / 2 + 6, prop.y - prop.h / 2 + 6, prop.w - 12, prop.h - 12); continue; } if (!inChunk(rect)) continue; if (prop.kind === 'bench') { ctx.fillStyle = '#394147'; ctx.fillRect(prop.x - prop.w / 2, prop.y - prop.h / 2, prop.w, prop.h); ctx.fillStyle = '#7f4d2d'; ctx.fillRect(prop.x - prop.w / 2 + 6, prop.y - prop.h / 2 + 6, prop.w - 12, 10); } else if (prop.kind === 'locker') { ctx.fillStyle = '#263038'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); } else if (prop.kind === 'vending') { ctx.fillStyle = '#202a32'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#4ea0d8'; ctx.fillRect(rect.x + 10, rect.y + 10, rect.w - 20, 36); } else if (prop.kind === 'ticketBooth') { ctx.fillStyle = '#29343c'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#6fb8de'; ctx.fillRect(rect.x + 12, rect.y + 12, rect.w - 24, 28); } else if (prop.kind === 'warningStripe') { for (let x = rect.x; x < rect.x + rect.w; x += 22) { ctx.fillStyle = ((x - rect.x) / 22 | 0) & 1 ? '#1b1b1b' : '#dfc04a'; ctx.fillRect(x, rect.y, Math.min(20, rect.x + rect.w - x), rect.h); } } else if (prop.kind === 'stairs') { ctx.fillStyle = '#4d5760'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); } else if (prop.kind === 'pipeRack') { ctx.fillStyle = '#364148'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); } else if (prop.kind === 'generator') { ctx.fillStyle = '#20282d'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); } else if (prop.kind === 'pump') { ctx.fillStyle = '#314149'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); } else if (prop.kind === 'crate') { ctx.fillStyle = '#5a4735'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); } else if (prop.kind === 'cart') { ctx.fillStyle = '#2c3940'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); } else if (prop.kind === 'grate') { ctx.fillStyle = '#1e252a'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); } }
       ctx.restore();
     }
 
@@ -8452,9 +9051,73 @@
       }
     }
 
+
+drawUndergroundFeatures(ctx){
+  if(this.mapId!=='underground') return;
+  const subway=this.environment.subway||{};
+  if(!subway.waterDrained){
+    for(const water of this.terrain.subwayWaterways||[]){
+      if(!this.rectInView(water)) continue;
+      ctx.fillStyle='#325f6d';ctx.fillRect(water.x,water.y,water.w,water.h);
+      for(let x=water.x+((this.elapsed*60)%24);x<water.x+water.w+24;x+=24){ctx.fillStyle='rgba(180,235,245,.38)';ctx.fillRect(x,water.y+18,16,4);ctx.fillRect(x-12,water.y+water.h-26,12,3);}
+    }
+  }
+  for(const sludge of this.terrain.subwaySludge||[]){
+    if(sludge.active===false||!this.inView(sludge.x,sludge.y,sludge.radius+30)) continue;
+    const glow=ctx.createRadialGradient(sludge.x,sludge.y,10,sludge.x,sludge.y,sludge.radius+18);glow.addColorStop(0,'rgba(93,88,46,.74)');glow.addColorStop(.68,'rgba(74,62,33,.5)');glow.addColorStop(1,'rgba(40,34,18,0)');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(sludge.x,sludge.y,sludge.radius+18,0,TAU);ctx.fill();
+    ctx.fillStyle='#594f28';ctx.beginPath();ctx.arc(sludge.x,sludge.y,sludge.radius,0,TAU);ctx.fill();
+    ctx.fillStyle='rgba(162,144,84,.42)';for(let i=0;i<5;i++){const a=i/5*TAU+this.elapsed*.6,r=sludge.radius*.48;ctx.beginPath();ctx.arc(sludge.x+Math.cos(a)*r,sludge.y+Math.sin(a)*r,8+i,0,TAU);ctx.fill();}
+  }
+  for(const sign of this.terrain.subwaySigns||[]){
+    if(!this.inView(sign.x,sign.y,120)) continue;
+    ctx.fillStyle='#1a2024';ctx.fillRect(sign.x-70,sign.y-30,140,48);ctx.fillStyle='#2d3941';ctx.fillRect(sign.x-64,sign.y-24,128,36);
+    const countdown=this.subwayTrainCountdown();
+    const digits=String(Math.max(0,Math.min(99,countdown))).padStart(2,'0');
+    const drawDigit=(digit,x,y)=>{const segments={0:[1,1,1,0,1,1,1],1:[0,0,1,0,0,1,0],2:[1,0,1,1,1,0,1],3:[1,0,1,1,0,1,1],4:[0,1,1,1,0,1,0],5:[1,1,0,1,0,1,1],6:[1,1,0,1,1,1,1],7:[1,0,1,0,0,1,0],8:[1,1,1,1,1,1,1],9:[1,1,1,1,0,1,1]}[digit]||[0,0,0,0,0,0,0];const color=subway.trainActive||countdown<4?'#ff6f61':'#6bf4c8';ctx.fillStyle=color;if(segments[0])ctx.fillRect(x+6,y,24,4); if(segments[1])ctx.fillRect(x,y+4,4,18); if(segments[2])ctx.fillRect(x+30,y+4,4,18); if(segments[3])ctx.fillRect(x+6,y+20,24,4); if(segments[4])ctx.fillRect(x,y+24,4,18); if(segments[5])ctx.fillRect(x+30,y+24,4,18); if(segments[6])ctx.fillRect(x+6,y+40,24,4);};
+    drawDigit(Number(digits[0]), sign.x-46, sign.y-18); drawDigit(Number(digits[1]), sign.x+6, sign.y-18);
+  }
+  const train=this.subwayTrainRect();
+  if(train&&this.rectInView(train)){
+    ctx.fillStyle='rgba(0,0,0,.26)';ctx.fillRect(train.x+12,train.y+train.h-10,train.w,18);
+    ctx.fillStyle='#bcc8cf';ctx.fillRect(train.x,train.y,train.w,train.h);
+    ctx.fillStyle='#8d2633';ctx.fillRect(train.x,train.y+22,train.w,36);ctx.fillRect(train.x,train.y+train.h-58,train.w,22);
+    for(let x=train.x+24;x<train.x+train.w-30;x+=86){ctx.fillStyle='#6fa8c9';ctx.fillRect(x,train.y+76,58,52);ctx.fillStyle='rgba(255,255,255,.4)';ctx.fillRect(x+4,train.y+80,18,4);}
+    for(let x=train.x+74;x<train.x+train.w-50;x+=172){ctx.fillStyle='#445057';ctx.fillRect(x,train.y+58,16,train.h-94);}        
+    ctx.fillStyle='#273036';ctx.fillRect(train.x+6,train.y+6,34,train.h-12);ctx.fillRect(train.x+train.w-40,train.y+6,34,train.h-12);
+    ctx.fillStyle='#f6e082';ctx.fillRect(train.x+14,train.y+92,12,26);ctx.fillRect(train.x+train.w-26,train.y+92,12,26);
+  }
+}
+
+
+    drawUndergroundFeatures(ctx){
+      if(this.mapId!=='underground') return; const subway=this.environment.subway||{};
+      if(!subway.waterDrained) for(const water of this.terrain.subwayWaterways||[]){ if(!this.rectInView(water)) continue; ctx.fillStyle='#325f6d';ctx.fillRect(water.x,water.y,water.w,water.h); for(let x=water.x+((this.elapsed*60)%24);x<water.x+water.w+24;x+=24){ctx.fillStyle='rgba(180,235,245,.38)';ctx.fillRect(x,water.y+18,16,4);} }
+      for(const sludge of this.terrain.subwaySludge||[]){ if(sludge.active===false||!this.inView(sludge.x,sludge.y,sludge.radius+30)) continue; const glow=ctx.createRadialGradient(sludge.x,sludge.y,10,sludge.x,sludge.y,sludge.radius+18);glow.addColorStop(0,'rgba(93,88,46,.74)');glow.addColorStop(.68,'rgba(74,62,33,.5)');glow.addColorStop(1,'rgba(40,34,18,0)');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(sludge.x,sludge.y,sludge.radius+18,0,TAU);ctx.fill(); ctx.fillStyle='#594f28';ctx.beginPath();ctx.arc(sludge.x,sludge.y,sludge.radius,0,TAU);ctx.fill(); }
+      for(const sign of this.terrain.subwaySigns||[]){ if(!this.inView(sign.x,sign.y,120)) continue; ctx.fillStyle='#1a2024';ctx.fillRect(sign.x-70,sign.y-30,140,48);ctx.fillStyle='#2d3941';ctx.fillRect(sign.x-64,sign.y-24,128,36); const countdown=this.subwayTrainCountdown(); const digits=String(Math.max(0,Math.min(99,countdown))).padStart(2,'0'); const drawDigit=(digit,x,y)=>{const seg={0:[1,1,1,0,1,1,1],1:[0,0,1,0,0,1,0],2:[1,0,1,1,1,0,1],3:[1,0,1,1,0,1,1],4:[0,1,1,1,0,1,0],5:[1,1,0,1,0,1,1],6:[1,1,0,1,1,1,1],7:[1,0,1,0,0,1,0],8:[1,1,1,1,1,1,1],9:[1,1,1,1,0,1,1]}[digit]||[0,0,0,0,0,0,0];ctx.fillStyle=subway.trainActive||countdown<4?'#ff6f61':'#6bf4c8'; if(seg[0])ctx.fillRect(x+6,y,24,4); if(seg[1])ctx.fillRect(x,y+4,4,18); if(seg[2])ctx.fillRect(x+30,y+4,4,18); if(seg[3])ctx.fillRect(x+6,y+20,24,4); if(seg[4])ctx.fillRect(x,y+24,4,18); if(seg[5])ctx.fillRect(x+30,y+24,4,18); if(seg[6])ctx.fillRect(x+6,y+40,24,4);}; drawDigit(Number(digits[0]), sign.x-46, sign.y-18); drawDigit(Number(digits[1]), sign.x+6, sign.y-18); }
+      const train=this.subwayTrainRect(); if(train&&this.rectInView(train)){ ctx.fillStyle='rgba(0,0,0,.26)';ctx.fillRect(train.x+12,train.y+train.h-10,train.w,18); ctx.fillStyle='#bcc8cf';ctx.fillRect(train.x,train.y,train.w,train.h); ctx.fillStyle='#8d2633';ctx.fillRect(train.x,train.y+22,train.w,36);ctx.fillRect(train.x,train.y+train.h-58,train.w,22); for(let x=train.x+24;x<train.x+train.w-30;x+=86){ctx.fillStyle='#6fa8c9';ctx.fillRect(x,train.y+76,58,52);} }
+    }
+
     drawLightSources(ctx){
       for(const light of this.lightSources){
         if(light.hp<=0||!this.inView(light.x,light.y,Math.max(55,(light.lightRadius||0)+30))) continue;
+        if(light.kind==='platformSwitch' || light.kind==='waterGateSwitch' || light.kind==='breakerSwitch'){
+          const subway=this.environment.subway||{};
+          const active = light.kind==='platformSwitch' ? subway.homeDoorsClosed : light.kind==='waterGateSwitch' ? subway.waterDrained : subway.breakerOff;
+          ctx.fillStyle='#1f2529';ctx.fillRect(light.x-18,light.y-18,36,36);ctx.fillStyle=active?'#7be49a':'#d76868';ctx.fillRect(light.x-10,light.y-10,20,20);ctx.fillStyle='#dbe7ea';ctx.fillRect(light.x-3,light.y-14,6,28);ctx.fillRect(light.x-14,light.y-3,28,6);
+          continue;
+        }
+        if(light.kind==='fluorescent'){
+          const breakerOff = this.mapId==='underground' && (this.environment.subway||{}).breakerOff;
+          ctx.fillStyle='#364248';ctx.fillRect(light.x-light.length/2, light.y-7, light.length, 14);
+          ctx.fillStyle='#cfe7ed';ctx.fillRect(light.x-light.length/2+6, light.y-4, light.length-12, 8);
+          if(!breakerOff){ const glow=ctx.createRadialGradient(light.x,light.y,6,light.x,light.y,70);glow.addColorStop(0,'rgba(240,252,255,.72)');glow.addColorStop(1,'rgba(220,244,250,0)');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(light.x,light.y,70,0,TAU);ctx.fill(); }
+          continue;
+        }
+        if(light.kind==='emergencyLight'){
+          const glow=ctx.createRadialGradient(light.x,light.y,4,light.x,light.y,54);glow.addColorStop(0,'rgba(255,123,123,.72)');glow.addColorStop(1,'rgba(255,123,123,0)');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(light.x,light.y,54,0,TAU);ctx.fill();
+          ctx.fillStyle='#4a2323';ctx.fillRect(light.x-10,light.y-7,20,14);ctx.fillStyle='#ff7b7b';ctx.fillRect(light.x-6,light.y-3,12,6);
+          continue;
+        }
         if(light.kind==='sakeBarrel'){
           ctx.fillStyle='rgba(38,27,24,.28)';ctx.fillRect(light.x-23,light.y+13,46,9);
           ctx.fillStyle='#2f211c';ctx.fillRect(light.x-22,light.y-17,44,35);
@@ -8511,19 +9174,31 @@
     drawEnvironmentOverlay(ctx){
       const overlay=this.environmentCtx;
       overlay.clearRect(0,0,this.viewW,this.viewH);
-      if(this.environment.timeOfDay==='night'){
+      const breakerDark = this.mapId==='underground' && (this.environment.subway||{}).breakerOff;
+      const reveal=(worldX,worldY,inner,outer,strength=1)=>{
+        const x=worldX-this.camera.x,y=worldY-this.camera.y;
+        if(x<-outer||y<-outer||x>this.viewW+outer||y>this.viewH+outer) return;
+        const gradient=overlay.createRadialGradient(x,y,inner,x,y,outer);
+        gradient.addColorStop(0,`rgba(0,0,0,${strength})`);
+        gradient.addColorStop(.55,`rgba(0,0,0,${strength*.82})`);
+        gradient.addColorStop(1,'rgba(0,0,0,0)');
+        overlay.fillStyle=gradient; overlay.beginPath(); overlay.arc(x,y,outer,0,TAU); overlay.fill();
+      };
+      if(breakerDark){
+        overlay.globalCompositeOperation='source-over';
+        overlay.fillStyle='rgba(0,4,9,.94)'; overlay.fillRect(0,0,this.viewW,this.viewH);
+        overlay.globalCompositeOperation='destination-out';
+        const viewer=this.getHudSubject();
+        if(viewer&&!viewer.dead) reveal(viewer.x,viewer.y,70,210,1);
+        for(const player of this.players) if(!player.dead) reveal(player.x,player.y,36,92,.72);
+        for(const pickup of this.pickups) if(pickup.active) reveal(pickup.x,pickup.y,6,38,.62);
+        for(const light of this.lightSources) if(light.hp>0&&(light.kind==='emergencyLight'||light.fire)) reveal(light.x,light.y,28,light.lightRadius||120,.94);
+        for(const projectile of this.projectiles) reveal(projectile.x,projectile.y,2,22,.42);
+        overlay.globalCompositeOperation='source-over';
+      } else if(this.environment.timeOfDay==='night'){
         overlay.globalCompositeOperation='source-over';
         overlay.fillStyle='rgba(0,3,12,.965)'; overlay.fillRect(0,0,this.viewW,this.viewH);
         overlay.globalCompositeOperation='destination-out';
-        const reveal=(worldX,worldY,inner,outer,strength=1)=>{
-          const x=worldX-this.camera.x,y=worldY-this.camera.y;
-          if(x<-outer||y<-outer||x>this.viewW+outer||y>this.viewH+outer) return;
-          const gradient=overlay.createRadialGradient(x,y,inner,x,y,outer);
-          gradient.addColorStop(0,`rgba(0,0,0,${strength})`);
-          gradient.addColorStop(.55,`rgba(0,0,0,${strength*.82})`);
-          gradient.addColorStop(1,'rgba(0,0,0,0)');
-          overlay.fillStyle=gradient; overlay.beginPath(); overlay.arc(x,y,outer,0,TAU); overlay.fill();
-        };
         const viewer=this.getHudSubject();
         if(viewer&&!viewer.dead) reveal(viewer.x,viewer.y,75,215,1);
         for(const pickup of this.pickups) if(pickup.active) reveal(pickup.x,pickup.y,8,48+pickup.value*7,.72);
@@ -8600,6 +9275,16 @@
           if(horizontal){for(let x=wall.x+5;x<wall.x+wall.w-4;x+=28)ctx.fillRect(x,wall.y+5,Math.min(23,wall.x+wall.w-4-x),Math.max(0,wall.h-10));}
           else{for(let y=wall.y+5;y<wall.y+wall.h-4;y+=28)ctx.fillRect(wall.x+5,y,Math.max(0,wall.w-10),Math.min(23,wall.y+wall.h-4-y));}
           ctx.fillStyle='#edf5f7';if(horizontal)ctx.fillRect(wall.x,wall.y,wall.w,6);else ctx.fillRect(wall.x,wall.y,6,wall.h);
+        }else if(wall.type==='platformDoor'){
+          ctx.fillStyle='#2a3940';ctx.fillRect(wall.x,wall.y,wall.w,wall.h);
+          ctx.fillStyle='#b9d8e4';ctx.fillRect(wall.x+4,wall.y+4,Math.max(0,wall.w-8),Math.max(0,wall.h-8));
+          ctx.fillStyle='rgba(255,255,255,.45)';ctx.fillRect(wall.x+8,wall.y+3,Math.max(0,wall.w-16),3);
+        }else if(wall.type==='platformEdge'){
+          ctx.fillStyle='#2c3135';ctx.fillRect(wall.x,wall.y,wall.w,wall.h);ctx.fillStyle='#d6be51';for(let x=wall.x;x<wall.x+wall.w;x+=20){ctx.fillRect(x,wall.y,10,wall.h);}
+        }else if(wall.type==='ticketGate'){
+          ctx.fillStyle='#25323a';ctx.fillRect(wall.x,wall.y,wall.w,wall.h);ctx.fillStyle='#79c5e6';ctx.fillRect(wall.x+8,wall.y+6,wall.w-16,10);ctx.fillStyle='#cfd7dc';ctx.fillRect(wall.x+12,wall.y+22,wall.w-24,14);
+        }else if(wall.type==='maintenanceWall'){
+          ctx.fillStyle='#1f282d';ctx.fillRect(wall.x,wall.y,wall.w,wall.h);ctx.fillStyle='#6b767b';ctx.fillRect(wall.x+3,wall.y+3,Math.max(0,wall.w-6),Math.max(0,wall.h-6));ctx.fillStyle='rgba(255,255,255,.15)';ctx.fillRect(wall.x+5,wall.y+5,Math.max(0,wall.w-10),3);
         }else{
           const palette = wall.type==='tree'?['#285844','#39755a','#17392c']:wall.type==='bridge'?['#6c6557','#8e846f','#4c473d']:wall.type==='fortressWall'?['#8d6b43','#b28d59','#654b31']:wall.type==='buildingWall'?['#263e49','#385965','#172a33']:wall.type==='barricade'?['#375d69','#4d8090','#203b44']:['#2f6973','#448c96','#1c434a'];
           this.drawCubeRect(ctx,wall.x,wall.y,wall.w,wall.h,...palette);
@@ -8800,6 +9485,21 @@
 
     drawDefenseHazards(ctx) {
       if (!this.isDefenseMode) return;
+      for (const area of this.defenseAreas) {
+        const alpha = clamp(area.ttl / Math.max(.001, area.maxTtl || area.ttl), 0, 1);
+        ctx.save();
+        ctx.globalAlpha = (area.kind === 'mist' ? .22 : .28) + Math.sin(this.elapsed * 10) * .04;
+        const grad = ctx.createRadialGradient(area.x, area.y, 8, area.x, area.y, area.radius);
+        if (area.kind === 'mist') {
+          grad.addColorStop(0, 'rgba(30,28,36,.9)'); grad.addColorStop(.65, 'rgba(58,48,70,.55)'); grad.addColorStop(1, 'rgba(58,48,70,0)');
+          ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(area.x, area.y, area.radius, 0, TAU); ctx.fill();
+        } else {
+          grad.addColorStop(0, 'rgba(255,225,120,.88)'); grad.addColorStop(.4, 'rgba(255,133,66,.7)'); grad.addColorStop(1, 'rgba(255,102,52,0)');
+          ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(area.x, area.y, area.radius, 0, TAU); ctx.fill();
+        }
+        ctx.globalAlpha = alpha;
+        ctx.restore();
+      }
       for (const hazard of this.defenseHazards) {
         const telegraph = !hazard.resolved;
         ctx.save();
@@ -8857,12 +9557,70 @@
       ctx.restore();
     }
 
-    drawDefenseEnemy(ctx, p) {
+    drawHyakkiEnemySprite(ctx, p) {
       const type = p.defenseType;
       const color = p.appearance?.bodyColor || '#ddd';
-      if (p.isDefenseBoss) {
+      const accent = p.appearance?.accentColor || '#fff';
+      const ai = p.defenseAI || {};
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.imageSmoothingEnabled = false;
+      ctx.globalAlpha = ai.chameleonTimer > 0 ? .22 : 1;
+      if (type === 'skeletonAttacker' || type === 'skeletonShooter' || type === 'skeletonSniper') {
+        ctx.fillStyle = '#7e868a'; ctx.fillRect(-8, 10, 5, 14); ctx.fillRect(3, 10, 5, 14);
+        ctx.fillStyle = color; ctx.fillRect(-9, -18, 18, 14);
+        ctx.fillRect(-10, -2, 20, 14);
+        ctx.fillStyle = '#0d1216'; ctx.fillRect(-5, -14, 3, 3); ctx.fillRect(2, -14, 3, 3);
+        ctx.fillStyle = '#9aa4a8'; ctx.fillRect(-13, 0, 3, 11); ctx.fillRect(10, 0, 3, 11);
+        ctx.fillStyle = accent; ctx.fillRect(-11, -1, 22, 4); ctx.fillRect(-8, 4, 16, 2);
+        ctx.fillStyle = '#dde6ea'; ctx.fillRect(-4, -10, 8, 2); ctx.fillRect(-2, -6, 4, 2);
+        if (type === 'skeletonAttacker') {
+          ctx.fillStyle = '#d6dde0'; ctx.fillRect(8, -2, 16, 3); ctx.fillRect(20, -5, 6, 2);
+          ctx.fillStyle = '#c6ccd0'; ctx.fillRect(12, -5, 3, 16);
+        } else if (type === 'skeletonShooter') {
+          ctx.fillStyle = '#263743'; ctx.fillRect(7, 0, 19, 4); ctx.fillStyle = '#72e8ff'; ctx.fillRect(23, 1, 5, 2);
+        } else {
+          ctx.fillStyle = '#324032'; ctx.fillRect(4, -2, 28, 3); ctx.fillRect(18, -4, 7, 2); ctx.fillStyle = '#edf5f7'; ctx.fillRect(28, -3, 6, 4);
+        }
+      } else if (type === 'yamagu') {
+        ctx.fillStyle = '#7a5440'; ctx.fillRect(-34, -8, 68, 34); ctx.fillRect(-24, -26, 36, 18); ctx.fillRect(12, -16, 24, 12);
+        ctx.fillStyle = '#d9b274'; ctx.fillRect(-30, -4, 60, 28); ctx.fillRect(-20, -22, 30, 16); ctx.fillRect(14, -14, 18, 8);
+        ctx.fillStyle = '#fff1de'; ctx.fillRect(-12, -16, 14, 6); ctx.fillStyle = '#9e4735'; ctx.fillRect(-16, 0, 32, 6);
+        ctx.fillStyle = '#d2d4d2'; ctx.fillRect(-30, 24, 10, 18); ctx.fillRect(-8, 24, 10, 18); ctx.fillRect(12, 24, 10, 18);
+      } else if (type === 'yagarasu') {
+        ctx.fillStyle = '#15181d'; ctx.fillRect(-20, -18, 40, 36); ctx.fillRect(-50, -6, 22, 10); ctx.fillRect(28, -6, 22, 10);
+        ctx.fillRect(-42, -16, 16, 8); ctx.fillRect(26, -16, 16, 8); ctx.fillStyle = '#2b3038'; ctx.fillRect(-14, -26, 28, 10);
+        ctx.fillStyle = '#d96262'; ctx.fillRect(-7, -14, 4, 4); ctx.fillRect(3, -14, 4, 4); ctx.fillStyle = '#f1c16c'; ctx.fillRect(20, -2, 12, 4);
+      } else if (type === 'whitefox') {
+        ctx.fillStyle = '#edf3f8'; ctx.fillRect(-18, -18, 36, 34); ctx.fillRect(-8, -32, 16, 14); ctx.fillStyle = '#8ed5ff'; ctx.fillRect(-18, -6, 36, 4);
+        ctx.fillStyle = '#f7fbff'; for (let i = 0; i < 4; i++) ctx.fillRect(-28 + i * 14, 14 + (i % 2) * 4, 14, 12);
+        ctx.fillStyle = '#0f1519'; ctx.fillRect(-5, -22, 3, 3); ctx.fillRect(2, -22, 3, 3); ctx.fillStyle = '#d6edf9'; ctx.fillRect(12, -4, 20, 3);
+      } else if (type === 'nekomata') {
+        ctx.fillStyle = '#505364'; ctx.fillRect(-18, -18, 36, 36); ctx.fillStyle = '#cfd6de'; ctx.fillRect(-10, -12, 20, 18); ctx.fillStyle = '#af72ff';
+        ctx.fillRect(-32, -6, 10, 42); ctx.fillRect(22, -6, 10, 42); ctx.fillRect(-30, 8, 8, 10); ctx.fillRect(24, 8, 8, 10);
+        ctx.fillStyle = '#11161b'; ctx.fillRect(-5, -10, 3, 3); ctx.fillRect(2, -10, 3, 3); ctx.fillStyle = '#ff7ae5'; ctx.fillRect(14, -4, 16, 3);
+      } else if (type === 'orochi') {
+        for (const segment of ai.bodySegments || []) {
+          ctx.fillStyle = ai.enraged ? '#99431f' : '#456b35';
+          ctx.fillRect(segment.x - p.x - segment.radius, segment.y - p.y - segment.radius * .6, segment.radius * 2, segment.radius * 1.2);
+          ctx.fillStyle = ai.enraged ? '#ff8e3c' : '#7ca253';
+          ctx.fillRect(segment.x - p.x - segment.radius * .8, segment.y - p.y - segment.radius * .4, segment.radius * 1.6, segment.radius * .8);
+        }
+        ctx.fillStyle = ai.enraged ? '#8b3318' : '#547e39'; ctx.fillRect(-42, -26, 84, 52); ctx.fillStyle = ai.enraged ? '#ff8e3c' : '#9ecb6b'; ctx.fillRect(-34, -18, 68, 36);
+        ctx.fillStyle = '#f6e2b8'; ctx.fillRect(20, -10, 20, 6); ctx.fillStyle = '#d63737'; ctx.fillRect(12, -20, 10, 8); ctx.fillRect(-22, -20, 10, 8);
+      }
+      ctx.restore();
+    }
+
+    drawDefenseEnemy(ctx, p) {
+      const type = p.defenseType;
+      const hyakkiTypes = ['skeletonAttacker', 'skeletonShooter', 'skeletonSniper', 'yamagu', 'yagarasu', 'whitefox', 'nekomata', 'orochi'];
+      if (hyakkiTypes.includes(type)) {
+        this.drawHyakkiEnemySprite(ctx, p);
+      } else if (p.isDefenseBoss) {
         this.drawBlackTriggerHumanoid(ctx, p);
       } else {
+        const color = p.appearance?.bodyColor || '#ddd';
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.aim || 0);
@@ -8901,10 +9659,11 @@
         ctx.restore();
       }
       const hp = clamp(p.hp / p.maxHp, 0, 1);
-      const width = p.isDefenseBoss ? 160 : 90;
+      const width = p.defenseType === 'orochi' ? 220 : p.isDefenseBoss ? 160 : 90;
+      const title = hyakkiTypes.includes(type) && p.isDefenseBoss ? `百鬼夜行：${p.name}` : p.isDefenseBoss ? `BLACK TRIGGER：${p.name}` : p.name;
       ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(p.x - width / 2, p.y - p.radius - 34, width, 7);
       ctx.fillStyle = p.isDefenseBoss ? '#ff5f73' : '#ffd369'; ctx.fillRect(p.x - width / 2, p.y - p.radius - 34, width * hp, 7);
-      ctx.fillStyle = '#fff'; ctx.font = p.isDefenseBoss ? '900 12px sans-serif' : '800 10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(p.isDefenseBoss ? `BLACK TRIGGER：${p.name}` : p.name, p.x, p.y - p.radius - 42);
+      ctx.fillStyle = '#fff'; ctx.font = p.isDefenseBoss ? '900 12px sans-serif' : '800 10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(title, p.x, p.y - p.radius - 42);
     }
 
     drawPlayers(ctx) {
@@ -9144,10 +9903,10 @@
       const h = this.radarCanvas.height;
       const observer = this.getHudSubject() || { id: '', team: this.playerTeam };
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = this.mapId === 'desert' ? '#a88445' : this.mapId === 'snowShrine' ? '#d7e5eb' : '#06131d'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = this.mapId === 'desert' ? '#a88445' : this.mapId === 'snowShrine' ? '#d7e5eb' : this.mapId === 'underground' ? '#1a252b' : '#06131d'; ctx.fillRect(0, 0, w, h);
       const sx = w / this.world.w;
       const sy = h / this.world.h;
-      ctx.fillStyle=this.mapId === 'desert'?'rgba(120,83,43,.45)':this.mapId==='snowShrine'?'rgba(135,91,65,.42)':'rgba(75,95,105,.3)'; for(const r of this.terrain.roads) ctx.fillRect(r.x*sx,r.y*sy,r.w*sx,r.h*sy);
+      ctx.fillStyle=this.mapId === 'desert'?'rgba(120,83,43,.45)':this.mapId==='snowShrine'?'rgba(135,91,65,.42)':this.mapId==='underground'?'rgba(119,135,144,.32)':'rgba(75,95,105,.3)'; for(const r of this.terrain.roads) ctx.fillRect(r.x*sx,r.y*sy,r.w*sx,r.h*sy);
       const river=this.terrain.rivers[0];
       if(river){ctx.strokeStyle='rgba(42,127,157,.55)';ctx.lineWidth=Math.max(2,river.width*sy);ctx.beginPath();for(let x=0;x<=this.world.w;x+=90){const y=this.riverCenterAt(x);if(x===0)ctx.moveTo(x*sx,y*sy);else ctx.lineTo(x*sx,y*sy)}ctx.stroke();}
       if(this.mapId==='desert'){
@@ -9160,11 +9919,16 @@
         ctx.fillStyle='rgba(130,87,57,.55)';for(const room of this.terrain.shrineRooms)ctx.fillRect(room.x*sx,room.y*sy,room.w*sx,room.h*sy);
         ctx.fillStyle='rgba(96,171,202,.7)';for(const pond of this.terrain.frozenPonds)ctx.fillRect(pond.x*sx,pond.y*sy,pond.w*sx,pond.h*sy);
       }
+      if(this.mapId==='underground'){
+        ctx.fillStyle='rgba(90,101,110,.75)'; for(const zone of this.terrain.subwayPassengerZones||[]) ctx.fillRect(zone.x*sx,zone.y*sy,zone.w*sx,zone.h*sy);
+        ctx.fillStyle='rgba(19,30,34,.85)'; for(const track of this.terrain.subwayTracks||[]) ctx.fillRect(track.x*sx,track.y*sy,track.w*sx,track.h*sy);
+        if(!(this.environment.subway||{}).waterDrained){ ctx.fillStyle='rgba(68,132,160,.65)'; for(const water of this.terrain.subwayWaterways||[]) ctx.fillRect(water.x*sx,water.y*sy,water.w*sx,water.h*sy); }
+      }
       ctx.strokeStyle = 'rgba(101,232,255,.18)'; ctx.strokeRect(.5, .5, w - 1, h - 1);
       for (const wall of this.walls) {
         if(wall.hp<=0) continue;
-        if (!['buildingWall','bridge','barricade','shoji','templeWall','shrineStone'].includes(wall.type)) continue;
-        ctx.fillStyle = wall.type==='bridge'?'rgba(180,160,105,.5)':wall.type==='shoji'?'rgba(235,225,201,.72)':wall.type==='templeWall'?'rgba(118,42,49,.58)':'rgba(85,145,165,.3)';
+        if (!['buildingWall','bridge','barricade','shoji','templeWall','shrineStone','maintenanceWall','platformDoor','platformEdge','ticketGate'].includes(wall.type)) continue;
+        ctx.fillStyle = wall.type==='bridge'?'rgba(180,160,105,.5)':wall.type==='shoji'?'rgba(235,225,201,.72)':wall.type==='templeWall'?'rgba(118,42,49,.58)':wall.type==='platformDoor'?'rgba(181,215,227,.8)':wall.type==='platformEdge'?'rgba(227,205,84,.7)':wall.type==='ticketGate'?'rgba(74,116,136,.75)':'rgba(85,145,165,.3)';
         ctx.fillRect(wall.x * sx, wall.y * sy, Math.max(1,wall.w * sx), Math.max(1,wall.h * sy));
       }
       for(const facility of this.installations){if(facility.hp<=0)continue;ctx.fillStyle=facility.active?(facility.team===0?'#55eaff':'#ff8871'):'#9daeb4';ctx.fillRect(facility.x*sx-1.5,facility.y*sy-1.5,3,3);}
