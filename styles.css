@@ -618,3 +618,21 @@ body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity
 
 #userPanel { z-index:50; }
 .user-message[data-error="true"] { color:#ff8c99; }
+
+
+/* v32 combat and setup additions */
+.version-badge{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;margin:4px 0 12px;padding:5px 12px;border:1px solid rgba(99,229,255,.55);background:rgba(5,25,38,.76);box-shadow:0 0 18px rgba(61,211,255,.16);font:700 11px/1.2 ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.16em;color:#8feaff}
+.beginner-skill-box,.keybind-settings{margin-top:16px;padding:14px;border:1px solid rgba(103,211,231,.18);background:rgba(4,20,31,.55);border-radius:10px}
+.beginner-skill-box label{display:grid;gap:8px}.beginner-skill-box label>span,.keybind-settings>strong{font-weight:800;color:#dff9ff}.beginner-skill-box small,.keybind-settings small{display:block;margin-top:8px;color:#8faab5}
+.keybind-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:10px 0}.keybind-grid label{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;background:rgba(255,255,255,.035);border-radius:7px;color:#b9d0d8}.keybind-grid button{min-width:54px;padding:6px 8px;border-color:rgba(108,226,255,.35);font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.keybind-grid button.capturing{border-color:#f6d36c;color:#f6d36c;box-shadow:0 0 0 2px rgba(246,211,108,.13)}
+.file-button{display:inline-flex!important;align-items:center;justify-content:center;padding:8px 12px;border:1px solid rgba(104,219,240,.32);border-radius:7px;background:rgba(24,58,72,.7);color:#dff9ff;cursor:pointer;font-weight:700}
+.critical-flash{animation:criticalFlash .26s ease-out}@keyframes criticalFlash{0%{filter:brightness(2.2)}100%{filter:none}}
+
+/* v32 key configuration */
+.keybind-settings{margin:14px 0;padding:14px;border:1px solid rgba(112,226,255,.2);background:rgba(4,18,27,.54);border-radius:12px}
+.keybind-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.keybind-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px}
+.keybind-grid label{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 9px;background:rgba(255,255,255,.035);border-radius:8px;font-size:12px}
+.keybind-grid button{min-width:54px;padding:7px 9px;font-weight:900;color:#dffaff;background:#103342;border:1px solid rgba(112,226,255,.3);border-radius:7px}
+.keybind-grid button.capturing{color:#08151b;background:#ffdc72;border-color:#fff1af}
+#keybindMessage,.error{display:block;margin-top:8px;color:#94b7c4}.error{color:#ff8798!important}

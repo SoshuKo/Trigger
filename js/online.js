@@ -502,6 +502,8 @@
       const saved = raw ? JSON.parse(raw) : {};
       return {
         stats: saved.stats || { trion: 6, technique: 6, combat: 6 },
+        beginnerSkill: saved.beginnerSkill || 'none',
+        keyBindings: saved.keyBindings || {},
         loadout: { main: saved.main || [], sub: saved.sub || [] },
         teamConfig: saved.teamConfig || {},
       };

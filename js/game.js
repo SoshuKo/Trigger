@@ -59,6 +59,32 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
+  const GAME_VERSION = 32;
+  const BEGINNER_SKILLS = {
+    none: { label: '使用しない', budget: 18, description: '従来どおり18ポイントを能力へ配分します。' },
+    autoGuard: { label: 'オートガード', budget: 12, description: 'シールドまたはレイガスト装備時、被弾直前に自動防御します。' },
+    aimAssist: { label: 'エイム補正', budget: 12, description: '銃手・狙撃手の照準を近い敵へ弱く補正します。' },
+    thrifty: { label: '倹約家', budget: 12, description: 'すべてのトリオン消費を約18%削減します。' },
+  };
+  const DEFAULT_KEY_BINDINGS = {
+    moveUp:'KeyW', moveDown:'KeyS', moveLeft:'KeyA', moveRight:'KeyD',
+    mainSlot1:'Digit1', mainSlot2:'Digit2', mainSlot3:'Digit3', mainSlot4:'Digit4',
+    subSlot1:'Digit5', subSlot2:'Digit6', subSlot3:'Digit7', subSlot4:'Digit8',
+    modifier:'ShiftLeft', combo:'KeyC', scope:'KeyR', utility:'KeyZ', bailout:'KeyB', flagRepair:'KeyF',
+    spectate:'KeyV', spectatorPrev:'KeyQ', spectatorNext:'KeyE', operatorPanel:'KeyO', battleLog:'KeyL', guide:'KeyG', pause:'KeyP',
+  };
+  const KEY_LABELS = {
+    KeyW:'W',KeyA:'A',KeyS:'S',KeyD:'D',KeyC:'C',KeyR:'R',KeyZ:'Z',KeyB:'B',KeyF:'F',KeyP:'P',
+    KeyQ:'Q',KeyE:'E',KeyG:'G',KeyL:'L',KeyO:'O',KeyV:'V',
+    Digit1:'1',Digit2:'2',Digit3:'3',Digit4:'4',Digit5:'5',Digit6:'6',Digit7:'7',Digit8:'8',
+    Numpad1:'NUM1',Numpad2:'NUM2',Numpad3:'NUM3',Numpad4:'NUM4',Numpad5:'NUM5',Numpad6:'NUM6',Numpad7:'NUM7',Numpad8:'NUM8',
+    Space:'SPACE',Escape:'ESC',ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→',ShiftLeft:'SHIFT',ShiftRight:'SHIFT',
+  };
+  const AI_TIER_PROFILES = {
+    lower: { label:'下級', aim:1.28, reaction:1.22, decision:.78, aggression:.82 },
+    middle: { label:'中級', aim:1, reaction:1, decision:1, aggression:1 },
+    upper: { label:'上級', aim:.72, reaction:.74, decision:1.22, aggression:1.16 },
+  };
 
   function downloadText(filename, text, mime = 'application/json') {
     const blob = new Blob([text], { type: `${mime};charset=utf-8` });
@@ -317,7 +343,9 @@
   const setup = {
     mode: 'solo',
     stats: { trion: 6, technique: 6, combat: 6 },
+    beginnerSkill: 'none',
     budget: 18,
+    keyBindings: { ...DEFAULT_KEY_BINDINGS },
     difficulty: 'normal',
     mapId: 'city',
     playerRole: 'combatant',
@@ -659,6 +687,106 @@
     return warnings;
   }
 
+  function normalizeStatsToBudget(stats, budget) {
+    const result = { trion: clamp(Number(stats?.trion || 2), 2, 10), technique: clamp(Number(stats?.technique || 2), 2, 10), combat: clamp(Number(stats?.combat || 2), 2, 10) };
+    let total = Object.values(result).reduce((a,b)=>a+b,0);
+    const keys = ['trion','technique','combat'];
+    let guard = 0;
+    while (total > budget && guard++ < 100) {
+      const key = [...keys].sort((a,b)=>result[b]-result[a])[0];
+      if (result[key] <= 2) break;
+      result[key]--; total--;
+    }
+    guard = 0;
+    while (total < budget && guard++ < 100) {
+      const key = [...keys].sort((a,b)=>result[a]-result[b])[0];
+      if (result[key] >= 10) break;
+      result[key]++; total++;
+    }
+    return result;
+  }
+
+  function applyBeginnerSkillBudget(skillId, announce = false) {
+    setup.beginnerSkill = BEGINNER_SKILLS[skillId] ? skillId : 'none';
+    setup.budget = BEGINNER_SKILLS[setup.beginnerSkill].budget;
+    setup.stats = normalizeStatsToBudget(setup.stats, setup.budget);
+    const help = $('#beginnerSkillHelp');
+    if (help) help.textContent = BEGINNER_SKILLS[setup.beginnerSkill].description;
+    if (announce && setup.beginnerSkill !== 'none') help.textContent += ' 能力配分上限は12です。';
+    syncStatsUI();
+  }
+
+  function keyLabel(code) {
+    return KEY_LABELS[code] || String(code || '').replace(/^Key/,'').replace(/^Digit/,'');
+  }
+
+  function syncKeybindUI() {
+    $$('[data-keybind]').forEach((button) => {
+      const action = button.dataset.keybind;
+      button.textContent = keyLabel(setup.keyBindings[action] || DEFAULT_KEY_BINDINGS[action]);
+    });
+  }
+
+  function bindKeyCapture() {
+    let captureButton = null;
+    const stopCapture = () => {
+      if (captureButton) captureButton.classList.remove('capturing');
+      captureButton = null;
+    };
+    $('#keybindGrid')?.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-keybind]');
+      if (!button) return;
+      stopCapture();
+      captureButton = button;
+      button.classList.add('capturing');
+      button.textContent = '入力…';
+      $('#keybindMessage').textContent = '割り当てるキーを押してください。Escでキャンセルします。';
+    });
+    window.addEventListener('keydown', (event) => {
+      if (!captureButton) return;
+      event.preventDefault();
+      if (event.code === 'Escape') { stopCapture(); syncKeybindUI(); return; }
+      const action = captureButton.dataset.keybind;
+      setup.keyBindings[action] = event.code;
+      stopCapture();
+      syncKeybindUI();
+      $('#keybindMessage').textContent = `${action} を ${keyLabel(event.code)} に変更しました。`;
+      saveSetup();
+    }, true);
+    $('#resetKeybinds')?.addEventListener('click', () => {
+      setup.keyBindings = { ...DEFAULT_KEY_BINDINGS };
+      syncKeybindUI(); saveSetup();
+      $('#keybindMessage').textContent = '標準キーへ戻しました。';
+    });
+  }
+
+  async function loadEmblemImageFile(file, onPixels, messageElement) {
+    if (!file) return;
+    const message = messageElement || $('#emblemUploadMessage');
+    try {
+      const url = URL.createObjectURL(file);
+      const image = new Image();
+      await new Promise((resolve,reject)=>{ image.onload=resolve; image.onerror=reject; image.src=url; });
+      URL.revokeObjectURL(url);
+      if (image.naturalWidth !== 32 || image.naturalHeight !== 32) throw new Error('画像サイズは32×32ピクセルにしてください。');
+      const canvas = document.createElement('canvas'); canvas.width=32; canvas.height=32;
+      const ctx = canvas.getContext('2d',{willReadFrequently:true}); ctx.imageSmoothingEnabled=false; ctx.drawImage(image,0,0);
+      const data = ctx.getImageData(0,0,32,32).data;
+      const pixels=[];
+      for(let i=0;i<32*32;i++){
+        const a=data[i*4+3], r=data[i*4], g=data[i*4+1], b=data[i*4+2];
+        if(a<20){pixels.push(0);continue;}
+        const max=Math.max(r,g,b), min=Math.min(r,g,b), lum=(r+g+b)/3;
+        if(max-min>18 || (lum>28 && lum<227)) throw new Error('白・黒・透明だけの画像を使用してください。');
+        pixels.push(lum<128?1:0);
+      }
+      onPixels(pixels);
+      if(message) message.textContent='32×32白黒隊章を読み込みました。';
+    } catch(error) {
+      if(message) message.textContent=error.message || '隊章を読み込めませんでした。';
+    }
+  }
+
   function bindSetupControls() {
     $('#enterSetupButton')?.addEventListener('click', () => showSetup());
     $('#titleGuideButton')?.addEventListener('click', () => showSetup({ controls: true }));
@@ -688,6 +816,11 @@
     $('#resetCpuConfigsButton').addEventListener('click', () => { setup.cpuConfigs = []; ensureCpuConfigs(); buildCpuConfigList(); saveSetup(); });
     $('#guideEnabled')?.addEventListener('change', (event) => { setup.guideEnabled = event.target.checked; saveSetup(); });
     $('#soundEnabled')?.addEventListener('change', (event) => { setup.soundEnabled = event.target.checked; saveSetup(); });
+    $('#beginnerSkill')?.addEventListener('change', (event) => { applyBeginnerSkillBudget(event.target.value, true); saveSetup(); });
+    $('#emblemUpload')?.addEventListener('change', (event) => loadEmblemImageFile(event.target.files?.[0], (pixels) => {
+      setup.teamConfig.emblemPreset = 'custom'; setup.teamConfig.emblemPixels = emblemToString(pixels); syncTeamCustomizationUI(); saveSetup();
+    }, $('#emblemUploadMessage')));
+    bindKeyCapture();
     $('#mapId')?.addEventListener('change', (event) => { setup.mapId = MAP_IDS.includes(event.target.value) ? event.target.value : 'city'; syncMapWeatherUi(); saveSetup(); });
     $('#matchLength').addEventListener('change', saveSetup);
     $('#difficulty').addEventListener('change', (event) => {
@@ -724,28 +857,21 @@
   function rebalanceStats(changed, desired) {
     const stats = { ...setup.stats };
     const old = stats[changed];
-    stats[changed] = desired;
-    let delta = desired - old;
+    stats[changed] = clamp(desired, 2, 10);
+    let delta = stats[changed] - old;
     const others = Object.keys(stats).filter((key) => key !== changed);
     let guard = 0;
     while (delta !== 0 && guard++ < 100) {
       let changedAny = false;
       for (const key of others) {
-        if (delta > 0 && stats[key] > 2) {
-          stats[key] -= 1;
-          delta -= 1;
-          changedAny = true;
-        } else if (delta < 0 && stats[key] < 10) {
-          stats[key] += 1;
-          delta += 1;
-          changedAny = true;
-        }
+        if (delta > 0 && stats[key] > 2) { stats[key] -= 1; delta -= 1; changedAny = true; }
+        else if (delta < 0 && stats[key] < 10) { stats[key] += 1; delta += 1; changedAny = true; }
         if (delta === 0) break;
       }
       if (!changedAny) break;
     }
     if (delta !== 0) stats[changed] = old;
-    setup.stats = stats;
+    setup.stats = normalizeStatsToBudget(stats, setup.budget);
     syncStatsUI();
     saveSetup();
   }
@@ -756,6 +882,7 @@
       $(`#${stat}Value`).textContent = setup.stats[stat];
     }
     const total = Object.values(setup.stats).reduce((a, b) => a + b, 0);
+    if ($('#beginnerSkill')) $('#beginnerSkill').value = setup.beginnerSkill;
     $('#budgetValue').textContent = `${total} / ${setup.budget}`;
     $('#budgetValue').style.color = total === setup.budget ? 'var(--green)' : 'var(--red)';
   }
@@ -765,6 +892,8 @@
       localStorage.setItem('trionArenaSetup', JSON.stringify({
         mode: setup.mode,
         stats: setup.stats,
+        beginnerSkill: setup.beginnerSkill,
+        keyBindings: setup.keyBindings,
         main: setup.main,
         sub: setup.sub,
         cpuCount: Number($('#cpuCount')?.value || 11),
@@ -793,7 +922,10 @@
       const saved = JSON.parse(localStorage.getItem('trionArenaSetup'));
       if (!saved) return;
       if (['solo', 'team', 'defense'].includes(saved.mode)) setup.mode = saved.mode;
-      if (saved.stats && Object.values(saved.stats).reduce((a, b) => a + b, 0) === setup.budget) setup.stats = saved.stats;
+      setup.beginnerSkill = BEGINNER_SKILLS[saved.beginnerSkill] ? saved.beginnerSkill : 'none';
+      setup.budget = BEGINNER_SKILLS[setup.beginnerSkill].budget;
+      if (saved.stats) setup.stats = normalizeStatsToBudget(saved.stats, setup.budget);
+      if (saved.keyBindings && typeof saved.keyBindings === 'object') setup.keyBindings = { ...DEFAULT_KEY_BINDINGS, ...saved.keyBindings };
       if (Array.isArray(saved.main) && saved.main.length === 4) setup.main = saved.main.map((id) => DATA.triggers[id] ? id : 'empty');
       if (Array.isArray(saved.sub) && saved.sub.length === 4) setup.sub = saved.sub.map((id) => DATA.triggers[id] ? id : 'empty');
       if (saved.cpuCount) $('#cpuCount').value = clamp(saved.cpuCount, 3, 19);
@@ -859,6 +991,8 @@
     $('#weatherChange').value = setup.weatherChange ? 'on' : 'off';
     if ($('#guideEnabled')) $('#guideEnabled').checked = setup.guideEnabled;
     if ($('#soundEnabled')) $('#soundEnabled').checked = setup.soundEnabled;
+    applyBeginnerSkillBudget(setup.beginnerSkill);
+    syncKeybindUI();
     syncStatsUI();
     buildLoadoutSlots();
     syncModeFields();
@@ -882,6 +1016,9 @@
       weatherChange: setup.weatherChange,
       guideEnabled: setup.guideEnabled,
       soundEnabled: setup.soundEnabled,
+      beginnerSkill: setup.beginnerSkill,
+      keyBindings: { ...setup.keyBindings },
+      gameVersion: GAME_VERSION,
       teamConfig: JSON.parse(JSON.stringify(setup.teamConfig)),
       cpuConfigs: setup.cpuConfigs.slice(0, requiredCpuCount()).map((cfg) => JSON.parse(JSON.stringify(cfg))),
       stats: { ...setup.stats },
@@ -1574,7 +1711,7 @@
         const firstState = !player.onlineSnapshotReady;
         const distance = Math.hypot(Number(state.x || 0) - Number(player.x || 0), Number(state.y || 0) - Number(player.y || 0));
         const mustSnap = firstState || wasDead !== Boolean(state.dead) || distance > 760;
-        for (const key of ['name','team','archetype','squadName','appearance','emblemPixels','stats','loadout','radius','facing','walkFrame','isMoving','maxHp','hp','maxTrion','trion','dead','respawnTimer','invulnTimer','score','kills','deaths','selected','shields','toggles','revealTimer','markedTimer','slowTimer','slowFactor','leadWeights','pendingComposite','shooterCharges','gunState','meleeChains','reloadVisual','isDefenseEnemy','defenseType','isDefenseBoss','flying','cubedTimer']) {
+        for (const key of ['name','team','archetype','squadName','appearance','emblemPixels','stats','loadout','radius','facing','walkFrame','isMoving','maxHp','hp','maxTrion','trion','dead','respawnTimer','invulnTimer','score','kills','deaths','selected','shields','toggles','revealTimer','markedTimer','slowTimer','slowFactor','leadWeights','pendingComposite','shooterCharges','gunState','meleeChains','reloadVisual','scorpionMode','spiderMode','aiTier','beginnerSkill','isDefenseEnemy','defenseType','isDefenseBoss','flying','cubedTimer']) {
           if (state[key] !== undefined) player[key] = state[key];
         }
         player.onlineTargetX = Number.isFinite(state.x) ? state.x : player.x;
@@ -1741,16 +1878,16 @@
       this.onlineInputTimer -= dt;
       const p = this.human;
       const selectionKeys = [
-        ['Digit1','main',0],['Digit2','main',1],['Digit3','main',2],['Digit4','main',3],
-        ['Digit5','sub',0],['Digit6','sub',1],['Digit7','sub',2],['Digit8','sub',3],
+        ['mainSlot1','main',0],['mainSlot2','main',1],['mainSlot3','main',2],['mainSlot4','main',3],
+        ['subSlot1','sub',0],['subSlot2','sub',1],['subSlot3','sub',2],['subSlot4','sub',3],
       ];
       let selectionChanged = false;
-      for (const [code, hand, index] of selectionKeys) if (this.input.consume(code)) { p.selected[hand] = index; selectionChanged = true; }
-      if (this.onlineInputTimer > 0 && !selectionChanged && !this.input.mouse.justLeft && !this.input.mouse.justRight && !this.input.virtualMainJust && !this.input.virtualSubJust && !this.input.justKeys.has('KeyC')) return;
+      for (const [action, hand, index] of selectionKeys) if (this.actionConsume(action)) { p.selected[hand] = index; selectionChanged = true; }
+      if (this.onlineInputTimer > 0 && !selectionChanged && !this.input.mouse.justLeft && !this.input.mouse.justRight && !this.input.virtualMainJust && !this.input.virtualSubJust && !this.input.justKeys.has(this.keyCode('combo'))) return;
       this.onlineInputTimer = 1 / this.onlineInputHz;
       let dx = this.input.virtualMove.x, dy = this.input.virtualMove.y;
-      if (this.input.isDown('KeyW')) dy -= 1; if (this.input.isDown('KeyS')) dy += 1;
-      if (this.input.isDown('KeyA')) dx -= 1; if (this.input.isDown('KeyD')) dx += 1;
+      if (this.actionDown('moveUp')) dy -= 1; if (this.actionDown('moveDown')) dy += 1;
+      if (this.actionDown('moveLeft')) dx -= 1; if (this.actionDown('moveRight')) dx += 1;
       if (dx || dy) { const len = Math.hypot(dx,dy); dx/=len; dy/=len; }
       let aim = p.aim;
       if (this.input.virtualAim.active) aim = Math.atan2(this.input.virtualAim.y,this.input.virtualAim.x);
@@ -1762,8 +1899,8 @@
         sub: this.input.mouse.right || this.input.virtualSub,
         mainJust: this.input.mouse.justLeft || this.input.virtualMainJust,
         subJust: this.input.mouse.justRight || this.input.virtualSubJust,
-        shift: this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight') || this.input.isDown('Shift'),
-        combo: this.input.consume('KeyC'),
+        shift: this.modifierDown(),
+        combo: this.actionConsume('combo'),
       };
       window.trionOnline.broadcast('input', packet);
     }
@@ -2302,16 +2439,16 @@
     updateOperatorCamera(dt) {
       if (!this.isPlayerOperator) return;
       const followed = this.players.find((p) => p.id === this.operatorCamera.followId && !p.dead);
-      if (followed && !this.input.virtualMove.active && !this.input.isDown('KeyW') && !this.input.isDown('KeyS') && !this.input.isDown('KeyA') && !this.input.isDown('KeyD')) {
+      if (followed && !this.input.virtualMove.active && !this.actionDown('moveUp') && !this.actionDown('moveDown') && !this.actionDown('moveLeft') && !this.actionDown('moveRight')) {
         this.operatorCamera.x = lerp(this.operatorCamera.x, followed.x, 1 - Math.pow(.02, dt));
         this.operatorCamera.y = lerp(this.operatorCamera.y, followed.y, 1 - Math.pow(.02, dt));
       } else {
         let dx = this.input.virtualMove.x;
         let dy = this.input.virtualMove.y;
-        if (this.input.isDown('KeyW')) dy -= 1;
-        if (this.input.isDown('KeyS')) dy += 1;
-        if (this.input.isDown('KeyA')) dx -= 1;
-        if (this.input.isDown('KeyD')) dx += 1;
+        if (this.actionDown('moveUp')) dy -= 1;
+        if (this.actionDown('moveDown')) dy += 1;
+        if (this.actionDown('moveLeft')) dx -= 1;
+        if (this.actionDown('moveRight')) dx += 1;
         if (dx || dy) {
           const len = Math.hypot(dx, dy) || 1;
           this.operatorCamera.x += dx / len * 620 * dt;
@@ -3375,12 +3512,12 @@
       }
       const metaCount = this.config.mode === 'team' ? this.teamCount : this.isDefenseMode ? 1 : Math.max(1, combatants.length);
       this.teamMeta = [];
+      const hostIdentity = { ...createDefaultTeamConfig(), ...(this.config.teamConfig || {}) };
       for (let team = 0; team < metaCount; team++) {
-        const representative = roster.find((member) => Number(member.team || 0) === team);
-        const cfg = representative?.playerConfig?.teamConfig || {};
+        const cfg = hostIdentity;
         const preset = EMBLEM_PRESETS[team % EMBLEM_PRESETS.length];
         this.teamMeta.push({
-          name: cfg.squadName || (team === 0 ? this.config.teamConfig?.squadName : GENERIC_SQUAD_NAMES[(team + 1) % GENERIC_SQUAD_NAMES.length]) || GENERIC_SQUAD_NAMES[team % GENERIC_SQUAD_NAMES.length],
+          name: cfg.squadName || 'オンライン隊',
           emblemPixels: cfg.emblemPixels || emblemToString(makeEmblemPreset(preset)),
         });
       }
@@ -3396,10 +3533,13 @@
 
       for (const member of combatants) {
         const pc = member.playerConfig || {};
-        const stats = pc.stats && Object.values(pc.stats).reduce((sum, value) => sum + Number(value || 0), 0) === 18 ? pc.stats : { trion: 6, technique: 6, combat: 6 };
+        const onlineSkill = BEGINNER_SKILLS[pc.beginnerSkill] ? pc.beginnerSkill : 'none';
+        const expectedBudget = BEGINNER_SKILLS[onlineSkill].budget;
+        const statTotal = pc.stats && Object.values(pc.stats).reduce((sum, value) => sum + Number(value || 0), 0);
+        const stats = pc.stats && statTotal === expectedBudget ? pc.stats : (expectedBudget === 12 ? { trion: 4, technique: 4, combat: 4 } : { trion: 6, technique: 6, combat: 6 });
         const loadout = pc.loadout?.main?.length === 4 && pc.loadout?.sub?.length === 4 ? { main: [...pc.loadout.main], sub: [...pc.loadout.sub] } : { main: [...DATA.defaultLoadout.main], sub: [...DATA.defaultLoadout.sub] };
-        const appearance = { ...createDefaultTeamConfig(), ...(pc.teamConfig || {}) };
-        if (this.config.mode === 'team' || this.isDefenseMode) appearance.bodyColor = appearance.bodyColor || TEAM_COLORS[Number(member.team || 0)];
+        const appearance = { ...createDefaultTeamConfig(), ...hostIdentity };
+        appearance.bodyColor = hostIdentity.bodyColor || TEAM_COLORS[Number(member.team || 0)];
         const isLocal = member.userId === this.localOnlineUserId;
         const team = this.isDefenseMode ? 0 : Number(member.team || 0);
         const player = this.createPlayer({
@@ -3413,6 +3553,7 @@
           appearance,
           squadName: appearance.squadName || this.teamMeta[team]?.name || '無所属隊',
           emblemPixels: appearance.emblemPixels || this.teamMeta[team]?.emblemPixels || null,
+          beginnerSkill: pc.beginnerSkill || 'none',
         });
         player.onlineUserId = member.userId;
         player.remoteControlled = this.isOnlineHost && !isLocal;
@@ -3503,6 +3644,7 @@
         squadName: teamCfg.squadName,
         emblemPixels: teamCfg.emblemPixels,
         archetype: 'プレイヤー',
+        beginnerSkill: this.config.beginnerSkill || 'none',
       }) : null;
       if (this.human) this.players.push(this.human);
 
@@ -3608,8 +3750,8 @@
 
     createDefenseEnemy(type, index = 0, total = 1) {
       const tier = this.defenseTier;
-      const hpScale = 1 + tier * .22;
-      const damageScale = 1 + tier * .14;
+      const hpScale = .76 + tier * .17;
+      const damageScale = .70 + tier * .105;
       const speedScale = 1 + Math.min(.2, tier * .035);
       const definitions = {
         marmod: { name: 'モールモッド', hp: 112, speed: 184, radius: 24, damage: 16, color: '#c8c9c7', archetype: '戦闘用トリオン兵' },
@@ -3639,6 +3781,11 @@
       enemy.isDefenseEnemy = true;
       enemy.defenseType = type;
       enemy.isDefenseBoss = Boolean(def.boss);
+      enemy.defenseCore = def.boss ? null : {
+        angle: type === 'ilgar' ? Math.PI : type === 'rabbit' ? 0 : Math.PI * .5,
+        distance: type === 'ilgar' ? 34 : type === 'rabbit' ? 12 : 8,
+        radius: type === 'ilgar' ? 11 : type === 'rabbit' ? 9 : 7,
+      };
       enemy.maxHp = Math.round(def.hp * hpScale * (def.boss ? 1 + tier * .07 : 1));
       enemy.hp = enemy.maxHp;
       enemy.maxTrion = 0; enemy.trion = 0; enemy.regen = 0;
@@ -3702,6 +3849,7 @@
       }
       const aliveEnemies = this.players.filter((player) => player.isDefenseEnemy && !player.dead);
       if (this.defenseWaveActive && aliveEnemies.length === 0) {
+        if (this.defenseRound >= 25) { this.completeDefenseMatch(); return; }
         this.defenseWaveActive = false;
         this.defenseRoundTimer = 6;
         const defenders = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
@@ -3726,14 +3874,14 @@
         const passive = 5.5 + flag.maxHp * .00115;
         flag.hp = Math.min(flag.maxHp, flag.hp + passive * dt);
       }
-      if (this.input.consume('KeyF')) this.flagChannelTimer = 1.15;
+      if (this.actionConsume('flagRepair')) this.flagChannelTimer = 1.15;
       this.flagChannelTimer = Math.max(0, this.flagChannelTimer - dt);
       const defenders = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
       for (const player of defenders) {
         const near = Math.hypot(player.x - flag.x, player.y - flag.y) <= flag.radius + player.radius + 55;
         const hostileNear = this.players.some((enemy) => enemy.isDefenseEnemy && !enemy.dead && Math.hypot(enemy.x - flag.x, enemy.y - flag.y) < 300);
         let channel = false;
-        if (player.human) channel = near && (this.input.isDown('KeyF') || this.flagChannelTimer > 0);
+        if (player.human) channel = near && (this.actionDown('flagRepair') || this.flagChannelTimer > 0);
         else channel = near && !hostileNear && flag.hp < flag.maxHp * .68 && player.trion > player.maxTrion * .55;
         if (!channel || player.trion <= 2 || flag.hp >= flag.maxHp) continue;
         const cost = Math.min(player.trion, (player.human ? 17 : 10) * dt);
@@ -3877,6 +4025,8 @@
     selectDefenseObjective(enemy, defenders, flag) {
       const ai = enemy.defenseAI || (enemy.defenseAI = {});
       const nearest = defenders.length ? [...defenders].sort((a, b) => dist2(enemy, a) - dist2(enemy, b))[0] : null;
+      const threatTarget = defenders.map((unit) => ({ unit, threat:this.getThreat(enemy, unit) })).sort((a,b) => b.threat - a.threat)[0];
+      if (threatTarget?.threat >= 6) { ai.objectiveMode='defender'; ai.objectiveTimer=Math.max(ai.objectiveTimer||0,2.2); return threatTarget.unit; }
       const decoys = this.beacons.filter((beacon) => beacon.defenseDecoy && beacon.hp > 0 && beacon.ttl > 0);
       const nearestDecoy = decoys.length ? [...decoys].sort((a, b) => dist2(enemy, a) - dist2(enemy, b))[0] : null;
       if (!flag) return nearestDecoy || nearest;
@@ -3953,6 +4103,7 @@
 
     updateDefenseEnemyAI(enemy, dt) {
       if (enemy.dead) return;
+      this.updateThreatAwareness(enemy, dt);
       const ai = enemy.defenseAI;
       ai.attackCooldown -= dt; ai.specialCooldown -= dt; ai.phaseTimer -= dt;
       ai.objectiveTimer = (ai.objectiveTimer || 0) - dt;
@@ -4187,6 +4338,23 @@
       this.effects.push({ type: 'bailout', x: enemy.x, y: enemy.y, ttl: .9, maxTtl: .9 });
       this.addKillFeed(`${enemy.name}撃破`);
       this.logEvent(enemy.isDefenseBoss ? 'defense_boss_defeated' : 'defense_enemy_defeated', `${enemy.name} [${sourceName}]`);
+      if (enemy.defenseType === 'organon') this.completeDefenseMatch();
+    }
+
+    completeDefenseMatch() {
+      if (this.ended) return;
+      this.ended = true; this.paused = false;
+      $('#pauseOverlay').classList.add('hidden');
+      const defenders = this.players.filter((player) => !player.isDefenseEnemy).sort((a,b) => b.score-a.score || b.kills-a.kills);
+      $('#resultTitle').textContent = '防衛成功：オルガノン撃破';
+      $('#resultSummary').innerHTML = `
+        <div><span>RESULT</span><strong>SUCCESS</strong></div>
+        <div><span>ENEMIES</span><strong>${this.defenseEnemiesDefeated}</strong></div>
+        <div><span>BOSSES</span><strong>${this.defenseBossesDefeated}</strong></div>`;
+      $('#rankingList').innerHTML = defenders.map((player,index) => `<div class="rank-row${player.human?' player':''}"><span class="rank">${index+1}</span><strong>${player.name}</strong><span class="meta">${player.kills}K / ${player.deaths}D</span><span>${Math.floor(player.score)}pt</span></div>`).join('');
+      this.finalizeLog('defense_success');
+      this.updateDebugPanel(true);
+      $('#resultOverlay').classList.remove('hidden');
     }
 
     endDefenseMatch() {
@@ -4219,13 +4387,15 @@
       return stats;
     }
 
-    createPlayer({ id, name, human, team, stats, loadout, archetype = 'プレイヤー', appearance = null, squadName = '無所属隊', emblemPixels = null }) {
+    createPlayer({ id, name, human, team, stats, loadout, archetype = 'プレイヤー', appearance = null, squadName = '無所属隊', emblemPixels = null, beginnerSkill = 'none' }) {
       const maxHp = 78 + stats.combat * 8;
       const maxTrion = 105 + stats.trion * 25;
       const app = { ...randomCpuAppearance(irand(0, 99), team), ...(appearance || {}) };
       return {
         id, name, human, team, stats: { ...stats }, loadout,
         archetype,
+        beginnerSkill: BEGINNER_SKILLS[beginnerSkill] ? beginnerSkill : 'none',
+        aiTier: human ? 'player' : weightedChoice([{id:'lower',weight:35},{id:'middle',weight:45},{id:'upper',weight:20}]).id,
         squadName,
         emblemPixels: emblemPixels || app.emblemPixels,
         appearance: app,
@@ -4244,6 +4414,9 @@
         cooldowns: {}, cooldownMax: {},
         shooterCharges: { main: null, sub: null },
         shooterHandLock: { main: 0, sub: 0 },
+        scorpionMode: { main: 0, sub: 0 },
+        spiderMode: 0,
+        stationaryTimer: 0,
         gunState: {},
         meleeChains: {},
         reloadVisual: null,
@@ -4282,7 +4455,7 @@
           spiderSlowSeconds: 0, switchboxTriggers: 0, switchboxDamage: 0,
           dummyBeaconTargetSeconds: 0, bagwormHiddenSeconds: 0, chameleonHiddenSeconds: 0,
           leadBulletSlowSeconds: 0, leadBulletWeightsApplied: 0, starmakerRevealSeconds: 0, starmakerMarks: 0,
-          grasshopperBoostImpulse: 0, escudoDamagePrevented: 0,
+          grasshopperBoostImpulse: 0, escudoDamagePrevented: 0, criticalHits: 0, criticalDamage: 0, coreHits: 0, parryAttacks: 0,
           aiWallAvoidances: 0, aiWallBreakFallbacks: 0, aiStuckEscapes: 0, aiOscillationBreaks: 0, dummyBeaconIdentifications: 0,
           aiVoluntaryBailouts: 0, desertReliefVisits: 0, desertReliefDepartures: 0,
           aiTargetChanges: 0, aiTargetRetained: 0, aiTargetChangeReasons: {}, aiRangeAdvanceSeconds: 0, aiRangeRetreatSeconds: 0, aiRangeHoldSeconds: 0, aiRangeStrafeSeconds: 0, aiOptimalRangeSeconds: 0, aiOutOfRangeSeconds: 0, aiOperatorOrderChanges: 0,
@@ -4310,6 +4483,7 @@
           separationSide: Math.random() < .5 ? -1 : 1,
           beaconMemory: {},
           lastAttackerId: null, lastTargetSwitchReason: 'initial', engagementPoint: null, engagementPointTimer: 0,
+          threat: {}, sightMemory: {}, visionTimer: 0, retaliationTargetId: null, retaliationTimer: 0,
         },
       };
     }
@@ -4437,7 +4611,7 @@
       const difficulty = AI_DIFFICULTIES[this.config.difficulty]?.label || '普通';
       const roleLabel = this.isPlayerOperator ? 'オペレーター' : this.isSetupSpectator ? '観戦' : '戦闘員';
       const teamText = this.isDefenseMode ? `防衛隊 ${this.config.teamSize || 3}人` : this.config.mode === 'team' ? `${this.teamCount}チーム・各${this.config.teamSize || 3}人` : '個人戦';
-      $('#modeLabel').textContent = `${MAP_LABELS[this.mapId]} / ${teamText} / ${roleLabel} / ${difficulty}`;
+      $('#modeLabel').textContent = `v${GAME_VERSION} / ${MAP_LABELS[this.mapId]} / ${teamText} / ${roleLabel} / ${difficulty}`;
       $('#teamScoreCard').classList.toggle('hidden', this.config.mode !== 'team');
       $('#defenseHud')?.classList.toggle('hidden', !this.isDefenseMode);
       $('#defenseBuildPanel')?.classList.toggle('hidden', !this.isDefenseMode);
@@ -4482,18 +4656,28 @@
       this.frameHandle = requestAnimationFrame((next) => this.loop(next));
     }
 
+    keyCode(action) { return this.config.keyBindings?.[action] || DEFAULT_KEY_BINDINGS[action]; }
+
+    actionDown(action) { return this.input.isDown(this.keyCode(action)); }
+
+    actionConsume(action) { return this.input.consume(this.keyCode(action)); }
+
+    modifierDown() {
+      return this.actionDown('modifier') || this.input.virtualKeys.has('ShiftLeft') || this.input.virtualKeys.has('ShiftRight');
+    }
+
     handleGlobalInput() {
-      if ((this.input.consume('KeyP') || this.input.consume('Escape')) && !this.ended) this.togglePause();
-      if (this.input.consume('KeyG')) this.setGuideVisible(!this.guideVisible);
-      if (this.input.consume('KeyL')) this.toggleDebugPanel();
-      if (this.input.consume('KeyO') && this.isPlayerOperator) this.toggleOperatorPanel();
+      if ((this.actionConsume('pause') || this.input.consume('Escape')) && !this.ended) this.togglePause();
+      if (this.actionConsume('guide')) this.setGuideVisible(!this.guideVisible);
+      if (this.actionConsume('battleLog')) this.toggleDebugPanel();
+      if (this.actionConsume('operatorPanel') && this.isPlayerOperator) this.toggleOperatorPanel();
       if (this.paused || this.ended) return;
-      if (this.input.consume('KeyR')) this.toggleScope();
-      if (this.input.consume('KeyB')) this.manualBailout();
-      if (this.input.consume('KeyV')) this.toggleSpectate();
-      if (this.spectating && this.input.consume('KeyQ')) this.ensureSpectatorTarget(-1);
-      if (this.spectating && this.input.consume('KeyE')) this.ensureSpectatorTarget(1);
-      if (this.input.consume('KeyZ') && this.isPlayerCombatant && !this.human.dead && !this.spectating) {
+      if (this.actionConsume('scope')) this.toggleScope();
+      if (this.actionConsume('bailout')) this.manualBailout();
+      if (this.actionConsume('spectate')) this.toggleSpectate();
+      if (this.spectating && this.actionConsume('spectatorPrev')) this.ensureSpectatorTarget(-1);
+      if (this.spectating && this.actionConsume('spectatorNext')) this.ensureSpectatorTarget(1);
+      if (this.actionConsume('utility') && this.isPlayerCombatant && !this.human.dead && !this.spectating) {
         this.human.trapMode = (this.human.trapMode + 1) % 3;
         this.toast(`スイッチボックス：${['攻撃', '拘束', '加速'][this.human.trapMode]}トラップ`);
       }
@@ -4547,10 +4731,10 @@
       if ((p.cubedTimer || 0) > 0) { p.vx *= Math.pow(.03, dt); p.vy *= Math.pow(.03, dt); return; }
 
       const selectMap = [
-        ['Digit1', 'main', 0], ['Digit2', 'main', 1], ['Digit3', 'main', 2], ['Digit4', 'main', 3],
-        ['Digit5', 'sub', 0], ['Digit6', 'sub', 1], ['Digit7', 'sub', 2], ['Digit8', 'sub', 3],
+        ['mainSlot1', 'main', 0], ['mainSlot2', 'main', 1], ['mainSlot3', 'main', 2], ['mainSlot4', 'main', 3],
+        ['subSlot1', 'sub', 0], ['subSlot2', 'sub', 1], ['subSlot3', 'sub', 2], ['subSlot4', 'sub', 3],
       ];
-      for (const [code, hand, index] of selectMap) if (this.input.consume(code)) p.selected[hand] = index;
+      for (const [action, hand, index] of selectMap) if (this.actionConsume(action)) p.selected[hand] = index;
 
       const scopeTrigger = this.scopeActive ? this.getScopeTrigger(p) : null;
       if (this.scopeActive && !scopeTrigger) this.scopeActive = false;
@@ -4562,10 +4746,10 @@
       }
       let dx = this.input.virtualMove.x;
       let dy = this.input.virtualMove.y;
-      if (this.input.isDown('KeyW')) dy -= 1;
-      if (this.input.isDown('KeyS')) dy += 1;
-      if (this.input.isDown('KeyA')) dx -= 1;
-      if (this.input.isDown('KeyD')) dx += 1;
+      if (this.actionDown('moveUp')) dy -= 1;
+      if (this.actionDown('moveDown')) dy += 1;
+      if (this.actionDown('moveLeft')) dx -= 1;
+      if (this.actionDown('moveRight')) dx += 1;
       if (dx || dy) {
         const len = Math.hypot(dx, dy);
         const speedFactor = p.pendingComposite ? 0.48 : 1;
@@ -4580,14 +4764,14 @@
       this.handleHeldHand(p, 'main', this.input.mouse.left || this.input.virtualMain, this.input.mouse.justLeft || this.input.virtualMainJust, dt);
       this.handleHeldHand(p, 'sub', this.input.mouse.right || this.input.virtualSub, this.input.mouse.justRight || this.input.virtualSubJust, dt);
 
-      if (this.input.consume('KeyC')) this.tryCombo(p);
+      if (this.actionConsume('combo')) this.tryCombo(p);
     }
 
     handleHeldHand(p, hand, held, justPressed, dt, shiftOverride = null) {
       if (!held && !justPressed) return;
       const trigger = this.getSelectedTrigger(p, hand);
       if (!trigger || trigger.kind === 'empty') return;
-      const shift = shiftOverride === null ? (this.input.isDown('ShiftLeft') || this.input.isDown('ShiftRight')) : Boolean(shiftOverride);
+      const shift = shiftOverride === null ? this.modifierDown() : Boolean(shiftOverride);
       if (trigger.kind === 'shield') {
         if (held) p.shields[hand] = { type: 'shield', strength: 1 };
         return;
@@ -4633,7 +4817,10 @@
       const profile = info.rangeProfile;
       if (!profile || !Number.isFinite(info.originX) || !Number.isFinite(info.originY)) return 1;
       const shotDistance = Math.hypot(target.x - info.originX, target.y - info.originY);
-      return shotDistance >= profile.min && shotDistance <= profile.max ? 1 : .5;
+      if (shotDistance < profile.min || shotDistance > profile.max) return profile.kind === 'sniper' ? .58 : .55;
+      if (profile.kind === 'sniper') return 1.68;
+      if (profile.kind === 'gun') return 1.48;
+      return 1.08;
     }
 
     tryJustCut(target, attacker, info = {}) {
@@ -4662,7 +4849,8 @@
     consumeTrion(p, amount, silent = false) {
       const relief = this.desertReliefState(p);
       const snow = this.shrineGardenState(p);
-      const effectiveAmount = amount * relief.multiplier * snow.multiplier;
+      const skillMultiplier = p.beginnerSkill === 'thrifty' ? .82 : 1;
+      const effectiveAmount = amount * relief.multiplier * snow.multiplier * skillMultiplier;
       if (p.trion + 0.001 < effectiveAmount) {
         if (p.human && !silent) this.toast('トリオン不足');
         return false;
@@ -4694,18 +4882,23 @@
       return true;
     }
 
-    beginShooterCharge(p, hand, trigger, shift = false) {
-      if ((p.shooterHandLock[hand] || 0) > 0) {
-        p.metrics.shooterSameHandLocks += 1;
-        return false;
-      }
-      if (p.shooterCharges[hand] || !this.cooldownReady(p, hand)) return false;
+    beginShooterCharge(p, hand, trigger) {
+      if ((p.shooterHandLock[hand] || 0) > 0 || p.shooterCharges[hand] || !this.cooldownReady(p, hand)) return false;
       const base = SHOOTER_CHARGE_BASE[trigger.bullet] || .3;
       const chargeTime = Math.max(.12, base * (1 - (p.stats.technique - 2) * .035));
-      p.shooterCharges[hand] = { hand, slot: p.selected[hand], triggerId: trigger.id, bullet: trigger.bullet, timer: chargeTime, max: chargeTime, shift: Boolean(shift), aim: p.aim };
+      p.shooterCharges[hand] = { hand, slot: p.selected[hand], triggerId: trigger.id, bullet: trigger.bullet, timer: chargeTime, max: chargeTime, ready: false, division: 1, aim: p.aim };
       p.shooterHandLock[hand] = chargeTime + .08;
       p.metrics.shooterChargesStarted += 1;
       this.logCombatDetail('shooter_charge_start', p, { hand, slot: p.selected[hand], triggerId: trigger.id, chargeTime: Number(chargeTime.toFixed(3)) });
+      if (p.human) this.toast('トリオンキューブ展開中');
+      return true;
+    }
+
+    splitShooterCube(p, hand, charge) {
+      if (!charge?.ready) return false;
+      charge.division = charge.division >= 5 ? 1 : charge.division + 1;
+      if (p.human) this.toast(`キューブ分割 ${charge.division}/5`);
+      this.effects.push({ type:'cubeSplit', x:p.x, y:p.y, division:charge.division, ttl:.24, maxTtl:.24 });
       return true;
     }
 
@@ -4714,21 +4907,15 @@
         p.shooterHandLock[hand] = Math.max(0, (p.shooterHandLock[hand] || 0) - dt);
         const charge = p.shooterCharges[hand];
         if (charge) {
-          charge.timer -= dt;
           charge.aim = p.aim;
-          if (charge.timer <= 0) {
-            p.shooterCharges[hand] = null;
-            const previous = p.selected[hand];
-            p.selected[hand] = charge.slot;
-            const fired = this.tryUseHand(p, hand, { shift: charge.shift, resolveCharge: true });
-            p.selected[hand] = previous;
-            if (fired) {
+          if (!charge.ready) {
+            charge.timer -= dt;
+            if (charge.timer <= 0) {
+              charge.timer = 0;
+              charge.ready = true;
               p.metrics.shooterChargesCompleted += 1;
-              p.shooterHandLock[hand] = Math.max(p.shooterHandLock[hand], .28);
-              this.logCombatDetail('shooter_charge_fire', p, { hand, slot: charge.slot, triggerId: charge.triggerId });
-            } else {
-              p.metrics.shooterChargeCancelled += 1;
-              this.logCombatDetail('shooter_charge_cancel', p, { hand, slot: charge.slot, triggerId: charge.triggerId, reason: 'trion_or_state' });
+              if (!p.human) charge.division = clamp(2 + Math.floor(p.stats.technique / 3), 2, 5);
+              if (p.human) this.toast('キューブ展開完了：Shift+クリックで分割');
             }
           }
         }
@@ -4797,7 +4984,26 @@
         if (p.human) this.toast('カメレオン中は他トリガーを使用できません');
         return false;
       }
-      if (trigger.kind === 'shooter' && !options.resolveCharge) return this.beginShooterCharge(p, hand, trigger, options.shift);
+      if (trigger.kind === 'shooter') {
+        const charge = p.shooterCharges[hand];
+        if (!charge) return this.beginShooterCharge(p, hand, trigger);
+        if (!charge.ready) return false;
+        if (options.shift) return this.splitShooterCube(p, hand, charge);
+        if (charge.slot !== p.selected[hand] || charge.triggerId !== trigger.id) return false;
+        p.shooterCharges[hand] = null;
+        return this.fireShooter(p, hand, trigger, charge.division || 1);
+      }
+      if ((trigger.kind === 'gun' || trigger.kind === 'sniper') && options.shift) return this.beginGunReload(p, hand, trigger);
+      if (trigger.id === 'scorpion' && options.shift) {
+        p.scorpionMode[hand] = ((p.scorpionMode[hand] || 0) + 1) % 3;
+        if (p.human) this.toast(`スコーピオン：${['通常刃','長刃','短刃'][p.scorpionMode[hand]]}`);
+        return true;
+      }
+      if (trigger.kind === 'wire' && options.shift) {
+        p.spiderMode = (p.spiderMode + 1) % 2;
+        if (p.human) this.toast(`スパイダー：${p.spiderMode ? 'ばね' : '通常'}`);
+        return true;
+      }
       if (!this.cooldownReady(p, hand)) return false;
       if (trigger.kind !== 'shield' && !(trigger.id === 'raygust' && options.shift)) p.shields[hand] = null;
 
@@ -4810,7 +5016,7 @@
         switch (trigger.kind) {
           case 'melee': used = this.useMelee(p, hand, trigger, options); break;
           case 'pairedOption': used = this.usePairedOption(p, hand, trigger); break;
-          case 'shooter': used = this.fireShooter(p, hand, trigger, options.shift); break;
+          case 'shooter': used = false; break;
           case 'gun': used = this.fireGun(p, hand, trigger); break;
           case 'sniper': used = this.fireSniper(p, hand, trigger); break;
           case 'shotModifier': used = this.armShotModifier(p, hand, trigger); break;
@@ -4834,29 +5040,31 @@
     }
 
     useMelee(p, hand, trigger, options) {
-      if (!this.consumeTrion(p, trigger.cost)) return false;
       let range = trigger.range;
       let damage = trigger.damage;
       let arc = 1.35;
       let style = trigger.id;
-      if (trigger.id === 'scorpion' && options.shift) {
-        range = 145 + p.stats.trion * 3;
-        damage *= 0.76;
-        arc = 0.72;
-        style = 'scorpionLong';
-        p._activeUseName = ATTACK_LABELS.scorpionLong;
-        p._activeSourceKey = 'scorpionLong';
+      let cost = trigger.cost;
+      if (trigger.id === 'kogetsu' && options.shift) {
+        cost *= .82; damage *= .72; range *= .92; arc = 1.72; style = 'kogetsuParry';
+        p._activeUseName = '弧月・いなし'; p._activeSourceKey = style; p.metrics.parryAttacks += 1;
       }
+      if (trigger.id === 'scorpion') {
+        const mode = p.scorpionMode[hand] || 0;
+        if (mode === 1) { range = 145 + p.stats.trion * 3; damage *= .76; cost *= 1.34; arc = .72; style = 'scorpionLong'; p._activeUseName = ATTACK_LABELS.scorpionLong; p._activeSourceKey = style; }
+        if (mode === 2) { range = 54 + p.stats.trion * 1.2; damage *= 1.2; cost *= .7; arc = 1.05; style = 'scorpionShort'; p._activeUseName = 'スコーピオン（短刃）'; p._activeSourceKey = style; }
+      }
+      if (!this.consumeTrion(p, cost)) return false;
       this.performSlash(p, range, damage * (0.82 + p.stats.combat * 0.045), arc, style);
       if (['kogetsu','scorpion','raygust'].includes(trigger.id)) this.applyMeleeChainCooldown(p, hand, trigger);
       else this.setCooldown(p, hand, trigger.cooldown);
       if (trigger.id === 'kogetsu' || trigger.id === 'scorpion') {
         p.justCut = {
-          timer: clamp(.105 + p.stats.technique * .009, .13, .205),
+          timer: trigger.id === 'kogetsu' && options.shift ? clamp(.18 + p.stats.technique * .014, .22, .36) : clamp(.105 + p.stats.technique * .009, .13, .205),
           hand,
           slotKey: this.getSlotKey(p, hand),
           angle: p.aim,
-          sourceKey: trigger.id,
+          sourceKey: trigger.id === 'kogetsu' && options.shift ? 'kogetsuParry' : trigger.id,
         };
       }
       this.revealOnAttack(p, 1.2);
@@ -4938,61 +5146,54 @@
       }
     }
 
-    fireShooter(p, hand, trigger, shift) {
-      if (trigger.bullet === 'meteor' && shift) return this.placeMeteorMine(p, hand, trigger);
-      if (!this.consumeTrion(p, trigger.cost)) return false;
+    fireShooter(p, hand, trigger, division = 1) {
+      division = clamp(Math.round(division || 1), 1, 5);
       const technique = p.stats.technique;
       const trion = p.stats.trion;
+      const projectileCount = [1, 2, 4, 8, 12][division - 1];
+      const costScale = [1.34, 1.18, 1.04, .94, .88][division - 1];
+      const damageScale = [1.9, 1.24, .79, .50, .38][division - 1];
+      if (!this.consumeTrion(p, trigger.cost * costScale)) return false;
       const modifiers = this.consumeShotModifier(p, hand);
-      if (trigger.bullet === 'asteroid') {
-        const count = 4 + Math.floor(technique / 3);
-        for (let i = 0; i < count; i++) {
-          const spread = (i - (count - 1) / 2) * (0.065 - technique * .0036);
-          this.spawnProjectile(p, hand, {
-            angle: p.aim + spread, speed: 610 + trion * 18, damage: 7.75 + trion * .78,
-            radius: 4.2, life: 1.05 + trion * .028, color: '#72e8ff', ...modifiers,
-          });
+      const aimPoint = trigger.bullet === 'viper' ? this.getFixedShotTarget(p, .5) : null;
+      for (let i = 0; i < projectileCount; i++) {
+        const lane = i - (projectileCount - 1) / 2;
+        const spread = lane * Math.max(.018, .105 - technique * .006) / Math.max(1, Math.sqrt(projectileCount));
+        const common = { angle:p.aim + spread, speed:610 + trion * 16 + division * 18, radius:Math.max(3.2, 6.3 - division * .55), life:1.12 + trion * .026, ...modifiers };
+        if (trigger.bullet === 'asteroid') Object.assign(common, { damage:(15.2 + trion * 1.14) * damageScale, color:'#72e8ff' });
+        if (trigger.bullet === 'meteor') Object.assign(common, { damage:(29 + trion * 1.3) * damageScale, speed:520 + trion * 10, explosive:true, explosionRadius:(92 + trion * 3) * (1.08 - division * .055), color:'#ffb55e' });
+        if (trigger.bullet === 'hound') {
+          const target=this.findTargetNearAim(p,280);
+          Object.assign(common,{damage:(11.4+trion*.72)*damageScale,homing:.84+technique*.105,targetId:target?.id||null,color:'#7dffb8'});
         }
-      } else if (trigger.bullet === 'meteor') {
-        this.spawnProjectile(p, hand, {
-          angle: p.aim, speed: 520 + trion * 10, damage: 27 + trion * 1.2,
-          radius: 7, life: 1.4, explosive: true, explosionRadius: 90 + trion * 3, color: '#ffb55e', ...modifiers,
-        });
-      } else if (trigger.bullet === 'viper') {
-        const count = 3 + Math.floor(technique / 4);
-        const fixedTarget = this.getFixedShotTarget(p, 0.5);
-        const baseAngle = Math.atan2(fixedTarget.y - p.y, fixedTarget.x - p.x);
-        const targetDistance = Math.hypot(fixedTarget.x - p.x, fixedTarget.y - p.y);
-        for (let i = 0; i < count; i++) {
-          const lane = i - (count - 1) / 2;
-          const side = 55 + Math.abs(lane) * 24;
-          const midpoint = {
-            x: p.x + Math.cos(baseAngle) * targetDistance * .48 + Math.cos(baseAngle + Math.PI / 2) * lane * side,
-            y: p.y + Math.sin(baseAngle) * targetDistance * .48 + Math.sin(baseAngle + Math.PI / 2) * lane * side,
-          };
-          const launchAngle = Math.atan2(midpoint.y - p.y, midpoint.x - p.x);
-          this.spawnProjectile(p, hand, {
-            angle: launchAngle, speed: 655 + trion * 11,
-            damage: 9.5 + trion * .62, radius: 4.7, life: 1.68,
-            routePoints: [midpoint, fixedTarget], routeTurn: 2.9 + technique * .16,
-            color: '#c88cff', ...modifiers,
-          });
+        if (trigger.bullet === 'viper') {
+          const baseAngle=Math.atan2(aimPoint.y-p.y,aimPoint.x-p.x), d=Math.hypot(aimPoint.x-p.x,aimPoint.y-p.y);
+          const mid={x:p.x+Math.cos(baseAngle)*d*.48+Math.cos(baseAngle+Math.PI/2)*lane*22,y:p.y+Math.sin(baseAngle)*d*.48+Math.sin(baseAngle+Math.PI/2)*lane*22};
+          Object.assign(common,{angle:Math.atan2(mid.y-p.y,mid.x-p.x),damage:(12.2+trion*.72)*damageScale,routePoints:[mid,aimPoint],routeTurn:2.9+technique*.16,color:'#c88cff'});
         }
-      } else if (trigger.bullet === 'hound') {
-        const target = this.findTargetNearAim(p, 250);
-        const count = 4 + Math.floor(trion / 4);
-        for (let i = 0; i < count; i++) {
-          this.spawnProjectile(p, hand, {
-            angle: p.aim + rand(-.22, .22), speed: 500 + trion * 11,
-            damage: 7.35 + trion * .54, radius: 4.4, life: 1.85,
-            homing: .82 + technique * .108, targetId: target?.id || null, color: '#7dffb8', ...modifiers,
-          });
-        }
+        this.spawnProjectile(p, hand, common);
       }
-      this.setCooldown(p, hand, trigger.cooldown);
-      this.logCombatDetail('shooter_volley', p, { hand, triggerId: trigger.id, bullet: trigger.bullet, sourceSlot: p.selected[hand], projectileCount: trigger.bullet === 'asteroid' ? 4 + Math.floor(technique / 3) : trigger.bullet === 'hound' ? 4 + Math.floor(trion / 4) : trigger.bullet === 'viper' ? 3 + Math.floor(technique / 4) : 1 });
-      this.revealOnAttack(p, 1.25);
+      this.setCooldown(p, hand, trigger.cooldown * [1.32,1.16,1,.83,.7][division-1]);
+      this.logCombatDetail('shooter_volley', p, { hand, triggerId:trigger.id, bullet:trigger.bullet, division, projectileCount });
+      this.revealOnAttack(p, 1.25, 520 + projectileCount * 18);
+      p.shooterHandLock[hand] = Math.max(p.shooterHandLock[hand], .38);
       return true;
+    }
+
+    getAssistedShotAngle(p, baseAngle, kind) {
+      if (p.beginnerSkill !== 'aimAssist' || !p.human || !['gun','sniper'].includes(kind)) return baseAngle;
+      let best = null, bestScore = Infinity;
+      for (const target of this.players) {
+        if (!this.canDamage(p, target)) continue;
+        const d = Math.hypot(target.x - p.x, target.y - p.y);
+        const desired = Math.atan2(target.y - p.y, target.x - p.x);
+        const diff = Math.abs(angleDiff(desired, baseAngle));
+        const cone = kind === 'sniper' ? .095 : .16;
+        if (diff > cone || this.findBlockingWall(p.x, p.y, target.x, target.y, 3)) continue;
+        const score = diff * 900 + d * .025;
+        if (score < bestScore) { best = desired; bestScore = score; }
+      }
+      return best === null ? baseAngle : baseAngle + angleDiff(best, baseAngle) * (kind === 'sniper' ? .72 : .52);
     }
 
     getHumanAimPoint(p, distance = 520) {
@@ -5035,11 +5236,13 @@
       state.ammo -= 1;
       p.metrics.gunShots += 1;
       const modifiers = this.consumeShotModifier(p, hand);
-      const techSpread = trigger.spread * (1.14 - p.stats.technique * .045);
+      const stationary = Math.hypot(p.vx, p.vy) < p.speed * .08;
+      const techSpread = trigger.spread * (1.14 - p.stats.technique * .045) * (stationary ? .5 : 1);
       const target = trigger.bullet === 'hound' ? this.findTargetNearAim(p, 210) : null;
+      const assistedAim = this.getAssistedShotAngle(p, p.aim, 'gun');
       for (let i = 0; i < trigger.count; i++) {
-        let angle = p.aim + rand(-techSpread, techSpread);
-        if (trigger.count > 1) angle = p.aim + lerp(-trigger.spread, trigger.spread, i / Math.max(1, trigger.count - 1));
+        let angle = assistedAim + rand(-techSpread, techSpread);
+        if (trigger.count > 1) angle = assistedAim + lerp(-trigger.spread, trigger.spread, i / Math.max(1, trigger.count - 1));
         const opts = {
           angle,
           speed: trigger.speed + p.stats.trion * (trigger.bullet === 'asteroid' ? 8 : 4),
@@ -5047,7 +5250,7 @@
           radius: trigger.gun === 'grenade' ? 7 : 3.6,
           life: 1.25 * trigger.range,
           color: trigger.bullet === 'meteor' ? '#ffb55e' : trigger.bullet === 'viper' ? '#c88cff' : trigger.bullet === 'hound' ? '#7dffb8' : '#72e8ff',
-          ...modifiers,
+          ...modifiers, stationaryShot: stationary,
         };
         if (trigger.bullet === 'meteor' || trigger.explosive) {
           opts.explosive = true;
@@ -5081,13 +5284,18 @@
     }
 
     fireSniper(p, hand, trigger) {
+      const state = this.getGunState(p, hand, trigger);
+      if (state.reloadTimer > 0) return false;
+      if (state.ammo <= 0) { p.metrics.gunEmptyAttempts += 1; this.beginGunReload(p, hand, trigger, state); return false; }
       if (!this.consumeTrion(p, trigger.cost)) return false;
+      state.ammo -= 1;
+      p.metrics.gunShots += 1;
       const modifiers = this.consumeShotModifier(p, hand);
       const speedBonus = trigger.id === 'lightning' ? p.stats.trion * 55 : p.stats.trion * 15;
       const shotSpeed = trigger.speed + speedBonus;
       const damageBonus = trigger.id === 'ibis' ? p.stats.trion * 3.4 : p.stats.trion * .8;
       const rangeFactor = trigger.id === 'egret' ? 1.35 + p.stats.trion * .06 : 1.22;
-      let shotAngle = p.aim;
+      let shotAngle = this.getAssistedShotAngle(p, p.aim, 'sniper');
       if (!p.human && p.ai?.targetType === 'player') {
         const target = this.resolveAITarget(p);
         if (target) {
@@ -5096,7 +5304,9 @@
           shotAngle = Math.atan2(target.y + (target.vy || 0) * lead - p.y, target.x + (target.vx || 0) * lead - p.x);
         }
       }
-      const spreadScale = p.human ? 1 : (this.config.difficulty === 'strong' ? .42 : this.config.difficulty === 'normal' ? .72 : 1.15);
+      const stationary = Math.hypot(p.vx, p.vy) < p.speed * .08;
+      const tierAim = AI_TIER_PROFILES[p.aiTier]?.aim || 1;
+      const spreadScale = (p.human ? 1 : (this.config.difficulty === 'strong' ? .42 : this.config.difficulty === 'normal' ? .72 : 1.15) * tierAim) * (stationary ? .38 : 1);
       this.spawnProjectile(p, hand, {
         angle: shotAngle + rand(-.018, .018) * (11 - p.stats.technique) * spreadScale,
         speed: shotSpeed,
@@ -5106,9 +5316,10 @@
         color: trigger.id === 'ibis' ? '#ffd27a' : '#d8fbff',
         trail: true,
         penetration: trigger.id === 'ibis' ? 1 : 0,
-        ...modifiers,
+        ...modifiers, stationaryShot: stationary,
       });
       this.setCooldown(p, hand, trigger.cooldown);
+      if (state.ammo <= 0) this.beginGunReload(p, hand, trigger, state);
       this.logCombatDetail('sniper_fire', p, { hand, triggerId: trigger.id, aim: Number(shotAngle.toFixed(4)), optimalMin: trigger.optimalMin, optimalMax: trigger.optimalMax });
       this.revealOnAttack(p, 2.3);
       this.effects.push({ type: 'muzzle', x: p.x, y: p.y, angle: p.aim, ttl: .12, maxTtl: .12 });
@@ -5170,7 +5381,7 @@
       const dy = target.y - p.y;
       const d = Math.hypot(dx, dy) || 1;
       const length = Math.min(d, 290 + p.stats.trion * 9);
-      this.wires.push({ x1: p.x, y1: p.y, x2: p.x + dx / d * length, y2: p.y + dy / d * length, team: p.team, ownerId: p.id, ttl: 60, hp: 22 });
+      this.wires.push({ x1: p.x, y1: p.y, x2: p.x + dx / d * length, y2: p.y + dy / d * length, team: p.team, ownerId: p.id, ttl: 60, hp: 22, mode: p.spiderMode ? 'spring' : 'normal' });
       this.setCooldown(p, hand, trigger.cooldown);
       return true;
     }
@@ -5195,7 +5406,7 @@
 
     grasshopper(p, hand, trigger) {
       if (!this.consumeTrion(p, trigger.cost)) return false;
-      const power = 360 + p.stats.combat * 22;
+      const power = 520 + p.stats.combat * 28;
       p.vx += Math.cos(p.aim) * power;
       p.metrics.grasshopperBoostImpulse += power;
       p.vy += Math.sin(p.aim) * power;
@@ -5410,6 +5621,7 @@
         originX: Number.isFinite(opts.originX) ? opts.originX : owner.x,
         originY: Number.isFinite(opts.originY) ? opts.originY : owner.y,
         activationId: opts.activationId || (this.activeActivation?.playerId === owner.id ? this.activeActivation.id : null),
+        stationaryShot: Boolean(opts.stationaryShot),
         hitRegistered: false,
       };
       const trigger = DATA.triggers[projectile.sourceKey];
@@ -5493,11 +5705,14 @@
       if (p.toggles.bagworm) drain += DATA.triggers.bagworm.drain;
       if (p.toggles.bagwormTag) drain += DATA.triggers.bagwormTag.drain;
       if (p.toggles.chameleon) drain += DATA.triggers.chameleon.drain;
+      if (p.beginnerSkill === 'thrifty') drain *= .82;
       drain *= desertRelief.multiplier * shrineGarden.multiplier;
       if (p.toggles.bagworm || p.toggles.bagwormTag) p.metrics.bagwormHiddenSeconds += dt;
       if (p.toggles.chameleon) p.metrics.chameleonHiddenSeconds += dt;
       if (drain > 0) {
-        p.trion -= drain * dt;
+        const drained = drain * dt;
+        p.trion -= drained;
+        p.metrics.trionSpent += drained;
         if (p.trion <= 0) {
           p.trion = 0;
           p.toggles.bagworm = false;
@@ -5509,7 +5724,7 @@
         p.trion = Math.min(p.maxTrion, p.trion + p.regen * dt);
       }
 
-      const weightSlow = Math.max(.38, 1 - p.leadWeights * .11);
+      const weightSlow = Math.max(.22, 1 - p.leadWeights * .17);
       const operatorBoost = p.operatorBoostTimer > 0 ? 1.18 : 1;
       if (p.operatorBoostTimer > 0) p.trion = Math.min(p.maxTrion, p.trion + p.regen * .55 * dt);
       const cubeFactor = (p.cubedTimer || 0) > 0 ? .04 : 1;
@@ -5525,6 +5740,7 @@
       p.y += p.vy * dt;
       const movementSpeed = Math.hypot(p.vx, p.vy);
       p.isMoving = movementSpeed > 24;
+      p.stationaryTimer = p.isMoving ? 0 : (p.stationaryTimer || 0) + dt;
       if (p.isMoving) {
         if (Math.abs(p.vx) > Math.abs(p.vy)) p.facing = p.vx > 0 ? 'right' : 'left';
         else p.facing = p.vy > 0 ? 'down' : 'up';
@@ -5587,8 +5803,16 @@
         if (wire.team === p.team && (this.config.mode === 'team' || this.isDefenseMode)) continue;
         const hit = segmentPointDistance(wire.x1, wire.y1, wire.x2, wire.y2, p.x, p.y);
         if (hit.distance < p.radius + 5) {
-          p.slowTimer = Math.max(p.slowTimer, .18);
-          p.slowFactor = Math.min(p.slowFactor, .45);
+          if (wire.mode === 'spring') {
+            const angle = Math.atan2(wire.y2 - wire.y1, wire.x2 - wire.x1) + Math.PI / 2;
+            const side = Math.sign((p.x - hit.x) * Math.cos(angle) + (p.y - hit.y) * Math.sin(angle)) || 1;
+            p.vx += Math.cos(angle) * side * 620;
+            p.vy += Math.sin(angle) * side * 620;
+            p.slowTimer = Math.max(p.slowTimer, .08);
+          } else {
+            p.slowTimer = Math.max(p.slowTimer, .3);
+            p.slowFactor = Math.min(p.slowFactor, .28);
+          }
           const owner = this.players.find((player) => player.id === wire.ownerId);
           if (owner?.metrics) {
             const support = dt * 1.6;
@@ -5652,10 +5876,10 @@
       }
       p.ai.concealmentTimer += dt;
       const trionRatio = p.trion / Math.max(1, p.maxTrion);
-      const recentlyHit = this.elapsed - (p.lastDamageAt || -999) < 2.4;
-      const combatClose = Number.isFinite(distanceToTarget) && distanceToTarget < (p.toggles.chameleon ? 430 : 470);
-      const durationLimit = p.toggles.chameleon ? 3.2 : 9.5;
-      const shouldRelease = recentlyHit || combatClose || trionRatio < .34 || p.ai.concealmentTimer > durationLimit || Boolean(p.operatorOrder?.type === 'focus');
+      const recentlyHit = this.elapsed - (p.lastMajorDamageAt || -999) < 2.4;
+      const combatClose = Number.isFinite(distanceToTarget) && distanceToTarget < (p.toggles.chameleon ? 220 : 470);
+      const durationLimit = p.toggles.chameleon ? 8.5 : 12;
+      const shouldRelease = recentlyHit || combatClose || trionRatio < .22 || p.ai.concealmentTimer > durationLimit || Boolean(p.operatorOrder?.type === 'focus');
       if (!shouldRelease) return;
       p.toggles.bagworm = false;
       p.toggles.bagwormTag = false;
@@ -5694,6 +5918,7 @@
     }
 
     tryAIVoluntaryBailout(p, threatened, dt) {
+      if (this.config.mode === 'solo') return false;
       if (!p.ai || p.human || p.dead || p.invulnTimer > 0) return false;
       p.ai.voluntaryBailoutCooldown = Math.max(0, (p.ai.voluntaryBailoutCooldown || 0) - dt);
       p.ai.voluntaryBailoutCheckTimer = Math.max(0, (p.ai.voluntaryBailoutCheckTimer || 0) - dt);
@@ -6140,7 +6365,10 @@
     updateAI(p, dt) {
       if (p.dead) return;
       if ((p.cubedTimer || 0) > 0) { p.vx *= Math.pow(.02, dt); p.vy *= Math.pow(.02, dt); return; }
-      const profile = AI_DIFFICULTIES[this.config.difficulty] || AI_DIFFICULTIES.normal;
+      const baseProfile = AI_DIFFICULTIES[this.config.difficulty] || AI_DIFFICULTIES.normal;
+      const tier = AI_TIER_PROFILES[p.aiTier] || AI_TIER_PROFILES.middle;
+      const profile = { ...baseProfile, aimError: baseProfile.aimError * tier.aim, move: baseProfile.move * (.92 + tier.decision * .08), attackInterval: baseProfile.attackInterval.map((v) => v / tier.aggression), utilityChance: clamp(baseProfile.utilityChance * tier.decision, 0, 1), comboChance: clamp(baseProfile.comboChance * tier.decision, 0, 1) };
+      this.updateThreatAwareness(p, dt);
       p.shields.main = null;
       p.shields.sub = null;
       if (this.config.difficulty === 'sandbag') {
@@ -6270,7 +6498,11 @@
       if (movementMode === 'retreat') moveAngle += Math.PI;
       else if (movementMode === 'strafe') moveAngle += p.ai.strafe * Math.PI / 2;
       else if (movementMode === 'hold') movementScale = .16;
-      if (hasSniper && d > 560 && d < 820 && p.ai.targetAge < .55) movementScale = Math.min(movementScale, .24);
+      if (hasSniper) {
+        if (rangeBand && d >= rangeBand.min * .92 && d <= rangeBand.max * 1.05) movementScale = Math.min(movementScale, p.ai.targetAge < .55 ? .12 : .22);
+        if (rangeBand && d < rangeBand.min * 1.04) { moveAngle = targetAngle + Math.PI; movementScale = Math.max(movementScale, 1.1); }
+        if (rangeBand && d > rangeBand.max * 1.2) movementScale = Math.min(movementScale, .62);
+      }
       if (hasSniper && p.ai.relocateTimer > 0) { moveAngle = targetAngle + p.ai.strafe * Math.PI * .68; movementScale = 1.2; }
       const directive = this.getOperatorMoveDirective(p, target);
       if (directive) {
@@ -6319,6 +6551,15 @@
         p.ai.utilityTimer = rand(baseMin, baseMax);
       }
 
+      for (const hand of ['main','sub']) {
+        const charge = p.shooterCharges?.[hand];
+        if (charge?.ready) {
+          const previous = p.selected[hand]; p.selected[hand] = charge.slot;
+          const fired = this.tryUseHand(p, hand, { shift:false });
+          p.selected[hand] = previous;
+          if (fired) { p.ai.attackTimer = rand(profile.attackInterval[0], profile.attackInterval[1]) * .9; return; }
+        }
+      }
       if (p.ai.attackTimer > 0) return;
       p.ai.attackTimer = rand(profile.attackInterval[0], profile.attackInterval[1]);
       const attackBlocker = this.findBlockingWall(p.x, p.y, target.x, target.y, Math.max(3, p.radius * .22));
@@ -6342,9 +6583,11 @@
         const melee = this.findTriggerHand(p, (trigger) => trigger.kind === 'melee');
         if (melee) {
           p.selected[melee.hand] = melee.index;
-          const useLong = melee.trigger.id === 'scorpion' && d > 128;
-          p.metrics.aiTriggerSelections[useLong ? 'scorpionLong' : melee.trigger.id] = (p.metrics.aiTriggerSelections[useLong ? 'scorpionLong' : melee.trigger.id] || 0) + 1;
-          this.tryUseHand(p, melee.hand, { shift: useLong });
+          const desiredMode = melee.trigger.id === 'scorpion' ? (d > 128 ? 1 : d < 72 ? 2 : 0) : 0;
+          if (melee.trigger.id === 'scorpion') p.scorpionMode[melee.hand] = desiredMode;
+          const key = desiredMode === 1 ? 'scorpionLong' : desiredMode === 2 ? 'scorpionShort' : melee.trigger.id;
+          p.metrics.aiTriggerSelections[key] = (p.metrics.aiTriggerSelections[key] || 0) + 1;
+          this.tryUseHand(p, melee.hand, { shift: melee.trigger.id === 'kogetsu' && immediateThreat && Math.random() < .28 });
           return;
         }
       }
@@ -6366,6 +6609,66 @@
       }
     }
 
+    stealthBlocksAggro(target, reason = 'sight') {
+      if (!target) return false;
+      if ((target.toggles?.bagworm || target.toggles?.bagwormTag) && reason !== 'attacked') return true;
+      if (target.toggles?.chameleon && !['attacked','majorHit'].includes(reason)) return true;
+      return false;
+    }
+
+    addThreat(observer, target, amount, reason = 'sight', duration = 5) {
+      if (!observer?.ai || !target || observer.id === target.id || !this.canDamage(observer, target)) return false;
+      if (this.stealthBlocksAggro(target, reason)) return false;
+      observer.ai.threat ||= {};
+      const entry = observer.ai.threat[target.id] || { value:0, timer:0, reason };
+      entry.value = clamp(entry.value + amount, 0, 100);
+      entry.timer = Math.max(entry.timer, duration);
+      entry.reason = reason === 'attacked' || reason === 'majorHit' ? reason : entry.reason;
+      observer.ai.threat[target.id] = entry;
+      return true;
+    }
+
+    getThreat(observer, target) {
+      return Number(observer?.ai?.threat?.[target?.id]?.value || 0);
+    }
+
+    hasEffectiveSight(observer, target) {
+      if (!observer || !target || target.dead) return false;
+      const d = Math.hypot(target.x - observer.x, target.y - observer.y);
+      const roleRange = observer.isDefenseEnemy ? 820 : observer.archetype === '狙撃手' ? 1120 : observer.archetype === '銃手' ? 920 : 760;
+      if (d > roleRange) return false;
+      const targetAngle = Math.atan2(target.y - observer.y, target.x - observer.x);
+      const fov = observer.isDefenseEnemy ? 2.45 : observer.archetype === '狙撃手' ? 1.72 : 2.18;
+      if (d > 150 && Math.abs(angleDiff(targetAngle, observer.aim || 0)) > fov / 2) return false;
+      return !this.findBlockingWall(observer.x, observer.y, target.x, target.y, 3);
+    }
+
+    updateThreatAwareness(observer, dt) {
+      if (!observer?.ai) return;
+      observer.ai.threat ||= {};
+      for (const [id, entry] of Object.entries(observer.ai.threat)) {
+        entry.timer -= dt;
+        entry.value = Math.max(0, entry.value - dt * (entry.reason === 'attacked' ? 2.1 : 4.5));
+        if (entry.timer <= 0 || entry.value <= .05) delete observer.ai.threat[id];
+      }
+      observer.ai.visionTimer = (observer.ai.visionTimer || 0) - dt;
+      if (observer.ai.visionTimer > 0) return;
+      observer.ai.visionTimer = observer.isDefenseEnemy ? .14 : .18;
+      for (const target of this.players) {
+        if (!this.canDamage(observer, target) || this.stealthBlocksAggro(target, 'sight')) continue;
+        if (this.hasEffectiveSight(observer, target)) this.addThreat(observer, target, 2.4, 'sight', 2.2);
+      }
+    }
+
+    emitCombatNoise(source, radius = 620, amount = 8, reason = 'noise') {
+      if (!source || source.toggles?.bagworm || source.toggles?.bagwormTag) return;
+      for (const observer of this.players) {
+        if (!observer.ai || !this.canDamage(observer, source)) continue;
+        const d = Math.hypot(observer.x - source.x, observer.y - source.y);
+        if (d <= radius) this.addThreat(observer, source, amount * (1 - d / Math.max(radius * 1.25, 1)), reason, 4.2);
+      }
+    }
+
     scoreAITargetCandidate(p, target, type) {
       const d = Math.hypot(target.x - p.x, target.y - p.y);
       if (type === 'beacon') {
@@ -6373,9 +6676,13 @@
         if (memory.identified || target.exposedTeams?.[p.team]) return Infinity;
         return d * (1.02 + memory.suspicion * 2.8 + memory.observe * .22);
       }
-      const hidden = (target.toggles.bagworm || target.toggles.bagwormTag) && target.markedTimer <= 0 && target.revealTimer <= 0;
-      if (hidden && d > 300) return Infinity;
-      let score = d * (target.toggles.chameleon ? 1.25 : 1);
+      const threatEntry = p.ai?.threat?.[target.id];
+      const threat = Number(threatEntry?.value || 0);
+      if ((target.toggles.bagworm || target.toggles.bagwormTag) && threatEntry?.reason !== 'attacked') return Infinity;
+      if (target.toggles.chameleon && !['attacked','majorHit'].includes(threatEntry?.reason)) return Infinity;
+      if (threat <= 0 && !this.hasEffectiveSight(p, target)) return Infinity;
+      let score = d / (1 + threat * .115);
+      if (target.toggles.chameleon) score *= 1.7;
       if (this.config.difficulty === 'strong') score *= .68 + (target.hp / target.maxHp) * .45;
       if (this.config.difficulty === 'weak') score *= rand(.88, 1.18);
       return score;
@@ -6454,7 +6761,7 @@
 
     slotReady(p, hand, index, trigger) {
       const cooldown = p.cooldowns[`${hand}:${index}`] || 0;
-      if (trigger.kind === 'gun') {
+      if (trigger.kind === 'gun' || trigger.kind === 'sniper') {
         const state = this.getGunState(p, hand, trigger, index);
         if (state.reloadTimer > 0 || state.ammo <= 0) return false;
       }
@@ -6697,13 +7004,13 @@
         if (p.explosive && p.proximityFuse > 0) {
           const nearby = this.players.find((target) => !target.dead && target.id !== p.ownerId && !(target.team === p.team && (this.config.mode === 'team' || this.isDefenseMode)) && Math.hypot(p.x - target.x, p.y - target.y) <= p.proximityFuse + target.radius);
           if (nearby) {
-            this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
+            this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY, stationaryShot: p.stationaryShot });
             this.projectiles.splice(i, 1);
             continue;
           }
         }
         if (p.x < 0 || p.y < 0 || p.x > this.world.w || p.y > this.world.h || p.life <= 0) {
-          if (p.explosive && p.life <= 0) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
+          if (p.explosive && p.life <= 0) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY, stationaryShot: p.stationaryShot });
           this.projectiles.splice(i, 1);
           continue;
         }
@@ -6720,7 +7027,7 @@
               if (wallOwner?.metrics) wallOwner.metrics.escudoDamagePrevented += prevented;
             }
           }
-          if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
+          if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY, stationaryShot: p.stationaryShot });
           this.projectiles.splice(i, 1);
           removed = true;
           break;
@@ -6741,7 +7048,7 @@
           if (facility.hp <= 0 || (facility.team === p.team && (this.config.mode === 'team' || this.isDefenseMode))) continue;
           if (Math.hypot(p.x - facility.x, p.y - facility.y) < p.radius + facility.radius) {
             facility.hp -= Math.max(4, p.damage);
-            if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
+            if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY, stationaryShot: p.stationaryShot });
             this.projectiles.splice(i, 1); removed = true; break;
           }
         }
@@ -6762,7 +7069,7 @@
           if (beacon.team === p.team && (this.config.mode === 'team' || this.isDefenseMode)) continue;
           if (Math.hypot(p.x - beacon.x, p.y - beacon.y) < p.radius + beacon.radius) {
             beacon.hp -= Math.max(4, p.damage);
-            if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
+            if (p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, null, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY, stationaryShot: p.stationaryShot });
             this.projectiles.splice(i, 1);
             removed = true;
             break;
@@ -6778,7 +7085,7 @@
             x: p.x, y: p.y, type: 'projectile', shieldPierce: p.shieldPierce,
             name: p.sourceName, sourceKey: p.sourceKey, activationId: p.activationId,
             incomingAngle: Math.atan2(-p.vy, -p.vx), rangeProfile: p.rangeProfile,
-            originX: p.originX, originY: p.originY,
+            originX: p.originX, originY: p.originY, stationaryShot: p.stationaryShot,
           };
           const cut = this.tryJustCut(target, owner, hitInfo);
           if (!cut && p.lead) {
@@ -6801,7 +7108,7 @@
               this.registerEffectApplication(owner, p.effectSourceKey || 'starmaker', p.effectSourceName || 'スタアメーカー', target, p.markDuration, p.effectActivationId);
             }
           }
-          if (!cut && p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, target.id, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY });
+          if (!cut && p.explosive) this.explode(p.x, p.y, p.explosionRadius, p.damage, p.ownerId, p.team, target.id, p.sourceName, { sourceKey: p.sourceKey, activationId: p.activationId, projectileId: p.id, rangeProfile: p.rangeProfile, originX: p.originX, originY: p.originY, stationaryShot: p.stationaryShot });
           if (cut) {
             this.projectiles.splice(i, 1);
             removed = true;
@@ -6862,7 +7169,7 @@
         this.damagePlayer(target, damage * scale, owner, {
           x, y, type: 'explosion', name: sourceName,
           sourceKey: context.sourceKey || sourceName, activationId: context.activationId || null,
-          rangeProfile: context.rangeProfile || null, originX: context.originX, originY: context.originY,
+          rangeProfile: context.rangeProfile || null, originX: context.originX, originY: context.originY, stationaryShot: context.stationaryShot,
         });
         target.vx += (target.x - x) / Math.max(d, 1) * 190 * scale;
         target.vy += (target.y - y) / Math.max(d, 1) * 190 * scale;
@@ -6896,9 +7203,42 @@
       return !target.dead && attacker.id !== target.id && !((this.config.mode === 'team' || this.isDefenseMode) && attacker.team === target.team);
     }
 
+    tryAutoGuard(target, info, incomingAmount) {
+      if (target.beginnerSkill !== 'autoGuard' || target.dead || info.shieldPierce || Object.values(target.shields).some(Boolean)) return false;
+      const guard = this.findTriggerHand(target, (trigger) => trigger.kind === 'shield' || trigger.id === 'raygust');
+      if (!guard || (target.cooldowns[`${guard.hand}:${guard.index}`] || 0) > 0) return false;
+      const cost = guard.trigger.id === 'raygust' ? 1.35 : .9;
+      if (!this.consumeTrion(target, cost, true)) return false;
+      target.shields[guard.hand] = { type: guard.trigger.id === 'raygust' ? 'raygust' : 'shield', strength: guard.trigger.id === 'raygust' ? 1.55 : 1 };
+      this.setCooldownForHandIndex(target, guard.hand, guard.index, guard.trigger.cooldown || 1.15);
+      if (target.human) this.toast('オートガード');
+      return true;
+    }
+
+    getAttackDamageModifiers(attacker, target, amount, info = {}) {
+      if (!attacker || !attacker.metrics || attacker.id === target.id) return { amount, critical:false };
+      const hpRatio = attacker.maxHp > 0 ? attacker.hp / attacker.maxHp : 1;
+      if (hpRatio <= .38) amount *= 1 + (.38 - hpRatio) * .9;
+      let critChance = .025 + attacker.stats.technique * .012;
+      if (info.stationaryShot && info.rangeProfile && ['gun','sniper'].includes(info.rangeProfile.kind)) critChance += info.rangeProfile.kind === 'sniper' ? .11 : .07;
+      if (attacker.beginnerSkill === 'aimAssist' && info.rangeProfile && ['gun','sniper'].includes(info.rangeProfile.kind)) critChance += .025;
+      if (attacker.aiTier === 'upper') critChance += .025;
+      const critical = Math.random() < clamp(critChance, .03, .32);
+      if (critical) {
+        const before = amount;
+        amount *= 1.55;
+        attacker.metrics.criticalHits += 1;
+        attacker.metrics.criticalDamage += amount - before;
+        this.effects.push({ type:'critical', x:target.x, y:target.y, ttl:.34, maxTtl:.34 });
+      }
+      return { amount, critical };
+    }
+
     damagePlayer(target, amount, attacker, info = {}) {
       if (target.dead || amount <= 0 || target.invulnTimer > 0) return false;
       if (!info.skipJustCut && this.tryJustCut(target, attacker, info)) return false;
+      const attackModifiers = this.getAttackDamageModifiers(attacker, target, amount, info);
+      amount = attackModifiers.amount;
       const rangeMultiplier = this.getRangeDamageMultiplier(target, info);
       if (info.rangeProfile && Number.isFinite(info.originX) && Number.isFinite(info.originY) && attacker?.metrics) {
         const shotDistance = Math.hypot(target.x - info.originX, target.y - info.originY);
@@ -6911,6 +7251,15 @@
       }
       if (rangeMultiplier < 1) amount *= rangeMultiplier;
       if (target.isDefenseEnemy) {
+        if (target.defenseCore && Number.isFinite(info.x) && Number.isFinite(info.y)) {
+          const coreX = target.x + Math.cos(target.aim + target.defenseCore.angle) * target.defenseCore.distance;
+          const coreY = target.y + Math.sin(target.aim + target.defenseCore.angle) * target.defenseCore.distance;
+          if (Math.hypot(info.x - coreX, info.y - coreY) <= target.defenseCore.radius + (info.type === 'projectile' ? 7 : 16)) {
+            amount *= 4.4;
+            if (attacker?.metrics) attacker.metrics.coreHits += 1;
+            this.effects.push({ type:'coreHit', x:coreX, y:coreY, ttl:.42, maxTtl:.42 });
+          }
+        }
         const sourceAngle = attacker ? Math.atan2(attacker.y - target.y, attacker.x - target.x) : 0;
         if (target.defenseType === 'rabbit' && attacker) {
           const front = Math.abs(angleDiff(sourceAngle, target.aim)) < 1.18;
@@ -6930,9 +7279,14 @@
         }
       }
       target.lastDamageAt = this.elapsed;
-      if (target.ai && attacker?.id) { target.ai.lastAttackerId = attacker.id; target.ai.lastHostileContactAt = this.elapsed; }
+      if (target.ai && attacker?.id) {
+        target.ai.lastAttackerId = attacker.id; target.ai.lastHostileContactAt = this.elapsed;
+        const major = amount >= target.maxHp * .18;
+        this.addThreat(target, attacker, major ? 34 : 22, major ? 'majorHit' : 'attacked', major ? 8 : 5.5);
+      }
       if (target.ai && attacker && attacker.id !== target.id) target.ai.lastHostileContactAt = this.elapsed;
-      const attackAngle = Math.atan2(info.y - target.y, info.x - target.x);
+      const attackAngle = Math.atan2((Number.isFinite(info.y) ? info.y : attacker?.y || target.y) - target.y, (Number.isFinite(info.x) ? info.x : attacker?.x || target.x) - target.x);
+      this.tryAutoGuard(target, info, amount);
       const shields = Object.values(target.shields).filter(Boolean);
       let blocked = false;
       if (!info.shieldPierce && shields.length) {
@@ -6957,7 +7311,11 @@
       if (blocked) return false;
       const effectiveDamage = Math.min(target.hp, amount);
       target.hp -= amount;
+      if (effectiveDamage >= target.maxHp * .18) target.lastMajorDamageAt = this.elapsed;
       target.metrics.damageTaken += effectiveDamage;
+      if (target.toggles.chameleon && amount < target.maxHp * .18) {
+        for (const observer of this.players) if (observer.ai?.threat?.[target.id] && observer !== attacker) delete observer.ai.threat[target.id];
+      } else if (target.toggles.chameleon && amount >= target.maxHp * .18) target.toggles.chameleon = false;
       if (attacker && attacker.metrics && attacker.id !== target.id) {
         attacker.metrics.damageDealt += effectiveDamage;
         const sourceName = info.name || '攻撃';
@@ -7390,8 +7748,9 @@
       this.camera.y = clamp(this.camera.y, 0, Math.max(0, this.world.h - this.viewH));
     }
 
-    revealOnAttack(p, duration) {
+    revealOnAttack(p, duration, noiseRadius = 640) {
       p.revealTimer = Math.max(p.revealTimer, duration);
+      this.emitCombatNoise(p, noiseRadius, noiseRadius > 800 ? 14 : 9, 'noise');
     }
 
     findTargetNearAim(p, radius) {
@@ -8257,8 +8616,11 @@
       ctx.lineWidth = 1.5;
       for (const wire of this.wires) {
         if (!this.inView((wire.x1 + wire.x2) / 2, (wire.y1 + wire.y2) / 2, 260)) continue;
-        ctx.strokeStyle = `${this.teamColors[wire.team] || '#8be6ff'}bb`;
+        ctx.strokeStyle = wire.mode === 'spring' ? '#ffd66d' : `${this.teamColors[wire.team] || '#8be6ff'}bb`;
+        ctx.lineWidth = wire.mode === 'spring' ? 3 : 1.5;
+        if (wire.mode === 'spring') ctx.setLineDash([6,5]);
         ctx.beginPath(); ctx.moveTo(wire.x1, wire.y1); ctx.lineTo(wire.x2, wire.y2); ctx.stroke();
+        ctx.setLineDash([]);
         ctx.fillStyle = ctx.strokeStyle;
         ctx.beginPath(); ctx.arc(wire.x1, wire.y1, 3, 0, TAU); ctx.arc(wire.x2, wire.y2, 3, 0, TAU); ctx.fill();
       }
@@ -8530,6 +8892,12 @@
           ctx.fillStyle = color; ctx.fillRect(-12, -47, 7, 24); ctx.fillRect(5, -47, 7, 24);
           ctx.fillStyle = '#b9bbb8'; ctx.fillRect(-18, 27, 13, 19); ctx.fillRect(5, 27, 13, 19);
         }
+        if (p.defenseCore) {
+          const a = p.defenseCore.angle, d = p.defenseCore.distance;
+          const cx = Math.cos(a) * d, cy = Math.sin(a) * d;
+          ctx.fillStyle = '#ff315f'; ctx.strokeStyle = '#fff2b4'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(cx, cy - p.defenseCore.radius); ctx.lineTo(cx + p.defenseCore.radius, cy); ctx.lineTo(cx, cy + p.defenseCore.radius); ctx.lineTo(cx - p.defenseCore.radius, cy); ctx.closePath(); ctx.fill(); ctx.stroke();
+        }
         ctx.restore();
       }
       const hp = clamp(p.hp / p.maxHp, 0, 1);
@@ -8619,8 +8987,8 @@
         ctx.save();
         if (e.type === 'slash') {
           ctx.globalAlpha = t;
-          ctx.strokeStyle = e.style === 'mantis' ? '#c7fff4' : e.style.includes('scorpion') ? '#b59cff' : '#e2fbff';
-          ctx.lineWidth = e.style === 'mantis' ? 13 : 8;
+          ctx.strokeStyle = e.style === 'mantis' ? '#c7fff4' : e.style === 'kogetsuParry' ? '#fff3a8' : e.style.includes('scorpion') ? '#b59cff' : '#e2fbff';
+          ctx.lineWidth = e.style === 'mantis' ? 13 : e.style === 'kogetsuParry' ? 11 : 8;
           ctx.beginPath(); ctx.arc(e.x, e.y, e.range, e.angle - e.arc / 2, e.angle + e.arc / 2); ctx.stroke();
         } else if (e.type === 'senku') {
           ctx.globalAlpha = t;
@@ -8664,6 +9032,21 @@
             const a = i * Math.PI / 2 + e.ttl * 8;
             ctx.beginPath(); ctx.moveTo(e.x + Math.cos(a) * 8, e.y + Math.sin(a) * 8); ctx.lineTo(e.x + Math.cos(a) * 24, e.y + Math.sin(a) * 24); ctx.stroke();
           }
+        } else if (e.type === 'critical') {
+          ctx.globalAlpha = t;
+          ctx.strokeStyle = '#ffe36d'; ctx.fillStyle = '#fff8c9'; ctx.lineWidth = 4;
+          for (let i = 0; i < 8; i++) {
+            const a = i * TAU / 8 + (1 - t) * .4;
+            const inner = 12 + (1 - t) * 8, outer = 34 + (1 - t) * 22;
+            ctx.beginPath(); ctx.moveTo(e.x + Math.cos(a) * inner, e.y + Math.sin(a) * inner); ctx.lineTo(e.x + Math.cos(a) * outer, e.y + Math.sin(a) * outer); ctx.stroke();
+          }
+          ctx.beginPath(); ctx.arc(e.x, e.y, 7 + (1 - t) * 5, 0, TAU); ctx.fill();
+        } else if (e.type === 'coreHit') {
+          ctx.globalAlpha = t;
+          ctx.strokeStyle = '#ff566f'; ctx.fillStyle = '#fff0f3'; ctx.lineWidth = 5;
+          ctx.beginPath(); ctx.arc(e.x, e.y, 12 + (1 - t) * 28, 0, TAU); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(e.x - 24, e.y); ctx.lineTo(e.x + 24, e.y); ctx.moveTo(e.x, e.y - 24); ctx.lineTo(e.x, e.y + 24); ctx.stroke();
+          ctx.beginPath(); ctx.arc(e.x, e.y, 5, 0, TAU); ctx.fill();
         } else if (e.type === 'weight') {
           ctx.globalAlpha = Math.min(1, t * 1.5);
           ctx.fillStyle = '#181b1f';
@@ -8861,7 +9244,7 @@
       if (p.pendingComposite) statuses.push(`COMBINE ${Math.ceil((1 - p.pendingComposite.timer / p.pendingComposite.total) * 100)}%`);
       for (const hand of ['main', 'sub']) {
         const charge = p.shooterCharges?.[hand];
-        if (charge) statuses.push(`TRION CUBE ${hand.toUpperCase()} ${Math.round((1 - charge.timer / Math.max(.001, charge.max)) * 100)}%`);
+        if (charge) statuses.push(charge.ready ? `TRION CUBE ${hand.toUpperCase()} ×${charge.division}` : `TRION CUBE ${hand.toUpperCase()} ${Math.round((1 - charge.timer / Math.max(.001, charge.max)) * 100)}%`);
       }
       if (p.reloadVisual) statuses.push(`RELOAD ${String(p.reloadVisual.hand).toUpperCase()} ${Math.max(0,p.reloadVisual.timer).toFixed(1)}s`);
       for (const hand of ['main', 'sub']) if (p.modifierReady[hand]) statuses.push(`${p.modifierReady[hand].type === 'lead' ? 'LEAD' : 'STAR'}→${hand.toUpperCase()}`);
@@ -8888,7 +9271,7 @@
               ammo.classList.toggle('warning', state.ammo <= Math.max(2, state.capacity * .18));
             } else if (trigger?.kind === 'shooter' && p.shooterCharges?.[hand]?.slot === index) {
               const charge = p.shooterCharges[hand];
-              ammo.textContent = `CUBE ${Math.round((1 - charge.timer / Math.max(.001, charge.max)) * 100)}%`;
+              ammo.textContent = charge.ready ? `READY ×${charge.division}` : `CUBE ${Math.round((1 - charge.timer / Math.max(.001, charge.max)) * 100)}%`;
               ammo.classList.remove('warning');
             } else ammo.textContent = '';
           }

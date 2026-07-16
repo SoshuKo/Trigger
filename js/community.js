@@ -257,6 +257,27 @@
     const y=Math.max(0,Math.min(31,Math.floor((point.clientY-rect.top)/rect.height*32)));
     emblemPixels[y*32+x]=drawValue; $('#userEmblemPreset').value='custom'; drawEmblem();
   }
+  async function loadUserEmblemFile(file) {
+    const message=$('#userEmblemUploadMessage');
+    if(!file)return;
+    try{
+      const bitmap=await createImageBitmap(file);
+      if(bitmap.width!==32||bitmap.height!==32)throw new Error('32×32ピクセルの画像だけ使用できます。');
+      const canvas=document.createElement('canvas');canvas.width=32;canvas.height=32;
+      const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(bitmap,0,0);
+      const data=ctx.getImageData(0,0,32,32).data;const next=[];
+      for(let i=0;i<1024;i++){
+        const r=data[i*4],g=data[i*4+1],b=data[i*4+2],a=data[i*4+3];
+        if(a<24){next.push(0);continue;}
+        const max=Math.max(r,g,b),min=Math.min(r,g,b),lum=(r+g+b)/3;
+        if(max-min>18||!(lum<38||lum>217))throw new Error('白・黒・透明だけで描かれた画像を使用してください。');
+        next.push(lum<128?1:0);
+      }
+      emblemPixels=next;$('#userEmblemPreset').value='custom';drawEmblem();
+      if(message){message.textContent='隊章を読み込みました。';message.classList.remove('error');}
+    }catch(error){if(message){message.textContent=error.message;message.classList.add('error');}}
+  }
+
   function emblemDataUrl(serialized, scale=8) {
     const canvas=document.createElement('canvas');canvas.width=32*scale;canvas.height=32*scale;const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false;ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#071521';
     [...String(serialized||'')].forEach((v,i)=>{if(v==='1')ctx.fillRect((i%32)*scale,Math.floor(i/32)*scale,scale,scale);});return canvas.toDataURL('image/png');
@@ -363,6 +384,7 @@
     $('#userEmblemPreset')?.addEventListener('change',(event)=>{if(event.target.value!=='custom'){emblemPixels=presetPixels(event.target.value);drawEmblem();}});
     $('#userEmblemClear')?.addEventListener('click',()=>{emblemPixels=new Array(1024).fill(0);$('#userEmblemPreset').value='custom';drawEmblem();});
     $('#userEmblemInvert')?.addEventListener('click',()=>{emblemPixels=emblemPixels.map((v)=>v?0:1);$('#userEmblemPreset').value='custom';drawEmblem();});
+    $('#userEmblemUpload')?.addEventListener('change',(event)=>{loadUserEmblemFile(event.target.files?.[0]);event.target.value='';});
     $('#downloadUserEmblem')?.addEventListener('click',()=>{const anchor=document.createElement('a');anchor.href=emblemDataUrl(serializeEmblem(),16);anchor.download=`${($('#userSquadName').value||selectedSquad?.name||'squad')}-emblem.png`;anchor.click();});
     $('#createUserSquad')?.addEventListener('click',async()=>{try{const memberIds=$$('#userSquadFriendChoices input:checked').map((input)=>input.value);await service.createSquad({name:$('#userSquadName').value,color:$('#userSquadColor').value,emblemPixels:serializeEmblem(),memberIds});await refreshFriendsAndSquads();setMessage('隊を結成しました。');}catch(error){setMessage(error.message,true);}});
     $('#saveSquadIdentity')?.addEventListener('click',async()=>{if(!selectedSquad)return;try{await service.updateSquad({squadId:selectedSquad.id,name:$('#editSquadName').value,color:$('#editSquadColor').value,emblemPixels:serializeEmblem()});const leader=$('#editSquadLeader').value;if(leader&&leader!==selectedSquad.leader_id)await service.setSquadLeader(selectedSquad.id,leader);await refreshFriendsAndSquads();setMessage('隊設定を保存しました。');}catch(error){setMessage(error.message,true);}});

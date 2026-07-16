@@ -1,17 +1,17 @@
-# v31「雪山神殿 16-bitデザイン改修」反映手順
+# v32「戦闘・敵視・AIアップデート」反映手順
 
 対象リポジトリ：`SoshuKo/Trigger`
 
 基準にした `main` コミット：
 
 ```text
-d7d572155ca6cd1b968012aea6bf6dee296839ab
+fd010c60800c9e660038a899d25d077f73505028
 ```
 
 推奨コミットメッセージ：
 
 ```text
-Refine Snow Mountain Shrine pixel art
+Add v32 combat and AI update
 ```
 
 ## GitHub版ZIPの上書き先
@@ -20,14 +20,14 @@ Refine Snow Mountain Shrine pixel art
 C:\Users\chiti\OneDrive\デスクトップ\world-trigger-arena
 ```
 
-`world-trigger-arena-v31-overwrite.zip` をデスクトップへ展開し、既存フォルダーへ上書きします。
+`world-trigger-arena-v32-overwrite.zip` をデスクトップへ展開し、既存フォルダーへ上書きします。
 `.git` フォルダーはZIPに含まれていないため、そのまま残ります。
 
 PowerShellで展開する場合：
 
 ```powershell
 Expand-Archive `
-  -Path "$HOME\Downloads\world-trigger-arena-v31-overwrite.zip" `
+  -Path "$HOME\Downloads\world-trigger-arena-v32-overwrite.zip" `
   -DestinationPath "C:\Users\chiti\OneDrive\デスクトップ" `
   -Force
 ```
@@ -40,7 +40,7 @@ Set-Location "C:\Users\chiti\OneDrive\デスクトップ\world-trigger-arena"
 git status --short
 git add -A
 git diff --cached --stat
-git commit -m "Refine Snow Mountain Shrine pixel art"
+git commit -m "Add v32 combat and AI update"
 git pull --rebase origin main
 git push origin main
 git log -1 --oneline
@@ -49,13 +49,13 @@ git log -1 --oneline
 最後が次のようになれば成功です。
 
 ```text
-xxxxxxx Refine Snow Mountain Shrine pixel art
+xxxxxxx Add v32 combat and AI update
 ```
 
 ## 公開確認
 
 ```text
-https://soshuko.github.io/Trigger/?v=31
+https://soshuko.github.io/Trigger/?v=32
 ```
 
 古いファイルが表示される場合は `Ctrl + Shift + R` で強制再読み込みします。
@@ -68,8 +68,8 @@ https://soshuko.github.io/Trigger/?v=31
 C:\Users\chiti\OneDrive\デスクトップ\world-trigger-arena-direct-host
 ```
 
-`world-trigger-arena-direct-host-v31-overwrite.zip` をデスクトップへ展開し、既存フォルダーへ上書きします。
+`world-trigger-arena-direct-host-v32-overwrite.zip` をデスクトップへ展開し、既存フォルダーへ上書きします。
 
 ## Supabaseについて
 
-v31は描画と景観物の改修だけなので、Supabase SQLの再実行やEdge Functionの再デプロイは不要です。
+v32はゲーム本体、設定UI、AI、オンライン戦闘設定の更新です。データベース構造とEdge Functionは変更していないため、Supabase SQLの再実行やEdge Functionの再デプロイは不要です。

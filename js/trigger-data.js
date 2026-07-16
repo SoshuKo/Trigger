@@ -35,8 +35,9 @@
     kogetsu: {
       id: 'kogetsu', name: '弧月', short: '弧月', category: 'attacker', kind: 'melee',
       cost: 3.4, cooldown: 0.46, damage: 28, range: 94,
+      parryCost: 4.6, parryDamage: 22, parryRange: 104,
       description: '攻撃力・耐久力・間合いのバランスに優れた標準ブレード。斬撃直後のジャスト判定で正面の直接攻撃を切ると、被弾を防ぎ残りクールダウンが半減します。',
-      controls: '発動：斬撃／攻撃直後：ジャスト判定',
+      controls: '発動：斬撃／Shift＋発動：いなし攻撃／攻撃直後：ジャスト判定',
     },
     senku: {
       id: 'senku', name: '旋空', short: '旋空', category: 'attacker', kind: 'pairedOption', base: 'kogetsu',
@@ -47,8 +48,8 @@
     scorpion: {
       id: 'scorpion', name: 'スコーピオン', short: 'SCORP', category: 'attacker', kind: 'melee',
       cost: 3.1, cooldown: 0.34, damage: 22, range: 82,
-      description: '軽量で出し入れと変形が自在なブレード。斬撃直後のジャスト判定で正面の直接攻撃を切ると、被弾を防ぎ残りクールダウンが半減します。',
-      controls: '発動：斬撃／Shift＋発動：長刃／攻撃直後：ジャスト判定',
+      description: '軽量で出し入れと変形が自在なブレード。普通・長・短の三形態で、射程・威力・消費量が変化します。',
+      controls: '発動：斬撃／Shift＋発動：普通→長→短を切替',
     },
     raygust: {
       id: 'raygust', name: 'レイガスト', short: 'RAYG', category: 'attacker', kind: 'melee',
@@ -67,44 +68,44 @@
       id: 'shooter_asteroid', name: 'アステロイド（射手）', short: 'AST', category: 'shooter', kind: 'shooter', bullet: 'asteroid',
       cost: 8, cooldown: 0.59, optimalMin: 150, optimalMax: 650,
       description: '特殊機能を持たない通常弾。威力と弾速へ多く配分でき、複数弾を正面へ射出します。適正距離は150～650です。',
-      controls: '発動：分割射撃',
+      controls: '発動：キューブ展開／展開後Shift＋発動：最大5段階へ分割／再発動：射撃',
     },
     shooter_meteor: {
       id: 'shooter_meteor', name: 'メテオラ（射手）', short: 'MET', category: 'shooter', kind: 'shooter', bullet: 'meteor',
       cost: 12, cooldown: 1.12, optimalMin: 180, optimalMax: 620,
       description: '着弾時に爆発する炸裂弾。Shift＋発動で設置弾に切り替え、射撃や爆発で起爆できます。適正距離は180～620です。',
-      controls: '発動：炸裂弾／Shift＋発動：設置',
+      controls: '発動：キューブ展開／展開後Shift＋発動：分割／再発動：射撃',
     },
     shooter_viper: {
       id: 'shooter_viper', name: 'バイパー（射手）', short: 'VIP', category: 'shooter', kind: 'shooter', bullet: 'viper',
       cost: 10, cooldown: 0.78, optimalMin: 180, optimalMax: 720,
       description: '射出ごとに弾道を設定できる変化弾。技術力が高いほど複雑な経路と高い命中精度を得ます。適正距離は180～720です。',
-      controls: '発動：変化弾',
+      controls: '発動：キューブ展開／展開後Shift＋発動：分割／再発動：射撃',
     },
     shooter_hound: {
       id: 'shooter_hound', name: 'ハウンド（射手）', short: 'HOUND', category: 'shooter', kind: 'shooter', bullet: 'hound',
       cost: 10, cooldown: 0.86, optimalMin: 180, optimalMax: 680,
       description: '敵のトリオン反応を追う誘導弾。照準付近の敵を優先し、技術力に応じて追尾性能が上がります。適正距離は180～680です。',
-      controls: '発動：追尾弾',
+      controls: '発動：キューブ展開／展開後Shift＋発動：分割／再発動：射撃',
     },
 
     egret: {
       id: 'egret', name: 'イーグレット', short: 'EGR', category: 'sniper', kind: 'sniper',
-      cost: 17, cooldown: 2.2, damage: 49, speed: 1280, optimalMin: 500, optimalMax: 1900,
+      cost: 17, cooldown: 2.2, damage: 49, speed: 1280, optimalMin: 500, optimalMax: 1900, magazine: 5, reload: 2.25,
       description: '射程を重視した万能型狙撃銃。適正距離は650～1600で、Rキーのスコープから遠方を確認できます。',
-      controls: '発動：狙撃／R：スコープ',
+      controls: '発動：狙撃／Shift＋発動：手動リロード／R：スコープ',
     },
     lightning: {
       id: 'lightning', name: 'ライトニング', short: 'LTN', category: 'sniper', kind: 'sniper',
-      cost: 12, cooldown: 1.18, damage: 27, speed: 1750, optimalMin: 420, optimalMax: 1750,
+      cost: 12, cooldown: 1.18, damage: 27, speed: 1750, optimalMin: 420, optimalMax: 1750, magazine: 8, reload: 1.65,
       description: '軽量で弾速が高く当てやすい狙撃銃。適正距離は520～1450で、Rキーのスコープから遠方を確認できます。',
-      controls: '発動：高速狙撃／R：スコープ',
+      controls: '発動：高速狙撃／Shift＋発動：手動リロード／R：スコープ',
     },
     ibis: {
       id: 'ibis', name: 'アイビス', short: 'IBIS', category: 'sniper', kind: 'sniper',
-      cost: 25, cooldown: 3.15, damage: 72, speed: 820, optimalMin: 380, optimalMax: 1250,
+      cost: 25, cooldown: 3.15, damage: 72, speed: 820, optimalMin: 380, optimalMax: 1250, magazine: 3, reload: 2.8,
       description: '威力特化の重量級狙撃銃。適正距離は480～1000で、Rキーのスコープから遠方を確認できます。',
-      controls: '発動：重狙撃／R：スコープ',
+      controls: '発動：重狙撃／Shift＋発動：手動リロード／R：スコープ',
     },
 
     leadBullet: {
@@ -134,28 +135,28 @@
     },
     bagworm: {
       id: 'bagworm', name: 'バッグワーム', short: 'BAG', category: 'defense', kind: 'toggle', toggle: 'bagworm',
-      cost: 0, drain: 2.4,
-      description: '使用中は敵レーダーから消えます。継続的にトリオンを消費し、攻撃すると一時的に位置が露見します。',
+      cost: 0, drain: 0.34,
+      description: '低消費で敵レーダーと通常の敵視から外れます。被弾した相手の反撃行動だけは防げません。',
       controls: '発動：ON/OFF',
     },
     bagwormTag: {
       id: 'bagwormTag', name: 'バッグワームタグ', short: 'B-TAG', category: 'defense', kind: 'toggle', toggle: 'bagwormTag', occupiesSide: true,
-      cost: 0, drain: 1.15,
-      description: '低消費のバッグワーム。装備した側の残り3枠を使用できなくなる制約をロードアウトで再現します。',
+      cost: 0, drain: 0.16,
+      description: '極低消費で敵レーダーと通常の敵視から外れます。装備側4枠を占有し、被弾した相手の反撃だけは受けます。',
       controls: '発動：ON/OFF／片側4枠を占有',
     },
     chameleon: {
       id: 'chameleon', name: 'カメレオン', short: 'CAMO', category: 'defense', kind: 'toggle', toggle: 'chameleon',
-      cost: 3, drain: 5.2,
-      description: '風景に溶け込み視認されにくくなります。レーダーには映り、使用中は他のトリガーを発動できません。',
+      cost: 2.4, drain: 2.35,
+      description: '風景に溶け込み敵視を大きく切ります。大威力の被弾や至近距離の発見を除き、敵から追跡されにくくなります。',
       controls: '発動：ON/OFF',
     },
 
     spider: {
       id: 'spider', name: 'スパイダー', short: 'SPIDER', category: 'mobility', kind: 'wire',
       cost: 5, cooldown: 0.72,
-      description: '自分と照準地点の間にワイヤーを張ります。敵の移動を阻害し、メテオラ設置弾と近接させると罠として機能します。',
-      controls: '発動：ワイヤー設置',
+      description: '通常ワイヤーは敵の移動を強く阻害します。ばねワイヤーは接触した対象をトランポリンのように跳ね飛ばします。',
+      controls: '発動：設置／Shift＋発動：通常・ばね切替',
     },
     teleporter: {
       id: 'teleporter', name: 'テレポーター', short: 'TELE', category: 'mobility', kind: 'teleport',
@@ -165,7 +166,7 @@
     },
     grasshopper: {
       id: 'grasshopper', name: 'グラスホッパー', short: 'GRASS', category: 'mobility', kind: 'boost',
-      cost: 7, cooldown: 0.62,
+      cost: 6, cooldown: 0.56,
       description: '空中足場の反発力で急加速します。自分だけでなく接触した他の物体にも作用します。',
       controls: '発動：照準方向へ跳躍',
     },
@@ -206,7 +207,7 @@
         magazine: Math.max(2, Math.round(gunStats[gun].magazine * ({ asteroid: 1, hound: .8, viper: .85, meteor: .5 }[bullet] || 1))),
         reload: gunStats[gun].reload * ({ asteroid: 1, hound: 1.08, viper: 1.12, meteor: 1.25 }[bullet] || 1),
         description: `${gunName}に${bulletName}を設定。装弾数${Math.max(2, Math.round(gunStats[gun].magazine * ({ asteroid: 1, hound: .8, viper: .85, meteor: .5 }[bullet] || 1)))}。適正距離は${gunStats[gun].optimalMin}～${gunStats[gun].optimalMax}で、範囲外ではダメージが半減します。`,
-        controls: `${gun === 'assault' || gun === 'gatling' ? '長押し：連射' : '発動：射撃'}／弾切れ：自動リロード／R：スコープ`,
+        controls: `${gun === 'assault' || gun === 'gatling' ? '長押し：連射' : '発動：射撃'}／Shift＋発動：手動リロード／R：スコープ`,
       };
     }
   }

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
   <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=31" />
+  <link rel="stylesheet" href="styles.css?v=32" />
 </head>
 <body>
   <main id="app">
@@ -16,6 +16,7 @@
         <p class="title-kicker">B-GRADE RANK WAR</p>
         <h1>TRION<br>ARENA</h1>
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
+        <div class="version-badge" aria-label="現在のバージョン">VERSION 32</div>
         <div class="title-actions">
           <button id="enterSetupButton" class="title-start" type="button">出撃準備へ</button>
           <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
@@ -141,7 +142,7 @@
           <section class="panel stats-panel combatant-only">
             <div class="panel-heading">
               <span class="step">02</span>
-              <div><h2>能力配分</h2><p>合計18。どれかを上げると他が下がります。</p></div>
+              <div><h2>能力配分</h2><p>スキルなしは合計18、ビギナーズスキル使用時は合計12です。</p></div>
             </div>
             <div id="statsControls" class="stats-controls">
               <div class="stat-control" data-stat="trion">
@@ -161,6 +162,15 @@
               </div>
             </div>
             <div class="budget-row"><span>使用ポイント</span><strong id="budgetValue">18 / 18</strong></div>
+            <div class="beginner-skill-box">
+              <label for="beginnerSkill"><span>ビギナーズスキル</span><select id="beginnerSkill">
+                <option value="none" selected>使用しない（能力配分18）</option>
+                <option value="autoGuard">オートガード（能力配分12）</option>
+                <option value="aimAssist">エイム補正（能力配分12）</option>
+                <option value="thrifty">倹約家（能力配分12）</option>
+              </select></label>
+              <small id="beginnerSkillHelp">スキルを付けない場合は従来どおり18ポイントです。</small>
+            </div>
           </section>
 
           <section class="panel loadout-panel combatant-only">
@@ -204,7 +214,8 @@
               <div class="emblem-editor-wrap">
                 <div class="emblem-heading"><strong>32×32 モノクロ隊章</strong><span>左クリックで描画 / 右クリックで消去</span></div>
                 <canvas id="emblemEditor" width="256" height="256"></canvas>
-                <div class="inline-actions"><button id="clearEmblemButton" type="button">クリア</button><button id="invertEmblemButton" type="button">白黒反転</button></div>
+                <div class="inline-actions"><button id="clearEmblemButton" type="button">クリア</button><button id="invertEmblemButton" type="button">白黒反転</button><label class="file-button">画像読込<input id="emblemUpload" type="file" accept="image/png,image/webp" hidden></label></div>
+                <small id="emblemUploadMessage">32×32ピクセルの白黒画像だけ使用できます。</small>
                 <small>NPCや敵チームには、漢字二文字+隊の汎用隊名と汎用エンブレムが自動で割り当てられます。</small>
               </div>
             </div>
@@ -237,6 +248,37 @@
               <div><kbd>L</kbd><span>戦闘ログ</span></div>
               <div><kbd>G</kbd><span>操作ガイド</span></div>
               <div><kbd>P / Esc</kbd><span>一時停止・メニュー</span></div>
+            </div>
+            <div class="keybind-settings">
+              <div class="keybind-heading"><strong>キー割り当て</strong><button id="resetKeybinds" type="button" class="secondary">標準に戻す</button></div>
+              <div id="keybindGrid" class="keybind-grid">
+                <label>上移動<button type="button" data-keybind="moveUp">W</button></label>
+                <label>下移動<button type="button" data-keybind="moveDown">S</button></label>
+                <label>左移動<button type="button" data-keybind="moveLeft">A</button></label>
+                <label>右移動<button type="button" data-keybind="moveRight">D</button></label>
+                <label>右手1<button type="button" data-keybind="mainSlot1">1</button></label>
+                <label>右手2<button type="button" data-keybind="mainSlot2">2</button></label>
+                <label>右手3<button type="button" data-keybind="mainSlot3">3</button></label>
+                <label>右手4<button type="button" data-keybind="mainSlot4">4</button></label>
+                <label>左手1<button type="button" data-keybind="subSlot1">5</button></label>
+                <label>左手2<button type="button" data-keybind="subSlot2">6</button></label>
+                <label>左手3<button type="button" data-keybind="subSlot3">7</button></label>
+                <label>左手4<button type="button" data-keybind="subSlot4">8</button></label>
+                <label>特殊操作<button type="button" data-keybind="modifier">SHIFT</button></label>
+                <label>合成・マンティス<button type="button" data-keybind="combo">C</button></label>
+                <label>スコープ<button type="button" data-keybind="scope">R</button></label>
+                <label>機能切替<button type="button" data-keybind="utility">Z</button></label>
+                <label>ベイルアウト<button type="button" data-keybind="bailout">B</button></label>
+                <label>旗修復<button type="button" data-keybind="flagRepair">F</button></label>
+                <label>観戦切替<button type="button" data-keybind="spectate">V</button></label>
+                <label>観戦・前<button type="button" data-keybind="spectatorPrev">Q</button></label>
+                <label>観戦・次<button type="button" data-keybind="spectatorNext">E</button></label>
+                <label>指示パネル<button type="button" data-keybind="operatorPanel">O</button></label>
+                <label>戦闘ログ<button type="button" data-keybind="battleLog">L</button></label>
+                <label>ガイド<button type="button" data-keybind="guide">G</button></label>
+                <label>一時停止<button type="button" data-keybind="pause">P</button></label>
+              </div>
+              <small id="keybindMessage">変更する項目を押してから、新しいキーを入力してください。</small>
             </div>
             <label class="guide-setting"><span><strong>操作ガイド</strong><small>試合中にキーやボタンの役割を表示します。</small></span><input id="guideEnabled" type="checkbox" checked><i></i></label>
             <label class="guide-setting"><span><strong>効果音</strong><small>攻撃・狙撃・爆発などの効果音を再生します。</small></span><input id="soundEnabled" type="checkbox" checked><i></i></label>
@@ -314,6 +356,8 @@
                   <label>隊章プリセット<select id="userEmblemPreset"><option value="cube">キューブ</option><option value="cross">クロス</option><option value="fang">ファング</option><option value="shield">シールド</option><option value="wing">ウィング</option><option value="road">ロード</option><option value="tower">タワー</option><option value="custom">カスタム</option></select></label>
                   <button id="userEmblemClear" type="button">クリア</button>
                   <button id="userEmblemInvert" type="button">白黒反転</button>
+                  <label class="file-button">画像読込<input id="userEmblemUpload" type="file" accept="image/png,image/webp" hidden></label>
+                  <small id="userEmblemUploadMessage">32×32の白黒画像のみ</small>
                   <button id="downloadUserEmblem" type="button">PNGダウンロード</button>
                 </div>
               </div>
@@ -562,10 +606,10 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/online-config.js?v=31"></script>
-  <script src="js/trigger-data.js?v=31"></script>
-  <script src="js/online.js?v=31"></script>
-  <script src="js/community.js?v=31"></script>
-  <script src="js/game.js?v=31"></script>
+  <script src="js/online-config.js?v=32"></script>
+  <script src="js/trigger-data.js?v=32"></script>
+  <script src="js/online.js?v=32"></script>
+  <script src="js/community.js?v=32"></script>
+  <script src="js/game.js?v=32"></script>
 </body>
 </html>
