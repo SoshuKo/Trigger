@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
   <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=44" />
+  <link rel="stylesheet" href="styles.css?v=57" />
 </head>
 <body>
   <main id="app">
@@ -16,7 +16,7 @@
         <p class="title-kicker">B-GRADE RANK WAR</p>
         <h1>TRION<br>ARENA</h1>
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
-        <div class="version-badge" aria-label="現在のバージョン">VERSION 55</div>
+        <div class="version-badge" aria-label="現在のバージョン">VERSION 57</div>
         <div class="title-actions">
           <button id="enterSetupButton" class="title-start" type="button">出撃準備へ</button>
           <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
@@ -77,7 +77,20 @@
               <button type="button" data-mode="solo" class="active">個人戦</button>
               <button type="button" data-mode="team">チーム戦</button>
               <button type="button" data-mode="defense">防衛戦</button>
-              <button type="button" data-mode="sandbox">サンドボックス</button>
+              <button type="button" data-mode="extra">エキストラ</button>
+            </div>
+
+            <div id="extraModeFields" class="extra-mode-fields hidden">
+              <div class="extra-mode-title"><strong>EXTRA ASSIGNMENT</strong><span>通常ルールへ防衛戦ユニットを参加させます。</span></div>
+              <label class="field-label" for="extraBaseMode">基礎ルール</label>
+              <select id="extraBaseMode"><option value="solo">個人戦</option><option value="team">チーム戦</option><option value="defense">防衛戦</option></select>
+              <label class="field-label" for="extraPlayerType">自分の形態</label>
+              <select id="extraPlayerType"></select>
+              <div id="extraDefenseEnemyRow">
+                <label class="field-label" for="extraDefenseEnemyType">侵攻側へ追加する固定個体</label>
+                <select id="extraDefenseEnemyType"></select>
+              </div>
+              <small class="field-help">CPUは下の参加CPU設定から、個体ごとに形態を指定できます。</small>
             </div>
 
             <label class="field-label" for="participationRole">参加方法</label>
@@ -543,23 +556,6 @@
         <small>位置指定型の指示と支援は、ボタンを押した後に戦場をタップします。WASDまたは左パッドで作戦画面を移動できます。</small>
       </aside>
 
-
-      <aside id="sandboxPanel" class="sandbox-panel hidden" aria-label="サンドボックス操作">
-        <div class="sandbox-heading"><div><span>DEFENSE SANDBOX</span><strong>ユニット実験室</strong></div><button id="sandboxRefreshButton" type="button">更新</button></div>
-        <label>スポーン<select id="sandboxSpawnType"></select></label>
-        <div class="sandbox-row"><button id="sandboxSpawnButton" type="button">照準位置へ生成</button><button id="sandboxClearButton" type="button" class="secondary">生成物を全削除</button></div>
-        <label>操作対象<select id="sandboxEntitySelect"></select></label>
-        <label>攻撃標的<select id="sandboxTargetSelect"></select></label>
-        <div class="sandbox-row"><button id="sandboxControlButton" type="button">操作対象にする</button><button id="sandboxDeleteButton" type="button" class="danger">削除</button></div>
-        <label class="sandbox-check"><input id="sandboxAiToggle" type="checkbox"> このユニットのAIを動かす</label>
-        <div class="sandbox-hp-head"><span>HP</span><strong id="sandboxHpText">0 / 0</strong></div>
-        <input id="sandboxHpSlider" type="range" min="0" max="100" value="100">
-        <div class="sandbox-hp-grid"><button data-sandbox-hp="minus">−10%</button><button data-sandbox-hp="plus">＋10%</button><button data-sandbox-hp="one">1 HP</button><button data-sandbox-hp="full">全回復</button><button data-sandbox-hp="down">撃破</button><button data-sandbox-hp="revive">復帰</button></div>
-        <div class="sandbox-section-title">モーション／攻撃</div>
-        <div id="sandboxActionGrid" class="sandbox-action-grid"></div>
-        <small>WASD：移動　マウス：照準　1～6：モーション　Q/E：操作対象変更。隊員はMAIN/SUBクリックでも攻撃できます。</small>
-      </aside>
-
       <aside id="debugPanel" class="debug-panel hidden">
         <div class="debug-heading"><div><span>MATCH RECORD</span><strong id="debugMatchLabel">---</strong></div><button id="closeDebugButton" type="button">×</button></div>
         <div id="debugSummary" class="debug-summary"></div>
@@ -637,6 +633,6 @@
   <script src="js/trigger-data.js?v=32"></script>
   <script src="js/online.js?v=32"></script>
   <script src="js/community.js?v=32"></script>
-  <script src="js/game.js?v=55"></script>
+  <script src="js/game.js?v=57"></script>
 </body>
 </html>

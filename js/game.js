@@ -31,7 +31,38 @@
   const WEATHER_TYPES = ['clear', 'cloudy', 'rain'];
   const MAP_IDS = ['city', 'desert', 'snowShrine', 'underground'];
   const MAP_LABELS = { city: '市街', desert: '砂漠', snowShrine: '雪山神殿', underground: '地下通路' };
-  const MODE_LABELS = { solo: '個人戦', team: 'チーム戦', defense: '防衛戦', sandbox: 'サンドボックス' };
+  const MODE_LABELS = { solo: '個人戦', team: 'チーム戦', defense: '防衛戦', extra: 'エキストラ' };
+
+  const EXTRA_BASE_MODE_LABELS = { solo: '個人戦', team: 'チーム戦', defense: '防衛戦' };
+  const EXTRA_UNIT_DEFS = {
+    agent: { label:'隊員', category:'隊員', hp:0, speed:0, radius:0, boss:false },
+    marmod: { label:'モールモッド', category:'トリオン兵', hp:112, speed:184, radius:24, damage:16 },
+    ilgar: { label:'イルガー', category:'トリオン兵', hp:395, speed:82, radius:58, damage:19, flying:true },
+    rabbit: { label:'ラービット', category:'トリオン兵', hp:485, speed:114, radius:33, damage:25 },
+    fujin: { label:'風刃', category:'ブラックトリガー', hp:1650, speed:137, radius:27, damage:35, boss:true },
+    seals: { label:'印', category:'ブラックトリガー', hp:1780, speed:151, radius:27, damage:32, boss:true },
+    alektor: { label:'アレクトール', category:'ブラックトリガー', hp:1920, speed:116, radius:29, damage:29, boss:true },
+    borboros: { label:'ボルボロス', category:'ブラックトリガー', hp:1840, speed:139, radius:29, damage:33, boss:true },
+    organon: { label:'オルガノン', category:'ブラックトリガー', hp:2150, speed:101, radius:29, damage:39, boss:true },
+    skeletonAttacker: { label:'骸骨アタッカー', category:'百鬼夜行', hp:118, speed:168, radius:18, damage:18 },
+    skeletonShooter: { label:'骸骨シューター', category:'百鬼夜行', hp:98, speed:146, radius:18, damage:17 },
+    skeletonSniper: { label:'骸骨スナイパー', category:'百鬼夜行', hp:92, speed:136, radius:18, damage:21 },
+    yamagu: { label:'山狗', category:'百鬼夜行', hp:2050, speed:124, radius:56, damage:31, boss:true },
+    yagarasu: { label:'夜鴉', category:'百鬼夜行', hp:2140, speed:142, radius:58, damage:28, boss:true, flying:true },
+    whitefox: { label:'白狐', category:'百鬼夜行', hp:2230, speed:152, radius:55, damage:30, boss:true },
+    nekomata: { label:'猫又', category:'百鬼夜行', hp:2360, speed:146, radius:58, damage:32, boss:true },
+    orochi: { label:'大蛇', category:'百鬼夜行', hp:3560, speed:86, radius:86, damage:36, boss:true },
+  };
+  const EXTRA_PARRY_TYPES = new Set(['fujin','alektor','organon','yamagu','yagarasu','whitefox','nekomata']);
+  const effectiveSetupMode = (source = setup) => source.mode === 'extra' ? (source.extraBaseMode || 'solo') : source.mode;
+  const extraUnitOptionsHtml = (selected = 'agent', includeAgent = true) => {
+    const groups = {};
+    for (const [id, def] of Object.entries(EXTRA_UNIT_DEFS)) {
+      if (!includeAgent && id === 'agent') continue;
+      (groups[def.category] ||= []).push([id, def]);
+    }
+    return Object.entries(groups).map(([group, items]) => `<optgroup label="${group}">${items.map(([id,def]) => `<option value="${id}"${id===selected?' selected':''}>${def.label}</option>`).join('')}</optgroup>`).join('');
+  };
   const DEFENSE_SCENARIO_LABELS = { blackTrigger: 'ブラックトリガー', hyakki: '百鬼夜行' };
   const isSquadModeValue = (mode) => mode === 'team' || mode === 'defense';
   const TIME_LABELS = { morning: '朝', day: '昼', night: '夜' };
@@ -60,7 +91,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 55;
+  const GAME_VERSION = 57;
   const BEGINNER_SKILLS = {
     none: { label: '使用しない', budget: 18, description: '従来どおり18ポイントを能力へ配分します。' },
     autoGuard: { label: 'オートガード', budget: 12, description: 'シールドまたはレイガスト装備時、被弾直前に自動防御します。' },
@@ -343,6 +374,9 @@
 
   const setup = {
     mode: 'solo',
+    extraBaseMode: 'solo',
+    extraPlayerType: 'agent',
+    extraDefenseEnemyType: 'agent',
     stats: { trion: 6, technique: 6, combat: 6 },
     beginnerSkill: 'none',
     budget: 18,
@@ -368,7 +402,8 @@
   const CPU_NAMES = ['AZ-01', 'MI-02', 'KA-03', 'SU-04', 'NA-05', 'OU-06', 'IK-07', 'YU-08', 'AR-09', 'NI-10', 'KU-11', 'TS-12', 'KO-13', 'IK-14', 'SA-15', 'KI-16', 'UR-17', 'TO-18', 'EB-19'];
 
   function balancedCpuTemplateIndex(index, source = setup) {
-    if (!isSquadModeValue(source.mode)) return index % DATA.aiLoadouts.length;
+    const effectiveMode = effectiveSetupMode(source);
+    if (!isSquadModeValue(effectiveMode)) return index % DATA.aiLoadouts.length;
     const team = cpuTeamForIndex(index, source);
     let priorInTeam = 0;
     for (let i = 0; i < index; i++) if (cpuTeamForIndex(i, source) === team) priorInTeam += 1;
@@ -396,6 +431,7 @@
       sub: [...template.sub],
       squadName,
       appearance: randomCpuAppearance(index, index % 2),
+      extraType: 'agent',
     };
   }
 
@@ -404,16 +440,17 @@
   }
 
   function requiredCpuCount() {
-    if (setup.mode === 'sandbox') return 0;
-    if (setup.mode === 'solo') return Number($('#cpuCount')?.value || 11);
-    if (setup.mode === 'defense') return Math.max(0, setup.teamSize - (playerOccupiesCombatantSlot() ? 1 : 0));
+    const mode = effectiveSetupMode(setup);
+    if (mode === 'solo') return Number($('#cpuCount')?.value || 11);
+    if (mode === 'defense') return Math.max(0, setup.teamSize - (playerOccupiesCombatantSlot() ? 1 : 0));
     const totalCombatants = setup.teamSize * setup.teamCount;
     return Math.max(1, totalCombatants - (playerOccupiesCombatantSlot() ? 1 : 0));
   }
 
   function cpuTeamForIndex(index, source = setup) {
-    if (source.mode === 'defense') return 0;
-    if (source.mode !== 'team') return index + 1;
+    const mode = effectiveSetupMode(source);
+    if (mode === 'defense') return 0;
+    if (mode !== 'team') return index + 1;
     let remaining = index;
     for (let team = 0; team < source.teamCount; team++) {
       const slots = source.teamSize - (team === 0 && source.playerRole === 'combatant' ? 1 : 0);
@@ -426,7 +463,7 @@
   function ensureCpuConfigs() {
     const count = requiredCpuCount();
     while (setup.cpuConfigs.length < count) setup.cpuConfigs.push(makeCpuConfig(setup.cpuConfigs.length));
-    setup.cpuConfigs = setup.cpuConfigs.slice(0, count).map((cfg, i) => ({ ...makeCpuConfig(i), ...cfg, stats: { ...makeCpuConfig(i).stats, ...(cfg.stats || {}) }, main: Array.isArray(cfg.main) && cfg.main.length === 4 ? cfg.main : makeCpuConfig(i).main, sub: Array.isArray(cfg.sub) && cfg.sub.length === 4 ? cfg.sub : makeCpuConfig(i).sub }));
+    setup.cpuConfigs = setup.cpuConfigs.slice(0, count).map((cfg, i) => ({ ...makeCpuConfig(i), ...cfg, extraType: EXTRA_UNIT_DEFS[cfg.extraType] ? cfg.extraType : 'agent', stats: { ...makeCpuConfig(i).stats, ...(cfg.stats || {}) }, main: Array.isArray(cfg.main) && cfg.main.length === 4 ? cfg.main : makeCpuConfig(i).main, sub: Array.isArray(cfg.sub) && cfg.sub.length === 4 ? cfg.sub : makeCpuConfig(i).sub }));
   }
 
   function rebalanceCpuStat(config, changed, desired) {
@@ -536,19 +573,22 @@
     const root = $('#cpuConfigList');
     if (!root) return;
     const count = requiredCpuCount();
-    $('#cpuRosterSummary').textContent = setup.mode === 'team'
-      ? `${setup.teamCount}チーム × 戦闘員${setup.teamSize}人・オペレーター各1人`
-      : setup.mode === 'defense'
-        ? `防衛隊 戦闘員${setup.teamSize}人・オペレーター1人`
-        : setup.mode === 'sandbox' ? '任意スポーン・直接操作' : `CPU ${count}人`;
+    const effectiveMode = effectiveSetupMode(setup);
+    $('#cpuRosterSummary').textContent = effectiveMode === 'team'
+      ? `${setup.teamCount}チーム × 戦闘員${setup.teamSize}人・オペレーター各1人${setup.mode==='extra'?' / EXTRA':''}`
+      : effectiveMode === 'defense'
+        ? `防衛隊 戦闘員${setup.teamSize}人・オペレーター1人${setup.mode==='extra'?' / EXTRA':''}`
+        : `CPU ${count}人${setup.mode==='extra'?' / EXTRA':''}`;
     root.innerHTML = '';
     setup.cpuConfigs.forEach((config, index) => {
-      const team = isSquadModeValue(setup.mode) ? cpuTeamForIndex(index) : index + 1;
-      const teamText = setup.mode === 'team' ? TEAM_SHORT_NAMES[team] : setup.mode === 'defense' ? 'DEFENSE' : 'SOLO';
+      const mode = effectiveSetupMode(setup);
+      const team = isSquadModeValue(mode) ? cpuTeamForIndex(index) : index + 1;
+      const teamText = mode === 'team' ? TEAM_SHORT_NAMES[team] : mode === 'defense' ? 'DEFENSE' : 'SOLO';
       const card = document.createElement('details');
       card.className = 'cpu-card';
-      card.innerHTML = `<summary><span class="cpu-cube-icon">${String(index + 1).padStart(2, '0')}</span><span class="cpu-card-title"><strong>${config.name}</strong><span>${config.archetype} / T${config.stats.trion} 技${config.stats.technique} 戦${config.stats.combat}</span></span><span class="cpu-team-tag" style="color:${isSquadModeValue(setup.mode) ? TEAM_COLORS[team] : '#9db3bc'}">${teamText}</span></summary><div class="cpu-card-body"><div class="cpu-basic-grid"><label>名称<input class="cpu-name" value="${config.name.replace(/"/g, '&quot;')}"></label><label>基本型<select class="cpu-archetype">${DATA.aiLoadouts.map((t) => `<option value="${t.name}"${t.name === config.archetype ? ' selected' : ''}>${t.name}</option>`).join('')}</select></label></div><div class="cpu-stat-row">${['trion','technique','combat'].map((key) => `<label>${key === 'trion' ? 'トリオン' : key === 'technique' ? '技術' : '戦闘'} <output>${config.stats[key]}</output><input type="range" min="2" max="10" value="${config.stats[key]}" data-stat="${key}"></label>`).join('')}</div><div class="cpu-loadout">${['main','sub'].map((hand) => `<div class="cpu-loadout-column"><b>${hand === 'main' ? 'RIGHT / MAIN' : 'LEFT / SUB'}</b>${config[hand].map((id, slot) => `<label>${slot + 1}<select data-hand="${hand}" data-slot="${slot}">${triggerOptionsHtml(id)}</select></label>`).join('')}</div>`).join('')}</div></div>`;
+      card.innerHTML = `<summary><span class="cpu-cube-icon">${String(index + 1).padStart(2, '0')}</span><span class="cpu-card-title"><strong>${config.name}</strong><span>${config.archetype} / T${config.stats.trion} 技${config.stats.technique} 戦${config.stats.combat}</span></span><span class="cpu-team-tag" style="color:${isSquadModeValue(mode) ? TEAM_COLORS[team] : '#9db3bc'}">${teamText}</span></summary><div class="cpu-card-body"><div class="cpu-basic-grid"><label>名称<input class="cpu-name" value="${config.name.replace(/"/g, '&quot;')}"></label><label>基本型<select class="cpu-archetype">${DATA.aiLoadouts.map((t) => `<option value="${t.name}"${t.name === config.archetype ? ' selected' : ''}>${t.name}</option>`).join('')}</select></label>${setup.mode==='extra'?`<label>エキストラ形態<select class="cpu-extra-type">${extraUnitOptionsHtml(config.extraType||'agent')}</select></label>`:''}</div><div class="cpu-stat-row">${['trion','technique','combat'].map((key) => `<label>${key === 'trion' ? 'トリオン' : key === 'technique' ? '技術' : '戦闘'} <output>${config.stats[key]}</output><input type="range" min="2" max="10" value="${config.stats[key]}" data-stat="${key}"></label>`).join('')}</div><div class="cpu-loadout">${['main','sub'].map((hand) => `<div class="cpu-loadout-column"><b>${hand === 'main' ? 'RIGHT / MAIN' : 'LEFT / SUB'}</b>${config[hand].map((id, slot) => `<label>${slot + 1}<select data-hand="${hand}" data-slot="${slot}">${triggerOptionsHtml(id)}</select></label>`).join('')}</div>`).join('')}</div></div>`;
       card.querySelector('.cpu-name').addEventListener('input', (event) => { config.name = event.target.value.slice(0, 18) || `CPU-${index + 1}`; saveSetup(); });
+      card.querySelector('.cpu-extra-type')?.addEventListener('change', (event) => { config.extraType = EXTRA_UNIT_DEFS[event.target.value] ? event.target.value : 'agent'; saveSetup(); });
       card.querySelector('.cpu-archetype').addEventListener('change', (event) => { const template = DATA.aiLoadouts.find((t) => t.name === event.target.value); config.archetype = template.name; config.main = [...template.main]; config.sub = [...template.sub]; buildCpuConfigList(); saveSetup(); });
       card.querySelectorAll('input[data-stat]').forEach((input) => input.addEventListener('input', (event) => {
         rebalanceCpuStat(config, event.target.dataset.stat, Number(event.target.value));
@@ -562,16 +602,17 @@
   }
 
   function syncModeFields() {
-    const isTeam = setup.mode === 'team';
-    const isDefense = setup.mode === 'defense';
-    const isSandbox = setup.mode === 'sandbox';
+    const isExtra = setup.mode === 'extra';
+    const effectiveMode = effectiveSetupMode(setup);
+    const isTeam = effectiveMode === 'team';
+    const isDefense = effectiveMode === 'defense';
     const isSquad = isTeam || isDefense;
-    if (isSandbox) setup.playerRole = 'combatant';
     if (!isSquad && setup.playerRole === 'operator') setup.playerRole = 'spectator';
-    $('#soloCountFields')?.classList.toggle('hidden', isSquad || isSandbox);
-    $('#teamCountFields')?.classList.toggle('hidden', !isSquad || isSandbox);
+    $('#extraModeFields')?.classList.toggle('hidden', !isExtra);
+    $('#soloCountFields')?.classList.toggle('hidden', isSquad);
+    $('#teamCountFields')?.classList.toggle('hidden', !isSquad);
     $('#teamCountOnly')?.classList.toggle('hidden', !isTeam);
-    $('#matchLengthFields')?.classList.toggle('hidden', isDefense || isSandbox);
+    $('#matchLengthFields')?.classList.toggle('hidden', isDefense);
     $('#defenseScenarioField')?.classList.toggle('hidden', !isDefense);
     if ($('#defenseScenario')) $('#defenseScenario').value = setup.defenseScenario;
     if ($('#defenseScenarioHelp')) $('#defenseScenarioHelp').textContent = setup.defenseScenario === 'hyakki'
@@ -580,8 +621,8 @@
     const roleSelect = $('#participationRole');
     if (roleSelect) {
       const operatorOption = roleSelect.querySelector('option[value="operator"]');
-      if (operatorOption) operatorOption.disabled = !isSquad || isSandbox;
-      roleSelect.disabled = isSandbox;
+      if (operatorOption) operatorOption.disabled = !isSquad;
+      roleSelect.disabled = false;
       roleSelect.value = setup.playerRole;
     }
     const roleHelp = {
@@ -589,15 +630,19 @@
       operator: isDefense ? '盤面外から防衛隊へ指示と支援を送り、フラッグ防衛を補助します。' : '盤面には出撃せず、戦闘員数にも含まれません。作戦画面からNPCへ指示と支援を送ります。',
       spectator: isDefense ? '戦闘員数には入らず、防衛戦を観戦します。' : isTeam ? '戦闘員数には入らず、各チームの戦闘を観戦します。' : 'プレイヤーを出撃させず、CPU戦を観戦します。',
     };
-    if ($('#participationHelp')) $('#participationHelp').textContent = isSandbox ? '敵・隊員を生成し、任意のユニットを直接操作します。' : roleHelp[setup.playerRole];
+    if ($('#participationHelp')) $('#participationHelp').textContent = isExtra && setup.playerRole==='combatant' ? `${roleHelp[setup.playerRole]} エキストラ形態を選択できます。` : roleHelp[setup.playerRole];
     $$('.combatant-only').forEach((element) => element.classList.toggle('role-disabled', setup.playerRole !== 'combatant'));
     if ($('#teamRosterHelp')) $('#teamRosterHelp').textContent = isDefense
       ? (setup.playerRole === 'combatant' ? '設定人数にプレイヤーを1人として含みます。共通のフラッグを守ります。' : 'プレイヤーは戦闘員数に含まれず、設定人数ぶんのCPU戦闘員が出撃します。')
       : setup.playerRole === 'combatant'
         ? '自チームの戦闘員数にプレイヤーを1人として含みます。各チームにオペレーターが1人付きます。'
         : 'プレイヤーは戦闘員数に含まれません。全チームが設定人数ぶんのCPU戦闘員を持ちます。';
+    if ($('#extraBaseMode')) $('#extraBaseMode').value = setup.extraBaseMode;
+    if ($('#extraPlayerType')) $('#extraPlayerType').innerHTML = extraUnitOptionsHtml(setup.extraPlayerType || 'agent');
+    if ($('#extraDefenseEnemyType')) $('#extraDefenseEnemyType').innerHTML = extraUnitOptionsHtml(setup.extraDefenseEnemyType || 'agent');
+    $('#extraDefenseEnemyRow')?.classList.toggle('hidden', !isExtra || !isDefense);
     const rule = $('#mapRuleText');
-    if (rule && isSandbox) rule.textContent = '敵・隊員を自由に生成し、HP・AI・操作対象・攻撃モーションを実験できます。';
+    if (rule && isExtra) rule.textContent = `エキストラ：${EXTRA_BASE_MODE_LABELS[effectiveMode]}の通常ルールで、各参加者を隊員または防衛戦ユニットとして出撃させます。`;
     else if (rule && isDefense) rule.textContent = setup.defenseScenario === 'hyakki'
       ? 'フラッグを守りながら、骸骨兵と百鬼夜行の妖怪ボスを迎撃します。Fキーで自分のトリオンを注ぎ、フラッグを修復できます。'
       : 'フラッグを守りながら、ラウンドごとに現れるトリオン兵を撃退します。Fキーで自分のトリオンを注ぎ、フラッグを修復できます。';
@@ -815,6 +860,10 @@
       saveSetup();
     });
 
+    $('#extraBaseMode')?.addEventListener('change', (event) => { setup.extraBaseMode = ['solo','team','defense'].includes(event.target.value) ? event.target.value : 'solo'; syncModeFields(); saveSetup(); });
+    $('#extraPlayerType')?.addEventListener('change', (event) => { setup.extraPlayerType = EXTRA_UNIT_DEFS[event.target.value] ? event.target.value : 'agent'; saveSetup(); });
+    $('#extraDefenseEnemyType')?.addEventListener('change', (event) => { setup.extraDefenseEnemyType = EXTRA_UNIT_DEFS[event.target.value] ? event.target.value : 'agent'; saveSetup(); });
+
     $('#cpuCount').addEventListener('input', (event) => {
       $('#cpuCountValue').textContent = event.target.value;
       buildCpuConfigList();
@@ -906,6 +955,9 @@
     try {
       localStorage.setItem('trionArenaSetup', JSON.stringify({
         mode: setup.mode,
+        extraBaseMode: setup.extraBaseMode,
+        extraPlayerType: setup.extraPlayerType,
+        extraDefenseEnemyType: setup.extraDefenseEnemyType,
         stats: setup.stats,
         beginnerSkill: setup.beginnerSkill,
         keyBindings: setup.keyBindings,
@@ -937,7 +989,11 @@
     try {
       const saved = JSON.parse(localStorage.getItem('trionArenaSetup'));
       if (!saved) return;
-      if (['solo', 'team', 'defense', 'sandbox'].includes(saved.mode)) setup.mode = saved.mode;
+      if (['solo', 'team', 'defense', 'extra'].includes(saved.mode)) setup.mode = saved.mode;
+      else if (saved.mode === 'sandbox') setup.mode = 'extra';
+      if (['solo','team','defense'].includes(saved.extraBaseMode)) setup.extraBaseMode = saved.extraBaseMode;
+      if (EXTRA_UNIT_DEFS[saved.extraPlayerType]) setup.extraPlayerType = saved.extraPlayerType;
+      if (EXTRA_UNIT_DEFS[saved.extraDefenseEnemyType]) setup.extraDefenseEnemyType = saved.extraDefenseEnemyType;
       setup.beginnerSkill = BEGINNER_SKILLS[saved.beginnerSkill] ? saved.beginnerSkill : 'none';
       setup.budget = BEGINNER_SKILLS[setup.beginnerSkill].budget;
       if (saved.stats) setup.stats = normalizeStatsToBudget(saved.stats, setup.budget);
@@ -1006,7 +1062,7 @@
         : mapId === 'underground'
           ? '旅客用ホームと業務用通路が連結した地下通路です。通過電車、水路、汚泥、ブレーカーなどのギミックがあります。'
           : '道路・河川・林・ビルが混在する市街戦マップです。';
-    if (rule && setup.mode !== 'defense') rule.textContent = mapId === 'desert'
+    if (rule && setup.mode !== 'defense' && setup.mode !== 'extra') rule.textContent = mapId === 'desert'
       ? '砂漠では昼は日陰・オアシス、夜は火のそばで環境によるトリオン消費増加を解除できます。ガス田付近で爆発攻撃を使うと大爆発します。'
       : mapId === 'snowShrine'
         ? '雪庭ではトリオン消費が34%増加します。障子と人魂は再生し、酒樽は爆発攻撃で誘爆します。東西の神像は一定間隔でトリオンを分けます。'
@@ -1017,6 +1073,9 @@
 
   function syncSetupUI() {
     $$('#modeSelector button').forEach((b) => b.classList.toggle('active', b.dataset.mode === setup.mode));
+    if ($('#extraBaseMode')) $('#extraBaseMode').value = setup.extraBaseMode;
+    if ($('#extraPlayerType')) $('#extraPlayerType').innerHTML = extraUnitOptionsHtml(setup.extraPlayerType || 'agent');
+    if ($('#extraDefenseEnemyType')) $('#extraDefenseEnemyType').innerHTML = extraUnitOptionsHtml(setup.extraDefenseEnemyType || 'agent');
     $('#cpuCountValue').textContent = $('#cpuCount').value;
     $('#difficulty').value = setup.difficulty;
     $('#mapId').value = setup.mapId;
@@ -1042,14 +1101,19 @@
   }
 
   function getSetupConfig() {
+    const effectiveMode = effectiveSetupMode(setup);
     return {
-      mode: setup.mode,
+      mode: effectiveMode,
+      extraEnabled: setup.mode === 'extra',
+      extraBaseMode: effectiveMode,
+      extraPlayerType: setup.mode === 'extra' ? setup.extraPlayerType : 'agent',
+      extraDefenseEnemyType: setup.mode === 'extra' ? setup.extraDefenseEnemyType : 'agent',
       playerRole: setup.playerRole,
       cpuCount: requiredCpuCount(),
-      teamCount: setup.mode === 'team' ? setup.teamCount : setup.mode === 'defense' ? 1 : 0,
+      teamCount: effectiveMode === 'team' ? setup.teamCount : effectiveMode === 'defense' ? 1 : 0,
       teamSize: setup.teamSize,
       defenseScenario: setup.defenseScenario,
-      matchLength: ['defense','sandbox'].includes(setup.mode) ? 0 : Number($('#matchLength').value),
+      matchLength: effectiveMode === 'defense' ? 0 : Number($('#matchLength').value),
       difficulty: setup.difficulty,
       mapId: setup.mapId,
       timeOfDay: setup.timeOfDay,
@@ -1425,11 +1489,11 @@
       this.mapId = MAP_IDS.includes(config.mapId) ? config.mapId : 'city';
       this.playerRole = PLAYER_ROLES.includes(config.playerRole) ? config.playerRole : 'combatant';
       this.playerTeam = Number(this.onlineLocalMember?.team || 0);
-      this.isSandboxMode = config.mode === 'sandbox';
+      this.isExtraMode = Boolean(config.extraEnabled);
       this.isDefenseMode = config.mode === 'defense';
       this.defenseScenario = DEFENSE_SCENARIO_LABELS[config.defenseScenario] ? config.defenseScenario : 'blackTrigger';
       this.teamCount = config.mode === 'team' ? clamp(Number(config.teamCount || 2), 2, 4) : this.isDefenseMode ? 1 : 0;
-      this.isPlayerCombatant = this.isSandboxMode || this.playerRole === 'combatant';
+      this.isPlayerCombatant = this.playerRole === 'combatant';
       this.isPlayerOperator = (config.mode === 'team' || this.isDefenseMode) && this.playerRole === 'operator';
       this.isSetupSpectator = this.playerRole === 'spectator';
       this.canvas = $('#gameCanvas');
@@ -1506,7 +1570,7 @@
       this.traps = [];
       this.beacons = [];
       this.pickups = [];
-      this.isUnlimited = this.isDefenseMode || this.isSandboxMode || !Number.isFinite(config.matchLength) || config.matchLength <= 0;
+      this.isUnlimited = this.isDefenseMode || !Number.isFinite(config.matchLength) || config.matchLength <= 0;
       this.matchTime = this.isUnlimited ? Infinity : config.matchLength;
       this.activationCounter = 0;
       this.pickupStats = { baseSpawned: 0, temporarySpawned: 0, temporaryExpired: 0, peakTotal: 0 };
@@ -1544,7 +1608,6 @@
       this.resize();
       this.generateArena();
       this.spawnCombatants();
-      if (this.isSandboxMode) this.initializeSandboxMode();
       if (this.isOnlineMatch) this.setupOnlineNetworking();
       this.buildSlotHud();
       this.updateStaticHud();
@@ -1552,7 +1615,7 @@
       this.setGuideVisible(this.guideVisible);
       this.refreshOperatorUi();
       this.updateEnvironmentLabel();
-      this.logEvent('match_start', `${MAP_LABELS[this.mapId]} / ${MODE_LABELS[this.config.mode] || '個人戦'} / ${AI_DIFFICULTIES[this.config.difficulty]?.label || '普通'}`);
+      this.logEvent('match_start', `${MAP_LABELS[this.mapId]} / ${this.isExtraMode ? `エキストラ・${MODE_LABELS[this.config.mode]}` : (MODE_LABELS[this.config.mode] || '個人戦')} / ${AI_DIFFICULTIES[this.config.difficulty]?.label || '普通'}`);
     }
 
     setupOnlineNetworking() {
@@ -2093,17 +2156,6 @@
       bind('#exportCurrentCsvButton', () => this.exportCurrentLog('csv'));
       bind('#resultJsonButton', () => this.exportCurrentLog('json'));
       bind('#resultCsvButton', () => this.exportCurrentLog('csv'));
-      bind('#sandboxSpawnButton', () => this.spawnSandboxUnit());
-      bind('#sandboxClearButton', () => this.clearSandboxSpawned());
-      bind('#sandboxDeleteButton', () => this.deleteSandboxUnit());
-      bind('#sandboxControlButton', () => { const value=$('#sandboxEntitySelect')?.value; if(value){this.sandboxControlledId=value;this.refreshSandboxPanel(true);} });
-      bind('#sandboxRefreshButton', () => this.refreshSandboxPanel(true));
-      const sandboxEntity=$('#sandboxEntitySelect'); if(sandboxEntity){const handler=(e)=>{this.sandboxControlledId=e.target.value;this.refreshSandboxPanel(true);};sandboxEntity.addEventListener('change',handler);this.uiListeners.push(()=>sandboxEntity.removeEventListener('change',handler));}
-      const sandboxTarget=$('#sandboxTargetSelect'); if(sandboxTarget){const handler=(e)=>{this.sandboxTargetId=e.target.value||null;};sandboxTarget.addEventListener('change',handler);this.uiListeners.push(()=>sandboxTarget.removeEventListener('change',handler));}
-      const sandboxAi=$('#sandboxAiToggle'); if(sandboxAi){const handler=(e)=>{const unit=this.getSandboxControlled();if(unit)unit.sandboxAiEnabled=e.target.checked;};sandboxAi.addEventListener('change',handler);this.uiListeners.push(()=>sandboxAi.removeEventListener('change',handler));}
-      const sandboxHp=$('#sandboxHpSlider'); if(sandboxHp){const handler=(e)=>this.setSandboxHp(null,e.target.value);sandboxHp.addEventListener('input',handler);this.uiListeners.push(()=>sandboxHp.removeEventListener('input',handler));}
-      $$('#sandboxPanel [data-sandbox-hp]').forEach((button)=>{const handler=()=>this.setSandboxHp(button.dataset.sandboxHp);button.addEventListener('click',handler);this.uiListeners.push(()=>button.removeEventListener('click',handler));});
-      const sandboxPanel=$('#sandboxPanel'); if(sandboxPanel){const handler=(e)=>{const button=e.target.closest('[data-sandbox-action]');if(button)this.triggerSandboxMotion(Number(button.dataset.sandboxAction));};sandboxPanel.addEventListener('click',handler);this.uiListeners.push(()=>sandboxPanel.removeEventListener('click',handler));}
     }
 
     setSoundEnabled(enabled, announce = true) {
@@ -2131,7 +2183,6 @@
       $('#resultOverlay').classList.add('hidden');
       $('#debugPanel').classList.add('hidden');
       $('#operatorPanel').classList.add('hidden');
-      $('#sandboxPanel')?.classList.add('hidden');
       $('#spectatorHud').classList.add('hidden');
       $('#controlGuide').classList.add('hidden');
       $('#gameScreen').classList.add('hidden');
@@ -3031,7 +3082,7 @@
         configuredDurationSeconds: this.isUnlimited ? null : this.config.matchLength,
         unlimited: this.isUnlimited,
         mode: this.config.mode,
-        modeLabel: MODE_LABELS[this.config.mode] || '個人戦',
+        modeLabel: this.isExtraMode ? `エキストラ・${MODE_LABELS[this.config.mode] || '個人戦'}` : (MODE_LABELS[this.config.mode] || '個人戦'),
         difficulty: this.config.difficulty,
         difficultyLabel: AI_DIFFICULTIES[this.config.difficulty]?.label || '普通',
         aiProfile: { ...(AI_DIFFICULTIES[this.config.difficulty] || AI_DIFFICULTIES.normal) },
@@ -3696,7 +3747,7 @@
       const sideOf = (y) => y < track.y - 28 ? 'passenger' : y > track.y + track.h + 28 ? 'service' : 'track';
       const actorSide = sideOf(actor.y);
       if (actorSide === 'track') return false;
-      const opponents = this.players.filter((p) => p !== actor && !p.dead && Boolean(p.isDefenseEnemy) !== Boolean(actor.isDefenseEnemy));
+      const opponents = this.players.filter((p) => p !== actor && !p.dead && this.canDamage(actor, p));
       const opposite = opponents.filter((p) => { const side = sideOf(p.y); return side !== 'track' && side !== actorSide; });
       if (!opposite.length) { actor.autoDoorAccess = null; return false; }
       const controls = this.lightSources.filter((light) => light.kind === 'platformSwitch' && light.subwayDoorSide === actorSide && light.hp > 0);
@@ -4041,7 +4092,7 @@
       const local = roster.find((member) => member.userId === this.localOnlineUserId) || { role: this.playerRole, team: this.playerTeam };
       this.playerRole = local.role || this.playerRole;
       this.playerTeam = this.isDefenseMode ? 0 : Number(local.team || 0);
-      this.isPlayerCombatant = this.isSandboxMode || this.playerRole === 'combatant';
+      this.isPlayerCombatant = this.playerRole === 'combatant';
       this.isPlayerOperator = (this.config.mode === 'team' || this.isDefenseMode) && this.playerRole === 'operator';
       this.isSetupSpectator = this.playerRole === 'spectator';
       this.spectating = this.isSetupSpectator;
@@ -4075,6 +4126,7 @@
         player.onlineUserId = member.userId;
         player.remoteControlled = this.isOnlineHost && !isLocal;
         player.onlineLastInputSeq = -1;
+        this.applyPlayableDefenseForm(player, isLocal ? (this.config.extraPlayerType || 'agent') : (pc.extraType || 'agent'));
         this.players.push(player);
         if (isLocal) {
           this.human = player;
@@ -4102,6 +4154,7 @@
         const squadName = this.config.mode === 'solo' ? (cfg.squadName || GENERIC_SQUAD_NAMES[cpuSerial % GENERIC_SQUAD_NAMES.length]) : (this.teamMeta[team]?.name || cfg.squadName);
         const emblemPixels = this.config.mode === 'solo' ? (appearance.emblemPixels || emblemToString(makeEmblemPreset(appearance.emblemPreset || 'cube'))) : (this.teamMeta[team]?.emblemPixels || appearance.emblemPixels);
         const player = this.createPlayer({ id:`cpu-online-${team}-${cpuSerial}`, name:cfg.name, human:false, team, stats, loadout, archetype:cfg.archetype || template.name, appearance, squadName, emblemPixels });
+        this.applyPlayableDefenseForm(player, cfg.extraType || 'agent');
         this.players.push(player); cpuSerial++;
       };
       if (this.config.mode === 'team') {
@@ -4163,7 +4216,7 @@
         archetype: 'プレイヤー',
         beginnerSkill: this.config.beginnerSkill || 'none',
       }) : null;
-      if (this.human) this.players.push(this.human);
+      if (this.human) { this.applyPlayableDefenseForm(this.human, this.config.extraPlayerType || 'agent'); this.players.push(this.human); }
 
       this.operators = (this.config.mode === 'team' || this.isDefenseMode)
         ? this.teamMeta.map((meta, team) => ({
@@ -4196,7 +4249,7 @@
         const emblemPixels = (this.config.mode === 'team' || this.isDefenseMode)
           ? this.teamMeta[team].emblemPixels
           : (appearance.emblemPixels || emblemToString(makeEmblemPreset(appearance.emblemPreset || 'cube')));
-        this.players.push(this.createPlayer({
+        const cpuPlayer = this.createPlayer({
           id: `cpu-${i}`,
           name: cfg.name || CPU_NAMES[i] || `CPU-${i + 1}`,
           human: false,
@@ -4207,10 +4260,348 @@
           appearance,
           squadName,
           emblemPixels,
-        }));
+        });
+        this.applyPlayableDefenseForm(cpuPlayer, cfg.extraType || 'agent');
+        this.players.push(cpuPlayer);
       }
       this.placeInitialPlayers();
       if (this.isDefenseMode) this.initializeDefenseMode();
+    }
+
+
+
+    applyPlayableDefenseForm(player, type = 'agent') {
+      if (!player || !this.isExtraMode || !EXTRA_UNIT_DEFS[type] || type === 'agent') return player;
+      const def = EXTRA_UNIT_DEFS[type];
+      player.playableDefenseType = type;
+      player.defenseType = type;
+      player.isDefenseBoss = Boolean(def.boss);
+      player.defenseFaction = ['skeletonAttacker','skeletonShooter','skeletonSniper','yamagu','yagarasu','whitefox','nekomata','orochi'].includes(type) ? 'hyakki' : 'bt';
+      player.archetype = def.category === '百鬼夜行' ? `百鬼夜行・${def.label}` : def.category === 'ブラックトリガー' ? `黒トリガー・${def.label}` : def.label;
+      player.maxHp = Math.max(player.maxHp, Math.round(def.hp * (def.boss ? .68 : 1.25)));
+      player.hp = player.maxHp;
+      player.radius = def.radius;
+      player.speed = def.speed;
+      player.flying = Boolean(def.flying);
+      player.maxTrion = Math.max(player.maxTrion, 180 + player.stats.trion * 18);
+      player.trion = player.maxTrion;
+      player.regen = Math.max(player.regen, 5.5 + player.stats.trion * .55);
+      player.extraDamage = def.damage || 20;
+      player.extraActionTimer = 0;
+      player.extraAction = '';
+      player.extraParryTimer = 0;
+      player.extraParryCooldown = 0;
+      player.extraBoost = 1;
+      player.extraSealPrimary = 'bullet';
+      player.extraSealSecondary = 'shield';
+      player.defenseAI = {
+        attackCooldown: 0, specialCooldown: 0, phaseTimer: type === 'borboros' ? 4 : 0,
+        phase: type === 'borboros' ? 'solid' : 'normal', shieldTimer: 0, sealCount: 0,
+        damage: def.damage || 20, castTimer: 0, castMode: null, chameleonTimer: 0,
+        bodyHistory: [], bodySegments: [], trailTimer: .35, enraged: false,
+        borborosCores: [], coreCooldown: 0,
+      };
+      if (type === 'orochi') this.initializeOrochiBodyPose?.(player);
+      if (type === 'borboros') this.deployBorborosCores(player, true);
+      return player;
+    }
+
+    getPlayableDefenseProfile(type) {
+      const profiles = {
+        marmod:{main:['ブレード','連続刃','突進','回転刃'],sub:['硬化','跳躍','後退斬り','捕食']},
+        ilgar:{main:['爆撃','散開爆撃','機銃','急降下'],sub:['加速飛行','背面迎撃','自爆予告','自爆']},
+        rabbit:{main:['打撃','捕獲腕','連撃','叩きつけ'],sub:['装甲防御','跳躍','キューブ化','突進']},
+        fujin:{main:['遠隔斬撃','伝播斬撃','近接斬撃','斬撃陣'],sub:['いなし','高速移動','多重斬撃','残弾集中']},
+        seals:{main:['弾印','錨印','鎖印','門印'],sub:['盾印','響印','射印','転送印']},
+        alektor:{main:['生体弾','多重生体弾','鳥型弾','針弾'],sub:['いなし','キューブ波','装甲展開','捕獲領域']},
+        borboros:{main:['固体斬撃','液体槍','毒ガス','形態連撃'],sub:['固体化','液体化','気体化','多重コア']},
+        organon:{main:['円軌道刃','多重円刃','直線刃','収束斬'],sub:['いなし','軌道加速','外周刃','全周展開']},
+        skeletonAttacker:{main:['孤月','旋空','連撃','突進斬り'],sub:['カメレオン','受け流し','跳躍','抜刀']},
+        skeletonShooter:{main:['アステロイド','メテオラ','合成弾','連射'],sub:['回避射撃','弾幕','近接射撃','チャージ']},
+        skeletonSniper:{main:['イーグレット','アイビス','鉛弾','速射'],sub:['伏せ撃ち','狙撃移動','照準集中','後退射撃']},
+        yamagu:{main:['爪','連続引っ掻き','突進','咆哮'],sub:['いなし','爪研ぎ','飛びかかり','獣気']},
+        yagarasu:{main:['黒い霧','羽ばたき','闇ブレス','羽根弾'],sub:['いなし','急上昇','滑空突進','鳴き']},
+        whitefox:{main:['瞬歩斬り','転移斬り','時計輪剣','鈍足剣'],sub:['いなし','残像移動','三尾斬り','妖気解放']},
+        nekomata:{main:['双尾突き','妖尾狙撃','妖光レーザー','尾薙ぎ'],sub:['いなし','跳躍','尾分身','妖力集中']},
+        orochi:{main:['大蛇の牙','落星火','極炎ブレス','巨体薙ぎ'],sub:['炎纏い','火炎移動','終焉の炎','咆哮']},
+      };
+      return profiles[type] || { main:['攻撃1','攻撃2','攻撃3','攻撃4'], sub:['特殊1','特殊2','特殊3','特殊4'] };
+    }
+
+    setPlayableDefenseCooldown(p, hand, index, seconds) {
+      const key = `${hand}:${index}`;
+      const value = Math.max(.08, seconds * (1 - (p.stats.technique - 2) * .018));
+      p.cooldowns[key] = value;
+      p.cooldownMax[key] = value;
+    }
+
+    setPlayableDefenseAction(p, action, duration = .35) {
+      p.extraAction = action;
+      p.extraActionTimer = duration;
+      p.defenseAI ||= {};
+      p.defenseAI.action = action;
+      p.defenseAI.actionTimer = duration;
+      p.defenseAI.actionMax = duration;
+    }
+
+    getPlayableDefenseTarget(p, maxRange = 900) {
+      if (!p) return null;
+      if (!p.human) return this.players.filter((other) => this.canDamage(p, other)).sort((a,b) => dist2(p,a)-dist2(p,b))[0] || null;
+      const aimPoint = this.getHumanAimPoint(p, maxRange);
+      const candidates = this.players.filter((other) => this.canDamage(p, other) && Math.hypot(other.x-p.x,other.y-p.y) <= maxRange);
+      let best = null, score = Infinity;
+      for (const target of candidates) {
+        const along = segmentPointDistance(p.x,p.y,aimPoint.x,aimPoint.y,target.x,target.y);
+        const d = Math.hypot(target.x-p.x,target.y-p.y);
+        const s = along.distance * 4 + d * .08;
+        if (along.distance <= target.radius + 70 && s < score) { best=target;score=s; }
+      }
+      return best || { id:null, x:aimPoint.x, y:aimPoint.y, vx:0, vy:0, radius:18, hp:1, maxHp:1, dead:false, extraAimPoint:true };
+    }
+
+    consumePlayableTrion(p, cost) {
+      if (p.isDefenseEnemy) return true;
+      if (p.trion < cost) { if (p.human) this.toast('トリオン不足'); return false; }
+      p.trion -= cost; p.metrics.trionSpent += cost; return true;
+    }
+
+    beginPlayableParry(p) {
+      if (!EXTRA_PARRY_TYPES.has(p.playableDefenseType || p.defenseType) || p.extraParryCooldown > 0) return false;
+      if (!this.consumePlayableTrion(p, 5)) return false;
+      p.extraParryTimer = .34;
+      p.extraParryCooldown = 1.4;
+      this.setPlayableDefenseAction(p, 'parry', .34);
+      this.effects.push({ type:'justCut', x:p.x, y:p.y, radius:p.radius+28, angle:p.aim, color:'#fff3a8', ttl:.34, maxTtl:.34 });
+      return true;
+    }
+
+    deployBorborosCores(p, initial = false) {
+      p.defenseAI ||= {};
+      if (!initial && (p.defenseAI.coreCooldown || 0) > 0) return false;
+      const trueIndex = irand(0, 5);
+      p.defenseAI.borborosCores = Array.from({length:6}, (_,i) => ({ angle:i/6*TAU + rand(-.18,.18), distance:50+rand(-8,12), radius:8, trueCore:i===trueIndex, hp:i===trueIndex?999:1, phase:rand(0,TAU) }));
+      p.defenseAI.coreCooldown = 8;
+      this.setPlayableDefenseAction(p, 'cores', .65);
+      if (!initial) this.effects.push({type:'composite',x:p.x,y:p.y,ttl:.55,maxTtl:.55});
+      return true;
+    }
+
+
+    getPlayableDefenseActionCost(type, hand, index, boost = 1) {
+      const costs = {
+        fujin:{main:[5,12,3,18],sub:[5,5,15,14]},
+        alektor:{main:[4,14,11,6],sub:[5,15,12,20]},
+        borboros:{main:[4,6,14,16],sub:[2,2,2,12]},
+        organon:{main:[12,20,7,18],sub:[5,12,18,28]},
+        yamagu:{main:[3,7,9,10],sub:[5,8,8,14]},
+        yagarasu:{main:[6,7,14,8],sub:[5,5,9,8]},
+        whitefox:{main:[4,9,14,7],sub:[5,6,10,12]},
+        nekomata:{main:[4,6,16,6],sub:[5,5,10,12]},
+        orochi:{main:[5,18,20,10],sub:[12,8,36,12]},
+      };
+      if (type === 'seals') {
+        const main = [4,4,4.5,6];
+        const sub = [.15,5,4,7];
+        return (hand === 'main' ? main[index] * boost : sub[index] * (index === 3 ? 1 : boost)) || 4;
+      }
+      const found = costs[type]?.[hand]?.[index];
+      if (Number.isFinite(found)) return found;
+      if (hand === 'main') return ['skeletonShooter','skeletonSniper'].includes(type) ? 4 : 3;
+      return index === 0 ? 4 : 5;
+    }
+
+    usePlayableDefenseAction(p, hand, index, target = null, options = {}) {
+      if ((!p?.playableDefenseType && !p?.isDefenseEnemy) || p.dead) return false;
+      const key = `${hand}:${index}`;
+      if ((p.cooldowns[key] || 0) > 0) return false;
+      target ||= this.getPlayableDefenseTarget(p);
+      if (!target) return false;
+      const type = p.playableDefenseType || p.defenseType;
+      const damage = (p.extraDamage || 20) * (options.ai ? .92 : 1);
+      const modifier = Boolean(options.modifier);
+      const boost = type === 'seals' ? clamp(p.extraBoost || p.defenseAI?.sealBoost || 1,1,3) : 1;
+      const requestedCost = this.getPlayableDefenseActionCost(type, hand, index, boost) + (type === 'seals' && modifier && hand === 'main' ? 2 * boost : 0);
+      if (!p.isDefenseEnemy && p.trion < requestedCost) { if (p.human) this.toast('トリオン不足'); return false; }
+      const angle = Math.atan2(target.y-p.y,target.x-p.x);
+      p.aim = angle;
+      const distanceTo = Math.hypot(target.x-p.x,target.y-p.y);
+      const line = (name,width,amount,color,delay=.18,status=null,range=900) => {
+        if (distanceTo > range || this.findBlockingWall(p.x,p.y,target.x,target.y,4)) return false;
+        return this.queueDefenseHazard({type:'line',x:p.x,y:p.y,x2:target.x,y2:target.y,width,delay,damage:amount,owner:p,name,color,status,hitsFlag:false});
+      };
+      const circle = (name,radius,amount,color,delay=.3,status=null,at=target) => {
+        if (Math.hypot(at.x-p.x,at.y-p.y) > 900 || this.findBlockingWall(p.x,p.y,at.x,at.y,4)) return false;
+        return this.queueDefenseHazard({type:'circle',x:at.x,y:at.y,radius,delay,damage:amount,owner:p,name,color,status,hitsFlag:false});
+      };
+      const melee = (name,range,width,amount,color='#fff') => {
+        const x2=p.x+Math.cos(p.aim)*range,y2=p.y+Math.sin(p.aim)*range;
+        this.effects.push({type:'slash',x:p.x,y:p.y,range,angle:p.aim,arc:1.15,style:'extra',color,ttl:.22,maxTtl:.22});
+        this.damageWorldArc(p.x,p.y,p.aim,range,1.15,amount*.65,p.team);
+        return this.queueDefenseHazard({type:'line',x:p.x,y:p.y,x2,y2,width,delay:.08,damage:amount,owner:p,name,color,hitsFlag:false});
+      };
+      const projectile = (name,sourceKey,speed,amount,radius,color,extra={}) => this.fireDefenseProjectile(p,target,{sourceName:name,sourceKey,speed,damage:amount,radius,color,...extra});
+      let used = false, cd = .8, cost = 4;
+
+      if (type === 'fujin') {
+        if (hand==='sub' && index===0) return this.beginPlayableParry(p);
+        if (hand==='main' && index===0) { used=line('風刃・遠隔斬撃',28,damage,'#45ef83',.34,null,900); this.setPlayableDefenseAction(p,'fujinSlash',.38); cd=.7;cost=5; }
+        else if(hand==='main'&&index===1){used=true;for(let i=-1;i<=1;i++){const a=angle+i*.12;const x2=p.x+Math.cos(a)*Math.min(860,distanceTo),y2=p.y+Math.sin(a)*Math.min(860,distanceTo);this.queueDefenseHazard({type:'line',x:p.x,y:p.y,x2,y2,width:24,delay:.28+Math.abs(i)*.08,damage:damage*.75,owner:p,name:'風刃・伝播斬撃',color:'#45ef83'});}this.setPlayableDefenseAction(p,'fujinMulti',.48);cd=1.8;cost=12;}
+        else if(hand==='main'&&index===2){used=melee('風刃・近接斬撃',115,28,damage*1.1,'#73ff9d');this.setPlayableDefenseAction(p,'fujinMelee',.3);cd=.65;cost=3;}
+        else if(hand==='main'&&index===3){used=true;for(let r=120;r<=360;r+=80)this.queueDefenseHazard({type:'ring',x:p.x,y:p.y,radius:r,width:22,delay:.35+r/1200,damage:damage*.7,owner:p,name:'風刃・斬撃陣',color:'#45ef83'});this.setPlayableDefenseAction(p,'fujinField',.75);cd=3.2;cost=18;}
+        else if(hand==='sub'&&index===1){p.vx+=Math.cos(p.aim)*640;p.vy+=Math.sin(p.aim)*640;used=true;cd=1.4;cost=5;this.setPlayableDefenseAction(p,'dash',.28);}
+        else if(hand==='sub'&&index===2){used=line('風刃・多重斬撃',42,damage*1.35,'#8affaa',.48,null,720);this.setPlayableDefenseAction(p,'fujinFocus',.6);cd=2.5;cost=15;}
+        else if(hand==='sub'&&index===3){p.extraBoost=3;used=true;cd=4;cost=14;this.effects.push({type:'composite',x:p.x,y:p.y,ttl:.7,maxTtl:.7});}
+      } else if (type === 'seals') {
+        const mainSeals=['bullet','anchor','chain','gate']; const subSeals=['shield','echo','shoot','transfer'];
+        if (hand==='main') p.extraSealPrimary=mainSeals[index]; else p.extraSealSecondary=subSeals[index];
+        if (hand==='sub'&&index===0) { p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.18); p.shields.sub={type:'shield',strength:1.1+boost*.45}; used=true;cd=.08;cost=.15;this.setPlayableDefenseAction(p,'sealShield',.18); }
+        else if(hand==='main'&&index===0){used=circle(boost>1?`${boost}重弾印`:'弾印',90+boost*24,damage*(.45+.22*boost),'#f5f5ff',.35,'bounce');this.setPlayableDefenseAction(p,'sealBullet',.38);cd=1.15;cost=4*boost;}
+        else if(hand==='main'&&index===1){used=circle(boost>1?`${boost}重錨印`:'錨印',92+boost*20,damage*(.32+.16*boost),'#252c35',.4,'anchor');this.setPlayableDefenseAction(p,'sealAnchor',.42);cd=1.35;cost=4*boost;}
+        else if(hand==='main'&&index===2){used=line(boost>1?`${boost}重鎖印`:'鎖印',30+boost*7,damage*(.35+.18*boost),'#d5d9e3',.38,'chain',720);this.setPlayableDefenseAction(p,'sealChain',.42);cd=1.45;cost=4.5*boost;}
+        else if(hand==='main'&&index===3){const max=220+boost*120;const scale=Math.min(1,max/Math.max(1,distanceTo));const ox=p.x,oy=p.y;p.x=clamp(p.x+(target.x-p.x)*scale,60,this.world.w-60);p.y=clamp(p.y+(target.y-p.y)*scale,60,this.world.h-60);this.effects.push({type:'teleport',x:ox,y:oy,x2:p.x,y2:p.y,ttl:.35,maxTtl:.35});used=true;cd=2.2;cost=6*boost;this.setPlayableDefenseAction(p,'sealGate',.35);}
+        else if(hand==='sub'&&index===1){for(const enemy of this.players.filter(o=>this.canDamage(p,o)&&Math.hypot(o.x-p.x,o.y-p.y)<620)){enemy.revealTimer=Math.max(enemy.revealTimer,5+boost*2);enemy.markedTimer=Math.max(enemy.markedTimer,3+boost);}used=true;cd=2.8;cost=5*boost;this.setPlayableDefenseAction(p,'sealEcho',.5);}
+        else if(hand==='sub'&&index===2){used=projectile('射印','asteroid',800+boost*120,damage*(.55+.25*boost),5+boost,'#eef5ff',{penetration:boost-1});this.setPlayableDefenseAction(p,'sealShoot',.32);cd=.9;cost=4*boost;}
+        else if(hand==='sub'&&index===3){const ally=this.players.filter(o=>!o.dead&&o.team===p.team&&o!==p).sort((a,b)=>dist2(p,a)-dist2(p,b))[0];if(ally){const ox=p.x,oy=p.y;p.x=ally.x+Math.cos(p.aim+Math.PI)*60;p.y=ally.y+Math.sin(p.aim+Math.PI)*60;this.effects.push({type:'teleport',x:ox,y:oy,x2:p.x,y2:p.y,ttl:.35,maxTtl:.35});used=true;}cd=2.5;cost=7;this.setPlayableDefenseAction(p,'sealTransfer',.4);}
+        if (modifier && hand === 'main' && used) {
+          const secondary = subSeals[p.selected?.sub ?? 0] || p.extraSealSecondary || 'shield';
+          if (secondary === 'shield') { p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.7+.25*boost);p.shields.main={type:'shield',strength:1.15+.42*boost}; }
+          else if (secondary === 'echo') {
+            for(const enemy of this.players.filter(o=>this.canDamage(p,o)&&Math.hypot(o.x-target.x,o.y-target.y)<220+boost*55)){enemy.revealTimer=Math.max(enemy.revealTimer,4+boost*2);enemy.markedTimer=Math.max(enemy.markedTimer,2+boost);}
+            this.effects.push({type:'composite',x:target.x,y:target.y,ttl:.5,maxTtl:.5});
+          } else if (secondary === 'shoot') {
+            this.fireDefenseProjectile(p,target,{sourceName:`BOOST ${boost}・射印`,sourceKey:'asteroid',speed:900+boost*120,damage:damage*(.3+.18*boost),radius:4+boost,color:'#eef5ff',penetration:boost});
+          } else if (secondary === 'transfer') {
+            const ox=p.x,oy=p.y;const jump=Math.min(150+boost*70,Math.max(0,distanceTo-70));p.x=clamp(p.x+Math.cos(angle)*jump,60,this.world.w-60);p.y=clamp(p.y+Math.sin(angle)*jump,60,this.world.h-60);this.effects.push({type:'teleport',x:ox,y:oy,x2:p.x,y2:p.y,ttl:.3,maxTtl:.3});
+          }
+          cost += 2*boost; cd += .22; this.setPlayableDefenseAction(p,`sealCombine${secondary}`,Math.max(.46,cd*.25));
+          if(p.human)this.toast(`${boost}重印 × ${secondary==='shield'?'盾':secondary==='echo'?'響':secondary==='shoot'?'射':'転送'}`);
+        }
+      } else if (type === 'alektor') {
+        if(hand==='sub'&&index===0)return this.beginPlayableParry(p);
+        if(hand==='main'&&index===0){used=projectile('アレクトール生体弾','asteroid',680,damage*.55,7,'#b1e893',{homing:1.2,targetId:target.id});this.setPlayableDefenseAction(p,'alektorEgg',.32);cd=.65;cost=4;}
+        else if(hand==='main'&&index===1){used=true;for(let i=0;i<6;i++)this.fireDefenseProjectile(p,target,{sourceName:'アレクトール多重弾',sourceKey:'asteroid',speed:620+i*20,damage:damage*.32,radius:6,color:'#b1e893',homing:1.4,targetId:target.id});this.setPlayableDefenseAction(p,'alektorSwarm',.65);cd=2.2;cost=14;}
+        else if(hand==='main'&&index===2){used=true;for(let i=-2;i<=2;i++){const a=angle+i*.16;this.spawnProjectile(p,'main',{angle:a,speed:720,damage:damage*.42,radius:6,life:1.25,color:'#d9ffbf',homing:.5,targetId:target.id,sourceKey:'alektorBird',sourceName:'アレクトール鳥型弾'});}this.setPlayableDefenseAction(p,'alektorBird',.55);cd=1.7;cost=11;}
+        else if(hand==='main'&&index===3){used=line('アレクトール針弾',20,damage*1.05,'#caffad',.24,'cube',680);this.setPlayableDefenseAction(p,'alektorNeedle',.32);cd=1.05;cost=6;}
+        else if(hand==='sub'&&index===1){used=circle('アレクトール・キューブ波',145,damage*.75,'#b1e893',.48,'cube');this.setPlayableDefenseAction(p,'alektorWave',.55);cd=2.5;cost=15;}
+        else if(hand==='sub'&&index===2){p.defenseAI.shieldTimer=3;used=true;cd=3.8;cost=12;this.setPlayableDefenseAction(p,'alektorArmor',.5);}
+        else if(hand==='sub'&&index===3){used=circle('アレクトール捕獲領域',210,damage*.35,'#8fdc81',.6,'cube');this.setPlayableDefenseAction(p,'alektorField',.7);cd=4.2;cost=20;}
+      } else if (type === 'borboros') {
+        if(hand==='main'&&index===0){used=melee('ボルボロス固体斬撃',140,48,damage*1.1,'#b68be2');this.setPlayableDefenseAction(p,'solidSlash',.36);cd=.8;cost=4;}
+        else if(hand==='main'&&index===1){used=line('ボルボロス液体槍',42,damage*.9,'#ba91e4',.28,null,540);this.setPlayableDefenseAction(p,'liquidSpear',.4);cd=1.1;cost=6;}
+        else if(hand==='main'&&index===2){this.spawnDefenseArea({kind:'mist',x:target.x,y:target.y,radius:180,ttl:5,damage:damage*.14,interval:.55,owner:p,name:'ボルボロス毒ガス'});used=true;this.setPlayableDefenseAction(p,'gas',.55);cd=3.2;cost=14;}
+        else if(hand==='main'&&index===3){used=melee('ボルボロス形態連撃',190,62,damage*1.45,'#cf9cff');this.setPlayableDefenseAction(p,'morphCombo',.65);cd=2.4;cost=16;}
+        else if(hand==='sub'&&index<3){p.defenseAI.phase=['solid','liquid','gas'][index];p.defenseAI.phaseTimer=99;used=true;cd=.5;cost=2;this.setPlayableDefenseAction(p,p.defenseAI.phase,.35);}
+        else if(hand==='sub'&&index===3){used=this.deployBorborosCores(p);cd=4.5;cost=12;}
+      } else if (type === 'organon') {
+        if(hand==='sub'&&index===0)return this.beginPlayableParry(p);
+        if(hand==='main'&&index===0){for(let r=135;r<=345;r+=105)this.queueDefenseHazard({type:'ring',x:p.x,y:p.y,radius:r,width:24,delay:.35+r/900,damage:damage*.7,owner:p,name:'オルガノン円軌道刃',color:'#e8ddbb'});used=true;this.setPlayableDefenseAction(p,'organonRings',.7);cd=2.2;cost=12;}
+        else if(hand==='main'&&index===1){for(let r=100;r<=520;r+=84)this.queueDefenseHazard({type:'ring',x:p.x,y:p.y,radius:r,width:20,delay:.32+r/1200,damage:damage*.46,owner:p,name:'オルガノン多重円刃',color:'#e8ddbb'});used=true;this.setPlayableDefenseAction(p,'organonMulti',.85);cd=3.5;cost=20;}
+        else if(hand==='main'&&index===2){used=line('オルガノン直線刃',34,damage*1.15,'#fff0bd',.28,null,700);this.setPlayableDefenseAction(p,'organonLine',.38);cd=1.1;cost=7;}
+        else if(hand==='main'&&index===3){used=circle('オルガノン収束斬',120,damage*1.55,'#f7e8b8',.62,null);this.setPlayableDefenseAction(p,'organonFocus',.72);cd=3;cost=18;}
+        else if(hand==='sub'&&index===1){p.extraBoost=3;used=true;cd=4;cost=12;this.setPlayableDefenseAction(p,'organonBoost',.6);}
+        else if(hand==='sub'&&index===2){for(let i=0;i<5;i++){const a=i/5*TAU;const pt={x:p.x+Math.cos(a)*420,y:p.y+Math.sin(a)*420};this.queueDefenseHazard({type:'line',x:p.x,y:p.y,x2:pt.x,y2:pt.y,width:24,delay:.5+i*.06,damage:damage*.65,owner:p,name:'オルガノン外周刃',color:'#e8ddbb'});}used=true;cd=3;cost=18;}
+        else if(hand==='sub'&&index===3){for(let r=120;r<=620;r+=100)this.queueDefenseHazard({type:'ring',x:p.x,y:p.y,radius:r,width:26,delay:.42+r/1000,damage:damage*.72,owner:p,name:'オルガノン全周展開',color:'#fff0bd'});used=true;cd=5;cost=28;this.setPlayableDefenseAction(p,'organonUltimate',1.1);}
+      } else if (type === 'yamagu') {
+        if(hand==='sub'&&index===0)return this.beginPlayableParry(p);
+        if(hand==='main'&&index===0){used=melee('山狗の爪',105,40,damage,'#ffd5a0');this.setPlayableDefenseAction(p,'claw',.26);cd=.7;cost=3;}
+        else if(hand==='main'&&index===1){used=true;for(let i=-1;i<=1;i++){const a=angle+i*.16;this.queueDefenseHazard({type:'line',x:p.x,y:p.y,x2:p.x+Math.cos(a)*240,y2:p.y+Math.sin(a)*240,width:30,delay:.16+Math.abs(i)*.08,damage:damage*.72,owner:p,name:'連続引っ掻き',color:'#ffd5a0'});}this.setPlayableDefenseAction(p,'claw',.38);cd=1.3;cost=7;}
+        else if(hand==='main'&&index===2){p.vx+=Math.cos(angle)*760;p.vy+=Math.sin(angle)*760;used=line('山狗突進',56,damage*1.3,'#ffc46c',.2,null,650);this.setPlayableDefenseAction(p,'dash',.38);cd=2.2;cost=9;}
+        else if(hand==='main'&&index===3){used=circle('山狗の咆哮',180,damage*.6,'#ffd49a',.3,'bounce',p);this.setPlayableDefenseAction(p,'roar',.6);cd=2.8;cost=10;}
+        else if(hand==='sub'&&index===1){p.extraBoost=2;used=true;this.setPlayableDefenseAction(p,'sharpen',.8);cd=3;cost=8;}
+        else if(hand==='sub'&&index===2){p.vx+=Math.cos(angle)*540;p.vy+=Math.sin(angle)*540;used=melee('山狗飛びかかり',150,55,damage*1.15,'#ffe0ad');this.setPlayableDefenseAction(p,'dash',.5);cd=2;cost=8;}
+        else if(hand==='sub'&&index===3){p.speed*=1.08;used=true;this.setPlayableDefenseAction(p,'roar',.7);cd=5;cost=14;}
+      } else if (type === 'yagarasu') {
+        if(hand==='sub'&&index===0)return this.beginPlayableParry(p);
+        if(hand==='main'&&index===0){this.spawnDefenseArea({kind:'mist',x:target.x,y:target.y,radius:125,ttl:5.5,damage:damage*.14,interval:.65,owner:p,name:'黒い霧'});used=true;this.setPlayableDefenseAction(p,'mist',.38);cd=1.4;cost=6;}
+        else if(hand==='main'&&index===1){used=line('夜鴉の羽ばたき',96,damage*.6,'#8a939d',.28,'bounce',540);this.setPlayableDefenseAction(p,'flap',.46);cd=1.6;cost=7;}
+        else if(hand==='main'&&index===2){used=line('夜鴉の闇ブレス',92,damage*1.45,'#6c5975',.72,null,720);this.setPlayableDefenseAction(p,'breath',.9);cd=2.8;cost=14;}
+        else if(hand==='main'&&index===3){used=true;for(let i=-2;i<=2;i++)this.spawnProjectile(p,'main',{angle:angle+i*.12,speed:690,damage:damage*.35,radius:5,life:1.2,color:'#727e89',sourceKey:'crowFeather',sourceName:'夜鴉の羽根弾'});this.setPlayableDefenseAction(p,'flap',.42);cd=1.4;cost=8;}
+        else if(hand==='sub'&&index===1){p.vy-=540;used=true;this.setPlayableDefenseAction(p,'flap',.55);cd=1.2;cost=5;}
+        else if(hand==='sub'&&index===2){p.vx+=Math.cos(angle)*720;p.vy+=Math.sin(angle)*720;used=line('夜鴉滑空突進',70,damage,'#aab4bd',.18,null,600);this.setPlayableDefenseAction(p,'flap',.48);cd=2.2;cost=9;}
+        else if(hand==='sub'&&index===3){used=circle('夜鴉の鳴き',170,damage*.35,'#c2cad2',.25,'bounce',p);this.setPlayableDefenseAction(p,'cry',.55);cd=2.4;cost=8;}
+      } else if (type === 'whitefox') {
+        if(hand==='sub'&&index===0)return this.beginPlayableParry(p);
+        if(hand==='main'&&index===0){used=melee('白狐・瞬歩斬り',115,34,damage,'#e6f7ff');this.setPlayableDefenseAction(p,'slash',.28);cd=.7;cost=4;}
+        else if(hand==='main'&&index===1){const ox=p.x,oy=p.y;const s=Math.min(1,520/Math.max(1,distanceTo));p.x=clamp(p.x+(target.x-p.x)*s,60,this.world.w-60);p.y=clamp(p.y+(target.y-p.y)*s,60,this.world.h-60);this.effects.push({type:'teleport',x:ox,y:oy,x2:p.x,y2:p.y,ttl:.3,maxTtl:.3});used=melee('白狐・転移斬り',100,36,damage*1.1,'#e6f7ff');this.setPlayableDefenseAction(p,'teleport',.42);cd=1.8;cost=9;}
+        else if(hand==='main'&&index===2){used=this.queueDefenseHazard({type:'ring',x:p.x,y:p.y,radius:170,width:30,delay:.65,damage:damage*1.25,owner:p,name:'時計輪剣',color:'#d6f0ff'});this.setPlayableDefenseAction(p,'clock',.72);cd=2.7;cost=14;}
+        else if(hand==='main'&&index===3){used=line('白狐・鈍足剣',40,damage*.8,'#8ed5ff',.25,'anchor',440);this.setPlayableDefenseAction(p,'slow',.38);cd=1.4;cost=7;}
+        else if(hand==='sub'&&index===1){p.vx+=Math.cos(angle)*650;p.vy+=Math.sin(angle)*650;used=true;this.effects.push({type:'teleport',x:p.x-Math.cos(angle)*100,y:p.y-Math.sin(angle)*100,x2:p.x,y2:p.y,ttl:.25,maxTtl:.25});cd=1.4;cost=6;}
+        else if(hand==='sub'&&index===2){used=true;for(let i=-1;i<=1;i++){const a=angle+i*.22;this.queueDefenseHazard({type:'line',x:p.x,y:p.y,x2:p.x+Math.cos(a)*220,y2:p.y+Math.sin(a)*220,width:26,delay:.2+Math.abs(i)*.05,damage:damage*.65,owner:p,name:'白狐・三尾斬り',color:'#dff6ff'});}this.setPlayableDefenseAction(p,'slash',.48);cd=1.8;cost=10;}
+        else if(hand==='sub'&&index===3){p.extraBoost=2;used=true;this.effects.push({type:'composite',x:p.x,y:p.y,ttl:.7,maxTtl:.7});cd=4;cost=12;}
+      } else if (type === 'nekomata') {
+        if(hand==='sub'&&index===0)return this.beginPlayableParry(p);
+        if(hand==='main'&&index===0){used=line('猫又・双尾突き',34,damage*.9,'#b073ff',.2,null,300);this.setPlayableDefenseAction(p,'tails',.34);cd=.75;cost=4;}
+        else if(hand==='main'&&index===1){used=projectile('猫又・妖尾狙撃','egret',1280,damage,4,'#b073ff',{trail:true});this.setPlayableDefenseAction(p,'snipe',.34);cd=1.2;cost=6;}
+        else if(hand==='main'&&index===2){used=line('猫又・空中妖光レーザー',72,damage*1.55,'#ff6ad5',.75,null,760);this.setPlayableDefenseAction(p,'laser',.9);cd=3;cost=16;}
+        else if(hand==='main'&&index===3){used=melee('猫又・尾薙ぎ',150,52,damage,'#c38cff');this.setPlayableDefenseAction(p,'tails',.42);cd=1.2;cost=6;}
+        else if(hand==='sub'&&index===1){p.vx+=Math.cos(angle)*380;p.vy+=Math.sin(angle)*380;p.vy-=260;used=true;this.setPlayableDefenseAction(p,'jump',.55);cd=1.3;cost=5;}
+        else if(hand==='sub'&&index===2){used=true;for(let i=-1;i<=1;i++)this.fireDefenseProjectile(p,target,{sourceName:'猫又・尾分身',sourceKey:'asteroid',speed:760+i*60,damage:damage*.42,radius:5,color:'#b073ff',homing:1,targetId:target.id});this.setPlayableDefenseAction(p,'tails',.45);cd=1.8;cost=10;}
+        else if(hand==='sub'&&index===3){p.extraBoost=2;used=true;this.effects.push({type:'composite',x:p.x,y:p.y,ttl:.65,maxTtl:.65});cd=4;cost=12;}
+      } else if (type === 'orochi') {
+        if(hand==='main'&&index===0){used=melee('大蛇の牙',180,70,damage*1.2,'#ffc26b');this.setPlayableDefenseAction(p,'bite',.55);this.effects.push({type:'orochiBite',x:p.x,y:p.y,angle:p.aim,range:180,ttl:.65,maxTtl:.65});cd=1.1;cost=5;}
+        else if(hand==='main'&&index===1){used=true;for(let i=0;i<5;i++){const ox=(i-2)*70,oy=(i%2)*50;this.effects.push({type:'orochiMeteor',x:target.x+ox,y:target.y+oy,radius:95,ttl:1.55,maxTtl:1.55});this.queueDefenseHazard({type:'circle',x:target.x+ox,y:target.y+oy,radius:92,delay:.5+i*.1,damage:damage*.82,owner:p,name:'落星火',color:'#ff954a'});}this.setPlayableDefenseAction(p,'meteor',1.25);cd=3.5;cost=18;}
+        else if(hand==='main'&&index===2){used=line('大蛇・極炎ブレス',125,damage*1.75,'#ff8d46',.82,null,880);this.effects.push({type:'orochiBreath',x:p.x,y:p.y,x2:target.x,y2:target.y,ttl:1.45,maxTtl:1.45});this.setPlayableDefenseAction(p,'breath',1.35);cd=3.2;cost=20;}
+        else if(hand==='main'&&index===3){used=this.queueDefenseHazard({type:'ring',x:p.x,y:p.y,radius:250,width:70,delay:.5,damage:damage,owner:p,name:'大蛇の巨体薙ぎ',color:'#cfb56e'});this.setPlayableDefenseAction(p,'bite',.72);cd=2.2;cost=10;}
+        else if(hand==='sub'&&index===0){p.defenseAI.enraged=!p.defenseAI.enraged;used=true;this.effects.push({type:'orochiAura',x:p.x,y:p.y,radius:250,ttl:1.55,maxTtl:1.55});this.setPlayableDefenseAction(p,'enrage',1.35);cd=4;cost=12;}
+        else if(hand==='sub'&&index===1){p.vx+=Math.cos(angle)*420;p.vy+=Math.sin(angle)*420;this.spawnDefenseArea({kind:'fire',x:p.x,y:p.y,radius:100,ttl:4,damage:damage*.12,interval:.45,owner:p,name:'大蛇の残火'});used=true;cd=1.8;cost=8;}
+        else if(hand==='sub'&&index===2){used=true;this.effects.push({type:'orochiUltimate',x:p.x,y:p.y,radius:460,ttl:2.75,maxTtl:2.75});for(let i=0;i<16;i++){const a=i/16*TAU,r=rand(180,760),pt={x:p.x+Math.cos(a)*r,y:p.y+Math.sin(a)*r};if(!this.findBlockingWall(p.x,p.y,pt.x,pt.y,4))this.spawnDefenseArea({kind:'fire',x:pt.x,y:pt.y,radius:130,ttl:5,damage:damage*.15,interval:.4,owner:p,name:'終焉の炎'});}this.setPlayableDefenseAction(p,'ultimate',2.5);cd=8;cost=36;}
+        else if(hand==='sub'&&index===3){used=circle('大蛇の咆哮',280,damage*.55,'#ffb15e',.4,'bounce',p);this.setPlayableDefenseAction(p,'roar',.7);cd=3;cost=12;}
+      } else {
+        // Basic defense units and skeletons share concise action behavior.
+        if (hand==='main' && ['skeletonShooter','skeletonSniper'].includes(type)) {
+          const sniper=type==='skeletonSniper'; used=projectile(sniper?'骸骨狙撃':'骸骨射撃',sniper?'egret':'asteroid',sniper?1250:760,damage,sniper?4:5,sniper?'#f2f8ff':'#72e8ff',{trail:sniper});cd=sniper?1.25:.75;cost=4;this.setPlayableDefenseAction(p,sniper?'shoot':'shoot',.3);
+        } else if (hand==='main') { used=melee(`${EXTRA_UNIT_DEFS[type]?.label || type}攻撃`,120,42,damage,'#e9f4f5');cd=.75;cost=3;this.setPlayableDefenseAction(p,'slash',.3); }
+        else if(hand==='sub'&&index===0){p.defenseAI.shieldTimer=1.5;p.shields.sub={type:'shield',strength:1.2};used=true;cd=1.3;cost=4;}
+        else {p.vx+=Math.cos(angle)*420;p.vy+=Math.sin(angle)*420;used=true;cd=1.5;cost=5;}
+      }
+
+      if (!used) return false;
+      if (!p.isDefenseEnemy) { p.trion = Math.max(0, p.trion - cost); p.metrics.trionSpent += cost; }
+      this.setPlayableDefenseCooldown(p, hand, index, cd);
+      return true;
+    }
+
+    updatePlayableDefenseHuman(p, dt) {
+      const selectMap = [
+        ['mainSlot1','main',0],['mainSlot2','main',1],['mainSlot3','main',2],['mainSlot4','main',3],
+        ['subSlot1','sub',0],['subSlot2','sub',1],['subSlot3','sub',2],['subSlot4','sub',3],
+      ];
+      for (const [action,hand,index] of selectMap) if (this.actionConsume(action)) p.selected[hand]=index;
+      if (this.input.virtualAim.active) p.aim=Math.atan2(this.input.virtualAim.y,this.input.virtualAim.x);
+      else {const point=this.screenToWorld(this.input.mouse.x,this.input.mouse.y);p.aim=Math.atan2(point.y-p.y,point.x-p.x);}
+      let dx=this.input.virtualMove.x,dy=this.input.virtualMove.y;
+      if(this.actionDown('moveUp'))dy-=1;if(this.actionDown('moveDown'))dy+=1;if(this.actionDown('moveLeft'))dx-=1;if(this.actionDown('moveRight'))dx+=1;
+      if(dx||dy){const l=Math.hypot(dx,dy)||1;p.vx+=dx/l*p.speed*dt*6.2;p.vy+=dy/l*p.speed*dt*6.2;}
+      p.shields.main=null;p.shields.sub=null;
+      const target=this.getPlayableDefenseTarget(p);
+      const mod=this.modifierDown();
+      const mainHeld=this.input.mouse.left||this.input.virtualMain,subHeld=this.input.mouse.right||this.input.virtualSub;
+      const mainJust=this.input.mouse.justLeft||this.input.virtualMainJust,subJust=this.input.mouse.justRight||this.input.virtualSubJust;
+      if(p.playableDefenseType==='seals'&&subHeld&&p.selected.sub===0)this.usePlayableDefenseAction(p,'sub',0,target,{modifier:mod,held:true});
+      else if(subJust)this.usePlayableDefenseAction(p,'sub',p.selected.sub,target,{modifier:mod});
+      if(mainJust)this.usePlayableDefenseAction(p,'main',p.selected.main,target,{modifier:mod});
+      if(this.actionConsume('combo')){
+        if(p.playableDefenseType==='seals'){p.extraBoost=p.extraBoost>=3?1:p.extraBoost+1;this.toast(`印 BOOST ×${p.extraBoost}`);}
+        else if(p.playableDefenseType==='borboros')this.deployBorborosCores(p);
+        else if(EXTRA_PARRY_TYPES.has(p.playableDefenseType))this.beginPlayableParry(p);
+        else if(p.playableDefenseType==='orochi')this.usePlayableDefenseAction(p,'sub',2,target,{});
+      }
+    }
+
+    updatePlayableDefenseAI(p, dt) {
+      if (!p || p.dead) return;
+      const target=this.getPlayableDefenseTarget(p);
+      if(!target)return;
+      const d=Math.hypot(target.x-p.x,target.y-p.y);
+      this.moveDefenseEnemy(p,target,dt,d>430?.82:d<120?-.18:.18);
+      p.extraAiTimer=(p.extraAiTimer||0)-dt;
+      if(EXTRA_PARRY_TYPES.has(p.playableDefenseType)&&p.extraParryCooldown<=0&&this.projectileThreat(p)&&Math.random()<.16)this.beginPlayableParry(p);
+      if(p.extraAiTimer>0)return;
+      const hand=Math.random()<.68?'main':'sub';
+      let index=irand(0,3);
+      if(p.playableDefenseType==='seals'){p.extraBoost=irand(1,3);if(hand==='sub'&&index===0){p.defenseAI.shieldTimer=1.2;p.shields.sub={type:'shield',strength:1.7};}}
+      this.usePlayableDefenseAction(p,hand,index,target,{ai:true,modifier:p.playableDefenseType==='seals'&&hand==='main'&&Math.random()<.42});
+      p.extraAiTimer=rand(.45,1.15);
     }
 
 
@@ -4277,7 +4668,7 @@
     }
 
     canDefenseEnemyCreateRemoteEffect(owner, x, y, name = '', sourceKey = '') {
-      if (!owner?.isDefenseEnemy) return true;
+      if (!owner?.isDefenseEnemy && !owner?.playableDefenseType) return true;
       const range = this.getDefenseAttackMaxRange(owner, name, sourceKey);
       return this.canDefenseEnemyAttackPoint(owner, x, y, range, 4);
     }
@@ -4300,7 +4691,7 @@
     }
 
     updateDefenseAreas(dt) {
-      if (!this.isDefenseMode) return;
+      if (!this.isDefenseMode && !this.isExtraMode) return;
       for (let i = this.defenseAreas.length - 1; i >= 0; i--) {
         const area = this.defenseAreas[i];
         area.ttl -= dt; area.tick -= dt;
@@ -4310,7 +4701,7 @@
         area.vy *= Math.max(0, 1 - dt * .8);
         if (area.tick <= 0) {
           area.tick = area.interval || .45;
-          for (const target of this.players.filter((player) => !player.isDefenseEnemy && !player.dead)) {
+          for (const target of this.players.filter((player) => !player.dead && (!area.owner || this.canDamage(area.owner, player)))) {
             if (Math.hypot(target.x - area.x, target.y - area.y) > area.radius + target.radius) continue;
             if (this.findBlockingWall(area.x, area.y, target.x, target.y, 3)) continue;
             if (area.kind === 'mist') {
@@ -4365,329 +4756,6 @@
       }
       return projectile;
     }
-
-    initializeSandboxMode() {
-      this.sandboxControlledId = this.human?.id || null;
-      this.sandboxAnchorId = this.human?.id || null;
-      this.sandboxTargetId = null;
-      this.sandboxSpawnSerial = 0;
-      this.sandboxUiTimer = 0;
-      this.sandboxPanelUnitCount = -1;
-      this.sandboxPanelControlledId = null;
-      this.sandboxAiGlobal = false;
-      if (this.human) {
-        this.human.sandboxUnit = true;
-        this.human.sandboxAiEnabled = false;
-        this.human.name = this.human.name || 'SANDBOX隊員';
-      }
-      this.defenseRound = 25;
-      this.defenseTier = 0;
-      this.refreshSandboxPanel(true);
-      this.showCenterMessage('SANDBOX', '敵・隊員を生成してモーションを確認できます', 1.8);
-    }
-
-    getSandboxControlled() {
-      return this.players.find((p) => p.id === this.sandboxControlledId) || this.players.find((p) => !p.dead) || null;
-    }
-
-    getSandboxTarget() {
-      const controlled = this.getSandboxControlled();
-      const selected = this.players.find((p) => p.id === this.sandboxTargetId && p !== controlled && !p.dead);
-      if (selected) return selected;
-      const opposing = this.players.filter((p) => p !== controlled && !p.dead && (Boolean(p.isDefenseEnemy) !== Boolean(controlled?.isDefenseEnemy)));
-      if (opposing.length && controlled) return opposing.sort((a,b)=>dist2(controlled,a)-dist2(controlled,b))[0];
-      const mouse = this.screenToWorld(this.input.mouse.x, this.input.mouse.y);
-      return { id: null, x: mouse.x, y: mouse.y, vx: 0, vy: 0, radius: 18, hp: 9999, maxHp: 9999, dead: false, sandboxPoint: true };
-    }
-
-    sandboxSpawnOptions() {
-      const enemies = [
-        ['marmod','モールモッド'],['ilgar','イルガー'],['rabbit','ラービット'],
-        ['fujin','風刃'],['seals','印'],['alektor','アレクトール'],['borboros','ボルボロス'],['organon','オルガノン'],
-        ['skeletonAttacker','骸骨アタッカー'],['skeletonShooter','骸骨シューター'],['skeletonSniper','骸骨スナイパー'],
-        ['yamagu','山狗'],['yagarasu','夜鴉'],['whitefox','白狐'],['nekomata','猫又'],['orochi','大蛇'],
-      ];
-      const allies = DATA.aiLoadouts.map((loadout,index)=>[`ally:${index}`,`隊員：${loadout.name}`]);
-      return { enemies, allies };
-    }
-
-    populateSandboxSpawnSelect() {
-      const select = $('#sandboxSpawnType');
-      if (!select || select.options.length) return;
-      const { enemies, allies } = this.sandboxSpawnOptions();
-      select.innerHTML = `<optgroup label="防衛戦の敵">${enemies.map(([id,name])=>`<option value="enemy:${id}">${name}</option>`).join('')}</optgroup><optgroup label="隊員">${allies.map(([id,name])=>`<option value="${id}">${name}</option>`).join('')}</optgroup>`;
-    }
-
-    getSandboxSpawnPoint() {
-      const controlled = this.getSandboxControlled();
-      const fallback = { x: this.camera.x + this.viewW * .52, y: this.camera.y + this.viewH * .52 };
-      const x = controlled ? controlled.x + Math.cos(controlled.aim || 0) * 220 : fallback.x;
-      const y = controlled ? controlled.y + Math.sin(controlled.aim || 0) * 220 : fallback.y;
-      return { x: clamp(x, 80, this.world.w - 80), y: clamp(y, 80, this.world.h - 80) };
-    }
-
-    spawnSandboxUnit(value = $('#sandboxSpawnType')?.value) {
-      if (!this.isSandboxMode || !value) return null;
-      const point = this.getSandboxSpawnPoint();
-      let unit = null;
-      if (value.startsWith('enemy:')) {
-        const type = value.slice(6);
-        unit = this.createDefenseEnemy(type, 0, 1);
-        unit.x = point.x; unit.y = point.y;
-        unit.vx = 0; unit.vy = 0;
-        unit.invulnTimer = 0;
-      } else if (value.startsWith('ally:')) {
-        const index = clamp(Number(value.slice(5)) || 0, 0, Math.max(0, DATA.aiLoadouts.length - 1));
-        const template = DATA.aiLoadouts[index] || DATA.aiLoadouts[0];
-        const appearance = randomCpuAppearance(++this.sandboxSpawnSerial, 0);
-        appearance.bodyColor = TEAM_COLORS[0];
-        unit = this.createPlayer({
-          id: `sandbox-ally-${this.sandboxSpawnSerial}`,
-          name: `${template.name}-${this.sandboxSpawnSerial}`,
-          human: false,
-          team: 0,
-          stats: { trion: 6, technique: 6, combat: 6 },
-          loadout: { main: [...template.main], sub: [...template.sub] },
-          archetype: template.name,
-          appearance,
-          squadName: 'SANDBOX隊',
-          emblemPixels: appearance.emblemPixels,
-        });
-        unit.x = point.x; unit.y = point.y; unit.invulnTimer = 0;
-        this.players.push(unit);
-      }
-      if (!unit) return null;
-      unit.sandboxUnit = true;
-      unit.sandboxAiEnabled = false;
-      unit.dead = false;
-      unit.hp = unit.maxHp;
-      this.sandboxControlledId = unit.id;
-      this.sandboxTargetId = null;
-      this.refreshSandboxPanel(true);
-      this.toast(`${unit.name}を生成`);
-      return unit;
-    }
-
-    deleteSandboxUnit() {
-      const unit = this.getSandboxControlled();
-      if (!unit) return;
-      if (unit.id === this.sandboxAnchorId) { this.toast('初期隊員は削除できません'); return; }
-      this.players = this.players.filter((p) => p !== unit);
-      this.sandboxControlledId = this.players.find((p)=>p.id===this.sandboxAnchorId)?.id || this.players[0]?.id || null;
-      this.sandboxTargetId = null;
-      this.refreshSandboxPanel(true);
-    }
-
-    clearSandboxSpawned() {
-      const keep = this.players.find((p)=>p.id===this.sandboxAnchorId) || this.human || null;
-      this.players = keep ? [keep] : [];
-      if (keep) { keep.dead = false; keep.hp = keep.maxHp; keep.x = this.world.w/2; keep.y = this.world.h/2; keep.vx = keep.vy = 0; }
-      this.projectiles.length = 0; this.effects.length = 0; this.defenseHazards.length = 0; this.defenseAreas.length = 0;
-      this.sandboxControlledId = keep?.id || null;
-      this.sandboxTargetId = null;
-      this.refreshSandboxPanel(true);
-      this.toast('生成ユニットを削除しました');
-    }
-
-    cycleSandboxControlled(direction = 1) {
-      if (!this.players.length) return;
-      const index = Math.max(0, this.players.findIndex((p)=>p.id===this.sandboxControlledId));
-      const next = this.players[(index + direction + this.players.length) % this.players.length];
-      this.sandboxControlledId = next.id;
-      this.refreshSandboxPanel(true);
-    }
-
-    sandboxMotionLabels(unit) {
-      if (!unit) return [];
-      if (!unit.isDefenseEnemy) return ['MAIN攻撃','SUB攻撃','MAIN特殊','SUB特殊','ベイルアウト演出','被弾演出'];
-      const labels = {
-        marmod:['ブレード','突進','被弾','撃破'], ilgar:['爆撃','自爆予告','自爆','飛行'], rabbit:['打撃','捕獲腕','キューブ化','防御'],
-        fujin:['遠隔斬撃','伝播斬撃','構え','被弾'], seals:['錨印','鎖印','弾印','盾印','転送','索敵印'],
-        alektor:['キューブ弾','多重弾','構え','被弾'], borboros:['固体斬撃','液体化','気体化','毒ガス','固体化'], organon:['円軌道刃','多重円刃','構え','被弾'],
-        skeletonAttacker:['孤月斬撃','旋空','カメレオン','歩行強調','被弾','撃破'],
-        skeletonShooter:['アステロイド','メテオラ','合成弾','射撃構え','被弾','撃破'],
-        skeletonSniper:['イーグレット','アイビス','鉛弾','狙撃構え','被弾','撃破'],
-        yamagu:['爪','連続引っ掻き','突進','研ぎ','被弾','咆哮'], yagarasu:['黒い霧','羽ばたき','闇ブレス','飛行','被弾','鳴き'],
-        whitefox:['瞬歩斬り','転移斬り','時計輪剣','鈍足剣','被弾','構え'], nekomata:['双尾突き','妖尾狙撃','空中レーザー','跳躍','被弾','構え'],
-        orochi:['牙','落星火','極炎ブレス','炎纏い','終焉の炎','被弾'],
-      };
-      return labels[unit.defenseType] || ['攻撃1','攻撃2','特殊1','特殊2','被弾','撃破'];
-    }
-
-    refreshSandboxPanel(force = false) {
-      if (!this.isSandboxMode) return;
-      this.populateSandboxSpawnSelect();
-      const unitSelect = $('#sandboxEntitySelect');
-      const targetSelect = $('#sandboxTargetSelect');
-      const unit = this.getSandboxControlled();
-      const structureChanged = force || this.sandboxPanelUnitCount !== this.players.length || this.sandboxPanelControlledId !== unit?.id;
-      if (structureChanged) {
-        this.sandboxPanelUnitCount = this.players.length;
-        this.sandboxPanelControlledId = unit?.id || null;
-        if (unitSelect) unitSelect.innerHTML = this.players.map((p)=>`<option value="${p.id}"${p.id===this.sandboxControlledId?' selected':''}>${p.name} / ${p.isDefenseEnemy ? p.defenseType : p.archetype}${p.dead?'（撃破）':''}</option>`).join('');
-        if (targetSelect) targetSelect.innerHTML = `<option value="">照準位置</option>${this.players.filter((p)=>p!==unit).map((p)=>`<option value="${p.id}"${p.id===this.sandboxTargetId?' selected':''}>${p.name}${p.dead?'（撃破）':''}</option>`).join('')}`;
-        const grid = $('#sandboxActionGrid');
-        if (grid) grid.innerHTML = this.sandboxMotionLabels(unit).map((label,index)=>`<button type="button" data-sandbox-action="${index}"><b>${index+1}</b> ${label}</button>`).join('');
-      } else if (unitSelect) unitSelect.value = unit?.id || '';
-      if ($('#sandboxAiToggle')) { $('#sandboxAiToggle').checked = Boolean(unit?.sandboxAiEnabled); $('#sandboxAiToggle').disabled = Boolean(unit?.human); }
-      if ($('#sandboxHpSlider') && unit) { $('#sandboxHpSlider').max = String(Math.max(1,Math.ceil(unit.maxHp))); $('#sandboxHpSlider').value = String(clamp(Math.ceil(unit.hp),0,Math.ceil(unit.maxHp))); }
-      if ($('#sandboxHpText')) $('#sandboxHpText').textContent = unit ? `${Math.ceil(unit.hp)} / ${Math.ceil(unit.maxHp)}` : '---';
-      if (unit && this.hudSubjectId !== unit.id) this.buildSlotHud(unit);
-    }
-
-    setSandboxHp(mode, directValue = null) {
-      const unit = this.getSandboxControlled();
-      if (!unit) return;
-      if (directValue !== null) unit.hp = clamp(Number(directValue)||0,0,unit.maxHp);
-      else if (mode === 'minus') unit.hp = Math.max(0, unit.hp - unit.maxHp * .1);
-      else if (mode === 'plus') unit.hp = Math.min(unit.maxHp, unit.hp + unit.maxHp * .1);
-      else if (mode === 'one') unit.hp = 1;
-      else if (mode === 'full') unit.hp = unit.maxHp;
-      else if (mode === 'down') unit.hp = 0;
-      else if (mode === 'revive') unit.hp = unit.maxHp;
-      unit.dead = unit.hp <= 0;
-      if (!unit.dead) { unit.respawnTimer = Infinity; unit.invulnTimer = 0; }
-      this.refreshSandboxPanel(false);
-    }
-
-    setSandboxAction(unit, action, duration = .35) {
-      unit.defenseAI ||= {};
-      unit.defenseAI.action = action;
-      unit.defenseAI.actionTimer = duration;
-      unit.defenseAI.actionMax = duration;
-    }
-
-    triggerSandboxMotion(index) {
-      const unit = this.getSandboxControlled();
-      if (!unit || unit.dead) return;
-      const target = this.getSandboxTarget();
-      const ai = unit.defenseAI || (unit.defenseAI = { damage: 24, attackCooldown:0, specialCooldown:0, phaseTimer:0, sealCount:0, bodyHistory:[], bodySegments:[], trailTimer:.3 });
-      const hit = () => this.effects.push({ type:'hit', x:unit.x, y:unit.y, ttl:.22, maxTtl:.22 });
-      if (!unit.isDefenseEnemy) {
-        if (index === 0) this.tryUseHand(unit,'main');
-        else if (index === 1) this.tryUseHand(unit,'sub');
-        else if (index === 2) this.tryUseHand(unit,'main',{shift:true});
-        else if (index === 3) this.tryUseHand(unit,'sub',{shift:true});
-        else if (index === 4) this.effects.push({type:'bailout',x:unit.x,y:unit.y,ttl:.7,maxTtl:.7});
-        else hit();
-        return;
-      }
-      const line = (name,width=36,damage=0,color='#fff',delay=.18)=>this.queueDefenseHazard({type:'line',x:unit.x,y:unit.y,x2:target.x,y2:target.y,width,delay,damage,owner:unit,name,color,hitsFlag:false});
-      const circle = (name,radius=100,damage=0,color='#fff',delay=.3)=>this.queueDefenseHazard({type:'circle',x:target.x,y:target.y,radius,delay,damage,owner:unit,name,color,hitsFlag:false});
-      const type=unit.defenseType;
-      if(type==='skeletonAttacker'){
-        if(index===0){this.setSandboxAction(unit,'slash',.24);this.effects.push({type:'slash',x:unit.x,y:unit.y,range:48,angle:unit.aim,arc:1.15,ttl:.18,maxTtl:.18,color:'#e6f7ff'});}
-        else if(index===1){this.setSandboxAction(unit,'senku',.38);line('旋空',42,0,'#d7f0ff',.28);}
-        else if(index===2){ai.chameleonTimer=3;unit.toggles.chameleon=true;}
-        else if(index===3){unit.vx+=Math.cos(unit.aim)*260;unit.vy+=Math.sin(unit.aim)*260;}
-        else if(index===4)hit();else this.effects.push({type:'bailout',x:unit.x,y:unit.y,ttl:.7,maxTtl:.7});
-      }else if(type==='skeletonShooter'){
-        if(index===0){this.setSandboxAction(unit,'shoot',.25);this.fireDefenseProjectile(unit,target,{sourceKey:'asteroid',sourceName:'アステロイド',speed:760,damage:0,radius:5,color:'#72e8ff'});}
-        else if(index===1){this.setSandboxAction(unit,'meteor',.36);this.fireDefenseProjectile(unit,target,{sourceKey:'meteor',sourceName:'メテオラ',speed:620,damage:0,radius:8,explosive:true,explosionRadius:108,color:'#ffb95d',life:1.8});}
-        else if(index===2){this.setSandboxAction(unit,'composite',.36);this.fireDefenseProjectile(unit,target,{sourceKey:'asteroid',sourceName:'合成弾',speed:760,damage:0,radius:6,explosive:true,explosionRadius:92,homing:1.15,targetId:target.id,color:'#d28dff'});this.fireDefenseProjectile(unit,target,{sourceKey:'asteroid',sourceName:'合成弾',speed:720,damage:0,radius:5,homing:1.45,targetId:target.id,color:'#7dffb8'});}
-        else if(index===3)this.setSandboxAction(unit,'shoot',.7);else if(index===4)hit();else this.effects.push({type:'bailout',x:unit.x,y:unit.y,ttl:.7,maxTtl:.7});
-      }else if(type==='skeletonSniper'){
-        if(index===0){this.setSandboxAction(unit,'shoot',.3);this.fireDefenseProjectile(unit,target,{sourceKey:'egret',sourceName:'イーグレット',speed:1380,damage:0,radius:4,trail:true,penetration:1,color:'#f2f8ff'});}
-        else if(index===1){this.setSandboxAction(unit,'ibis',.42);this.fireDefenseProjectile(unit,target,{sourceKey:'ibis',sourceName:'アイビス',speed:1120,damage:0,radius:8,trail:true,penetration:2,color:'#ffd1a6'});}
-        else if(index===2){this.setSandboxAction(unit,'lead',.32);this.fireDefenseProjectile(unit,target,{sourceKey:'egret',sourceName:'鉛弾',speed:840,damage:0,radius:5,trail:true,shieldPierce:true,lead:true,leadWeight:3,color:'#c6e0ff'});}
-        else if(index===3)this.setSandboxAction(unit,'shoot',.8);else if(index===4)hit();else this.effects.push({type:'bailout',x:unit.x,y:unit.y,ttl:.7,maxTtl:.7});
-      }else if(type==='marmod'){
-        if(index===0){line('モールモッド・ブレード',44,0,'#e7eff2');this.effects.push({type:'slash',x:unit.x,y:unit.y,range:58,angle:unit.aim,arc:1.1,ttl:.2,maxTtl:.2});}else if(index===1){unit.vx+=Math.cos(unit.aim)*420;unit.vy+=Math.sin(unit.aim)*420;}else if(index===2)hit();else this.effects.push({type:'bailout',x:unit.x,y:unit.y,ttl:.7,maxTtl:.7});
-      }else if(type==='ilgar'){
-        if(index===0)circle('イルガー爆撃',115,0,'#e7bf35',.65);else if(index===1){ai.selfDestruct=true;ai.selfDestructTimer=4.6;}else if(index===2){circle('イルガー自爆',235,0,'#ffd24d',.35);this.effects.push({type:'explosion',x:unit.x,y:unit.y,radius:235,ttl:.5,maxTtl:.5});}else unit.vy-=160;
-      }else if(type==='rabbit'){
-        if(index===0)line('ラービット打撃',55,0,'#fff');else if(index===1)line('ラービット捕獲腕',70,0,'#dbe7ee');else if(index===2&&target&&!target.sandboxPoint)target.cubedTimer=Math.max(target.cubedTimer||0,2.4);else if(index===3)ai.shieldTimer=3;else hit();
-      }else if(type==='fujin'){
-        if(index===0)line('風刃・遠隔斬撃',30,0,'#45ef83',.5);else if(index===1){for(let i=-1;i<=1;i++)this.queueDefenseHazard({type:'line',x:unit.x,y:unit.y,x2:target.x+i*80,y2:target.y+i*30,width:25,delay:.55+Math.abs(i)*.1,damage:0,owner:unit,name:'風刃・伝播斬撃',color:'#45ef83'});}else if(index===2)this.effects.push({type:'senku',x:unit.x,y:unit.y,x2:target.x,y2:target.y,ttl:.35,maxTtl:.35});else hit();
-      }else if(type==='seals'){
-        if(index===0)circle('錨印',125,0,'#252c35',.45);else if(index===1){const h={type:'line',x:unit.x,y:unit.y,x2:target.x,y2:target.y,width:38,delay:.4,damage:0,status:'chain',owner:unit,name:'鎖印',color:'#d5d9e3'};this.queueDefenseHazard(h);}else if(index===2)circle('弾印',120,0,'#f5f5ff',.4);else if(index===3)ai.shieldTimer=4;else if(index===4){unit.x=clamp(target.x+120,60,this.world.w-60);unit.y=clamp(target.y+60,60,this.world.h-60);this.effects.push({type:'teleport',x:unit.x-120,y:unit.y-60,x2:unit.x,y2:unit.y,ttl:.3,maxTtl:.3});}else if(target&&!target.sandboxPoint){target.revealTimer=6;target.markedTimer=4;}
-      }else if(type==='alektor'){
-        const count=index===1?5:2;for(let i=0;i<count;i++)circle('アレクトール弾',58,0,'#b1e893',.35+i*.12);
-      }else if(type==='borboros'){
-        if(index===0)line('ボルボロス固体斬撃',55,0,'#b68be2');else if(index===1){ai.phase='liquid';ai.phaseTimer=99;}else if(index===2){ai.phase='gas';ai.phaseTimer=99;}else if(index===3)circle('ボルボロス毒ガス',190,0,'#9c73ca',.15);else if(index===4){ai.phase='solid';ai.phaseTimer=99;}else hit();
-      }else if(type==='organon'){
-        const rings=index===1?5:3;for(let i=0;i<rings;i++)this.queueDefenseHazard({type:'ring',x:unit.x,y:unit.y,radius:145+i*105,width:28,delay:.55+i*.12,damage:0,owner:unit,name:'オルガノン円軌道刃',color:'#e8ddbb'});
-      }else if(type==='yamagu'){
-        if(index===0){this.setSandboxAction(unit,'claw',.26);this.effects.push({type:'yamaguClaw',x:unit.x,y:unit.y,angle:unit.aim,range:128,ttl:.36,maxTtl:.36});line('山狗の爪',46,0,'#ffd5a0');}
-        else if(index===1){
-          this.setSandboxAction(unit,'claw',.42);
-          for(let i=-1;i<=1;i++){
-            this.effects.push({type:'yamaguClaw',x:unit.x,y:unit.y,angle:unit.aim+i*.14,range:122+Math.abs(i)*14,ttl:.42+Math.abs(i)*.08,maxTtl:.42+Math.abs(i)*.08});
-            this.queueDefenseHazard({type:'line',x:unit.x,y:unit.y,x2:target.x+i*26,y2:target.y+i*14,width:34,delay:.16+(i+1)*.08,damage:0,owner:unit,name:'連続引っ掻き',color:'#ffd5a0'});
-          }
-        }
-        else if(index===2){this.setSandboxAction(unit,'dash',.35);this.effects.push({type:'yamaguDash',x:unit.x,y:unit.y,x2:target.x,y2:target.y,ttl:.42,maxTtl:.42});ai.castMode='dash';ai.castTimer=.01;this.updateHyakkiBossAI(unit,0,target,target,null);}
-        else if(index===3){this.setSandboxAction(unit,'sharpen',.8);this.effects.push({type:'yamaguSharpen',x:unit.x,y:unit.y,angle:unit.aim,ttl:.8,maxTtl:.8});ai.castMode='sharpen';ai.castTimer=.8;}
-        else if(index===4)hit();
-        else {this.setSandboxAction(unit,'roar',.55);this.effects.push({type:'yamaguRoar',x:unit.x,y:unit.y,angle:unit.aim,radius:180,ttl:.7,maxTtl:.7});this.showCenterMessage('山狗','咆哮',.7);}
-      }else if(type==='yagarasu'){
-        if(index===0){this.setSandboxAction(unit,'mist',.34);this.effects.push({type:'yagarasuMist',x:unit.x,y:unit.y,x2:target.x,y2:target.y,ttl:.7,maxTtl:.7});this.spawnDefenseArea({kind:'mist',x:target.x,y:target.y,radius:118,ttl:5.6,damage:0,interval:.7,owner:unit,name:'黒い霧'});}
-        else if(index===1){this.setSandboxAction(unit,'flap',.42);this.effects.push({type:'yagarasuFlap',x:unit.x,y:unit.y,angle:unit.aim,range:190,ttl:.5,maxTtl:.5});line('羽ばたき',92,0,'#8a939d',.3);}
-        else if(index===2){this.setSandboxAction(unit,'breath',1.02);this.effects.push({type:'yagarasuBreath',x:unit.x,y:unit.y,x2:target.x,y2:target.y,ttl:1.08,maxTtl:1.08});line('闇のブレス',86,0,'#6c5975',.85);}
-        else if(index===3){this.setSandboxAction(unit,'flap',.6);unit.vy-=180;}
-        else if(index===4)hit();
-        else {this.setSandboxAction(unit,'cry',.55);this.effects.push({type:'yagarasuCry',x:unit.x,y:unit.y,angle:unit.aim,radius:180,ttl:.7,maxTtl:.7});this.showCenterMessage('夜鴉','カァッ',.7);}
-      }else if(type==='whitefox'){
-        if(index===0){this.setSandboxAction(unit,'slash',.38);this.effects.push({type:'whitefoxSlash',x:unit.x,y:unit.y,angle:unit.aim,range:118,ttl:.42,maxTtl:.42});line('瞬歩斬り',38,0,'#e6f7ff');}
-        else if(index===1){const ox=unit.x,oy=unit.y;unit.x=clamp(target.x+60,60,this.world.w-60);unit.y=clamp(target.y+40,60,this.world.h-60);unit.aim=Math.atan2(target.y-unit.y,target.x-unit.x);this.setSandboxAction(unit,'teleport',.42);this.effects.push({type:'whitefoxTeleport',x:ox,y:oy,x2:unit.x,y2:unit.y,ttl:.45,maxTtl:.45});this.effects.push({type:'whitefoxSlash',x:unit.x,y:unit.y,angle:unit.aim,range:125,ttl:.4,maxTtl:.4});line('白狐・斬',38,0,'#e6f7ff');}
-        else if(index===2){this.setSandboxAction(unit,'clock',1.05);this.effects.push({type:'whitefoxClock',x:unit.x,y:unit.y,radius:164,ttl:1.12,maxTtl:1.12});this.queueDefenseHazard({type:'ring',x:unit.x,y:unit.y,radius:164,width:32,delay:.8,damage:0,owner:unit,name:'時計輪剣',color:'#d6f0ff'});}
-        else if(index===3){this.setSandboxAction(unit,'slowSlash',.42);this.effects.push({type:'whitefoxSlash',x:unit.x,y:unit.y,angle:unit.aim,range:118,slow:true,ttl:.48,maxTtl:.48});if(target&&!target.sandboxPoint){target.slowTimer=4;target.slowFactor=.5;}}
-        else if(index===4)hit();else this.setSandboxAction(unit,'clock',.8);
-      }else if(type==='nekomata'){
-        if(index===0){this.setSandboxAction(unit,'tailStrike',.46);this.effects.push({type:'nekomataTail',x:unit.x,y:unit.y,angle:unit.aim,range:150,ttl:.5,maxTtl:.5});line('双尾突き',24,0,'#b073ff');this.queueDefenseHazard({type:'line',x:unit.x+18,y:unit.y,x2:target.x,y2:target.y,width:24,delay:.22,damage:0,owner:unit,name:'双尾突き',color:'#b073ff'});}
-        else if(index===1){this.setSandboxAction(unit,'snipe',.34);this.effects.push({type:'nekomataSnipe',x:unit.x,y:unit.y,x2:target.x,y2:target.y,ttl:.36,maxTtl:.36});this.fireDefenseProjectile(unit,target,{sourceKey:'egret',sourceName:'妖尾狙撃',speed:1280,damage:0,radius:4,trail:true,color:'#b073ff'});}
-        else if(index===2){this.setSandboxAction(unit,'laser',1.0);this.effects.push({type:'nekomataLaser',x:target.x,y:target.y-300,x2:target.x,y2:target.y+25,ttl:1.08,maxTtl:1.08});this.queueDefenseHazard({type:'line',x:target.x,y:target.y-280,x2:target.x,y2:target.y,width:70,delay:.85,damage:0,owner:unit,name:'空中妖光レーザー',color:'#ff6ad5'});}
-        else if(index===3){this.setSandboxAction(unit,'jump',.65);this.effects.push({type:'nekomataJump',x:unit.x,y:unit.y+30,radius:95,ttl:.72,maxTtl:.72});unit.vy-=420;}
-        else if(index===4)hit();else this.setSandboxAction(unit,'tailStrike',.8);
-      }else if(type==='orochi'){
-        if(index===0){this.setSandboxAction(unit,'bite',.52);this.effects.push({type:'orochiBite',x:unit.x,y:unit.y,angle:unit.aim,range:135,ttl:.62,maxTtl:.62});line('大蛇の牙',90,0,'#cce28c');}
-        else if(index===1){this.setSandboxAction(unit,'meteor',1.35);for(let i=0;i<5;i++){const ox=(i-2)*74,oy=(i%2)*54-28;const duration=1.55+i*.08;this.effects.push({type:'orochiMeteor',x:target.x+ox,y:target.y+oy,radius:96+i*5,stagger:.08+i*.08,ttl:duration,maxTtl:duration});this.queueDefenseHazard({type:'circle',x:target.x+ox,y:target.y+oy,radius:92+i*4,delay:.45+i*.12,damage:0,owner:unit,name:'落星火',color:'#ff954a'});}}
-        else if(index===2){this.setSandboxAction(unit,'breath',1.4);this.effects.push({type:'orochiBreath',x:unit.x,y:unit.y,x2:target.x,y2:target.y,ttl:1.48,maxTtl:1.48});line('極炎ブレス',120,0,'#ff8d46',.82);for(let i=1;i<=6;i++)this.spawnDefenseArea({kind:'fire',x:unit.x+(target.x-unit.x)*i/6,y:unit.y+(target.y-unit.y)*i/6,radius:80+i*8,ttl:4.2,damage:0,interval:.36,owner:unit,name:'灼熱の残火'});}
-        else if(index===3){ai.enraged=!ai.enraged;this.setSandboxAction(unit,'enrage',1.45);this.effects.push({type:'orochiAura',x:unit.x,y:unit.y,radius:250,ttl:1.55,maxTtl:1.55});}
-        else if(index===4){this.setSandboxAction(unit,'ultimate',2.55);this.effects.push({type:'orochiUltimate',x:unit.x,y:unit.y,radius:460,ttl:2.75,maxTtl:2.75});for(let i=0;i<24;i++)this.spawnDefenseArea({kind:'fire',x:rand(90,this.world.w-90),y:rand(90,this.world.h-90),radius:145,ttl:5,damage:0,interval:.32,owner:unit,name:'終焉の炎'});}
-        else hit();
-      }
-    }
-
-    updateSandboxUnitAI(unit, dt) {
-      if (!unit || unit.dead || !unit.sandboxAiEnabled) return;
-      if (!unit.isDefenseEnemy) { this.updateAI(unit, dt); return; }
-      const ai = unit.defenseAI || (unit.defenseAI = {});
-      ai.attackCooldown = (ai.attackCooldown || 0) - dt; ai.specialCooldown = (ai.specialCooldown || 0) - dt; ai.phaseTimer = (ai.phaseTimer || 0) - dt;
-      ai.castTimer = Math.max(0,(ai.castTimer||0)-dt); ai.chameleonTimer=Math.max(0,(ai.chameleonTimer||0)-dt); ai.actionTimer=Math.max(0,(ai.actionTimer||0)-dt); if(ai.actionTimer<=0)ai.action='';
-      const targets=this.players.filter((p)=>!p.dead&&p!==unit&&(Boolean(p.isDefenseEnemy)!==Boolean(unit.isDefenseEnemy)));
-      const target=targets.sort((a,b)=>dist2(unit,a)-dist2(unit,b))[0];
-      if(!target)return;
-      const type=unit.defenseType;
-      if(['skeletonAttacker','skeletonShooter','skeletonSniper','yamagu','yagarasu','whitefox','nekomata','orochi'].includes(type)) this.updateHyakkiEnemyAI(unit,dt,target,target,null);
-      else if(['fujin','seals','alektor','borboros','organon'].includes(type)) this.updateBlackTriggerAI(unit,dt,target,target,null);
-      else if(type==='marmod'){const d=this.moveDefenseEnemy(unit,target,dt,1.1);if(ai.attackCooldown<=0&&d<82&&this.canDefenseEnemyAttackTarget(unit,target,220,4)){this.damagePlayer(target,ai.damage||16,unit,{x:unit.x,y:unit.y,type:'melee',name:'モールモッド・ブレード',sourceKey:'marmodBlade'});ai.attackCooldown=.8;}}
-      else if(type==='rabbit'){const d=this.moveDefenseEnemy(unit,target,dt,.9);if(ai.attackCooldown<=0&&d<92&&this.canDefenseEnemyAttackTarget(unit,target,230,4)){const hit=this.damagePlayer(target,(ai.damage||25)*.55,unit,{x:unit.x,y:unit.y,type:'melee',name:'ラービット捕獲腕',sourceKey:'rabbitCapture'});if(hit)target.cubedTimer=Math.max(target.cubedTimer||0,1.9);ai.attackCooldown=1.5;}}
-      else if(type==='ilgar'){this.moveDefenseEnemy(unit,target,dt,.72);if(ai.attackCooldown<=0){this.queueDefenseHazard({type:'circle',x:target.x,y:target.y,radius:105,delay:.65,damage:ai.damage||19,owner:unit,name:'イルガー爆撃',color:'#e7bf35'});ai.attackCooldown=3;}}
-    }
-
-    updateSandboxMode(dt) {
-      const unit = this.getSandboxControlled();
-      if (!unit) return;
-      if (this.actionConsume('spectatorPrev')) this.cycleSandboxControlled(-1);
-      if (this.actionConsume('spectatorNext')) this.cycleSandboxControlled(1);
-      if (unit.dead) { this.refreshSandboxPanel(false); return; }
-      const mouse = this.screenToWorld(this.input.mouse.x, this.input.mouse.y);
-      unit.aim = Math.atan2(mouse.y-unit.y,mouse.x-unit.x);
-      let dx=this.input.virtualMove.x,dy=this.input.virtualMove.y;
-      if(this.actionDown('moveUp'))dy-=1;if(this.actionDown('moveDown'))dy+=1;if(this.actionDown('moveLeft'))dx-=1;if(this.actionDown('moveRight'))dx+=1;
-      if(!unit.sandboxAiEnabled && (dx||dy)){const l=Math.hypot(dx,dy)||1;unit.vx+=dx/l*unit.speed*dt*4.8;unit.vy+=dy/l*unit.speed*dt*4.8;}
-      if(unit.isDefenseEnemy){for(let i=1;i<=6;i++)if(this.input.consume(`Digit${i}`))this.triggerSandboxMotion(i-1);}
-      else{
-        const slots=[['Digit1','main',0],['Digit2','main',1],['Digit3','main',2],['Digit4','main',3],['Digit5','sub',0],['Digit6','sub',1],['Digit7','sub',2],['Digit8','sub',3]];
-        for(const [code,hand,index] of slots)if(this.input.consume(code))unit.selected[hand]=index;
-        if(this.input.mouse.justLeft||this.input.virtualMainJust)this.tryUseHand(unit,'main',{shift:this.modifierDown()});
-        if(this.input.mouse.justRight||this.input.virtualSubJust)this.tryUseHand(unit,'sub',{shift:this.modifierDown()});
-      }
-      this.sandboxUiTimer = (this.sandboxUiTimer || 0) - dt;
-      if (this.sandboxUiTimer <= 0) { this.refreshSandboxPanel(false); this.sandboxUiTimer = .12; }
-    }
-
 
     initializeDefenseMode() {
       const home = this.getTeamHome(0);
@@ -4777,7 +4845,7 @@
         squadName: def.faction === 'hyakki' ? '百鬼夜行' : '近界侵攻群',
         emblemPixels: emblemToString(makeEmblemPreset(def.faction === 'hyakki' ? 'wing' : 'fang')),
       });
-      const point = this.isSandboxMode ? this.randomOpenPoint(1) : this.getDefenseSpawnPoint(index, total);
+      const point = this.getDefenseSpawnPoint(index, total);
       enemy.x = point.x; enemy.y = point.y;
       enemy.isDefenseEnemy = true;
       enemy.defenseType = type;
@@ -4788,7 +4856,7 @@
         distance: type === 'ilgar' ? 34 : type === 'rabbit' ? 12 : 8,
         radius: type === 'ilgar' ? 11 : type === 'rabbit' ? 9 : 7,
       };
-      enemy.maxHp = Math.round(def.hp * hpScale * (def.boss ? 1 + tier * .07 : 1));
+      enemy.maxHp = Math.round(def.hp * hpScale * (def.boss ? 1 + tier * .07 : 1) * 2);
       enemy.hp = enemy.maxHp;
       enemy.maxTrion = 0; enemy.trion = 0; enemy.regen = 0;
       enemy.speed = def.speed * speedScale;
@@ -4806,7 +4874,9 @@
         objectiveTimer: rand(2.4, 5.2), flagAttacks: 0,
         role: def.role || null, chameleonTimer: 0, castTimer: 0, castMode: null,
         trailTimer: .4, bodyHistory: [], bodySegments: [], enraged: false, ultimateUsed: false,
+        borborosCores: [], coreCooldown: 0, parryTimer: 0, parryCooldown: 0,
       };
+      if (type === 'borboros') this.deployBorborosCores(enemy, true);
       enemy.respawnTimer = Infinity;
       enemy.scoreValue = def.score || (def.boss ? 1000 : 100);
       this.players.push(enemy);
@@ -4816,6 +4886,7 @@
     startDefenseRound() {
       this.defenseRound += 1;
       this.defenseTier = Math.floor(this.defenseRound / 5);
+      if (this.isExtraMode && this.config.extraDefenseEnemyType && this.config.extraDefenseEnemyType !== 'agent') { const fixed=this.createDefenseEnemy(this.config.extraDefenseEnemyType,0,1); if(fixed)fixed.extraFixedInvader=true; }
       const isBossRound = this.defenseRound % 5 === 0;
       if (this.isHyakkiDefense()) {
         if (isBossRound) {
@@ -5140,7 +5211,12 @@
       ai.castTimer = Math.max(0, (ai.castTimer || 0) - dt);
       ai.chameleonTimer = Math.max(0, (ai.chameleonTimer || 0) - dt);
       ai.actionTimer = Math.max(0, (ai.actionTimer || 0) - dt);
+      ai.parryTimer = Math.max(0, (ai.parryTimer || 0) - dt);
+      ai.parryCooldown = Math.max(0, (ai.parryCooldown || 0) - dt);
+      ai.coreCooldown = Math.max(0, (ai.coreCooldown || 0) - dt);
       if (ai.actionTimer <= 0) ai.action = '';
+      if (EXTRA_PARRY_TYPES.has(enemy.defenseType) && ai.parryCooldown <= 0 && this.projectileThreat(enemy) && Math.random() < .12) { ai.parryTimer=.3;ai.parryCooldown=1.8;ai.action='parry';ai.actionTimer=.3;ai.actionMax=.3; }
+      if (enemy.defenseType === 'borboros' && (!ai.borborosCores || !ai.borborosCores.length || ai.coreCooldown <= 0)) this.deployBorborosCores(enemy, !ai.borborosCores?.length);
       const defenders = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
       const nearest = defenders.length ? [...defenders].sort((a, b) => dist2(enemy, a) - dist2(enemy, b))[0] : null;
       const flag = this.defenseFlag;
@@ -5343,6 +5419,8 @@
       const type = enemy.defenseType;
       if (!target) target = nearest || flag;
       const targetAttackable = target && this.canDefenseEnemyAttackTarget(enemy, target, this.getDefenseAttackMaxRange(enemy), 4);
+      ai.extraActionCooldown = Math.max(0,(ai.extraActionCooldown||0)-dt);
+      if (target && ai.extraActionCooldown <= 0 && Math.random() < .014) { const hand=Math.random()<.72?'main':'sub';const index=irand(0,3);if(this.usePlayableDefenseAction(enemy,hand,index,target,{ai:true})){ai.extraActionCooldown=rand(3.4,6.5);return;} }
       if (type === 'yamagu') {
         const d = this.moveDefenseEnemy(enemy, target, dt, ai.castMode === 'dash' ? 1.45 : .96);
         if (ai.attackCooldown <= 0 && targetAttackable && d < (target === flag ? 190 : 95)) {
@@ -5384,6 +5462,7 @@
             const angle = Math.atan2(target.y - enemy.y, target.x - enemy.x);
             ai.action = 'flap'; ai.actionTimer = .42; ai.actionMax = .42;
             this.effects.push({ type:'yagarasuFlap', x:enemy.x, y:enemy.y, angle, range:190, ttl:.5, maxTtl:.5 });
+            ai.action='solidSlash';ai.actionTimer=.45;ai.actionMax=.45;
             this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x, y2: target.y, width: 92, delay: .32, damage: ai.damage * .58, owner: enemy, name: '羽ばたき', status: 'bounce', hitsFlag: true, color: '#8a939d' });
             for (const area of this.defenseAreas.filter((patch) => patch.kind === 'mist')) { area.vx += Math.cos(angle) * 80; area.vy += Math.sin(angle) * 80; }
             ai.specialCooldown = 4.1;
@@ -5529,11 +5608,14 @@
       const type = enemy.defenseType;
       const target = objective || nearest || flag;
       const targetAttackable = target && this.canDefenseEnemyAttackTarget(enemy, target, this.getDefenseAttackMaxRange(enemy), 4);
+      ai.extraActionCooldown = Math.max(0,(ai.extraActionCooldown||0)-dt);
+      if (targetAttackable && ai.extraActionCooldown <= 0 && Math.random() < .018) { const hand=Math.random()<.72?'main':'sub';const index=irand(0,3);if(this.usePlayableDefenseAction(enemy,hand,index,target,{ai:true,modifier:Math.random()<.24})){ai.extraActionCooldown=rand(3.2,6.1);return;} }
       if (type === 'fujin') {
         const currentD = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
         this.moveDefenseEnemy(enemy, target, dt, currentD > 430 ? .7 : -.15);
         if (ai.specialCooldown <= 0) {
           const targets = this.players.filter((p) => !p.isDefenseEnemy && !p.dead && this.canDefenseEnemyAttackTarget(enemy, p, 900, 4)).sort((a, b) => dist2(enemy, a) - dist2(enemy, b)).slice(0, 3 + Math.min(2, this.defenseTier));
+          if (targets.length || (flag && this.canDefenseEnemyAttackTarget(enemy, flag, 900, 4))) { ai.action='fujinMulti';ai.actionTimer=.75;ai.actionMax=.75; }
           targets.forEach((p, index) => this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: p.x, y2: p.y, width: 30, delay: .72 + index * .1, damage: ai.damage, owner: enemy, name: '風刃・遠隔斬撃', hitsFlag: true, color: '#45ef83' }));
           const flagVisible = flag && this.canDefenseEnemyAttackTarget(enemy, flag, 900, 4);
           if (flagVisible) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: flag.x, y2: flag.y, width: 24, delay: 1.05, damage: ai.damage * .75, owner: enemy, name: '風刃・伝播斬撃', hitsFlag: true, color: '#45ef83' });
@@ -5546,6 +5628,8 @@
         if (ai.specialCooldown <= 0 && targetAttackable) {
           ai.sealCount += 1;
           const combo = ai.sealCount % 4 === 0;
+          ai.sealBoost = combo ? 3 : 1 + (ai.sealCount % 2); enemy.extraBoost = ai.sealBoost;
+          ai.action = combo ? 'sealCombine' : 'sealCast'; ai.actionTimer = .55; ai.actionMax = .55;
           const roll = irand(0, 5);
           if (target === flag && ai.sealCount % 2 === 1) this.queueDefenseHazard({ type: 'circle', x: flag.x, y: flag.y, radius: combo ? 175 : 130, delay: .62, damage: ai.damage * (combo ? .82 : .62), status: 'anchor', owner: enemy, name: combo ? '二重錨印・旗封' : '錨印・旗封', hitsFlag: true, color: '#252c35' });
           else if (roll === 0 && nearest) this.queueDefenseHazard({ type: 'circle', x: nearest.x, y: nearest.y, radius: 125, delay: .65, damage: ai.damage * .55, status: 'anchor', owner: enemy, name: combo ? '二重錨印' : '錨印', color: '#252c35' });
@@ -5562,6 +5646,7 @@
         const currentD = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
         this.moveDefenseEnemy(enemy, target, dt, currentD > 360 ? .55 : -.18);
         if (ai.specialCooldown <= 0 && targetAttackable) {
+          ai.action='alektorSwarm';ai.actionTimer=.72;ai.actionMax=.72;
           const count = 2 + Math.min(3, this.defenseTier);
           for (let i = 0; i < count; i++) this.queueDefenseHazard({ type: 'circle', x: target.x + (target === flag ? rand(-35, 35) : rand(-100, 100)), y: target.y + (target === flag ? rand(-35, 35) : rand(-100, 100)), radius: 58, delay: .65 + i * .18, damage: ai.damage * .35, status: 'cube', owner: enemy, name: 'アレクトール弾', hitsFlag: target === flag, color: '#b1e893' });
           ai.specialCooldown = 3.1;
@@ -5577,6 +5662,7 @@
         if (ai.phase === 'gas') {
           this.moveDefenseEnemy(enemy, target, dt, .7);
           if (ai.attackCooldown <= 0) {
+            ai.action='gas';ai.actionTimer=.55;ai.actionMax=.55;
             this.queueDefenseHazard({ type: 'circle', x: enemy.x, y: enemy.y, radius: 190, delay: .15, damage: ai.damage * .3, status: 'poison', owner: enemy, name: 'ボルボロス毒ガス', hitsFlag: target === flag, color: '#9c73ca' });
             ai.attackCooldown = .9;
           }
@@ -5594,6 +5680,7 @@
       if (type === 'organon') {
         this.moveDefenseEnemy(enemy, target, dt, .45);
         if (ai.specialCooldown <= 0) {
+          ai.action='organonRings';ai.actionTimer=.9;ai.actionMax=.9;
           const rings = 3 + Math.min(2, this.defenseTier);
           for (let i = 0; i < rings; i++) this.queueDefenseHazard({ type: 'ring', x: enemy.x, y: enemy.y, radius: 145 + i * 105, width: 28, delay: .85 + i * .14, damage: ai.damage, owner: enemy, name: 'オルガノン円軌道刃', hitsFlag: true, color: '#e8ddbb' });
           ai.specialCooldown = 4.15;
@@ -5643,7 +5730,7 @@
     resolveDefenseHazard(hazard) {
       if (hazard.type === 'circle' || hazard.type === 'ring') this.sfx?.play('explosion', { x: hazard.x, y: hazard.y, bucket: `defense-explosion:${hazard.name}`, cooldown: .14, volume: .58, rate: hazard.type === 'ring' ? .82 : 1 });
       else if (hazard.type === 'line') this.sfx?.play('attacker', { x: hazard.x2 ?? hazard.x, y: hazard.y2 ?? hazard.y, bucket: `defense-line:${hazard.name}`, cooldown: .11, volume: .45, rate: 1.04 });
-      const targets = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
+      const targets = this.players.filter((player) => !player.dead && (!hazard.owner || this.canDamage(hazard.owner, player)));
       const hits = [];
       for (const target of targets) {
         let hit = false;
@@ -5719,7 +5806,7 @@
       this.effects.push({ type: 'bailout', x: enemy.x, y: enemy.y, ttl: .9, maxTtl: .9 });
       this.addKillFeed(`${enemy.name}撃破`);
       this.logEvent(enemy.isDefenseBoss ? 'defense_boss_defeated' : 'defense_enemy_defeated', `${enemy.name} [${sourceName}]`);
-      if (enemy.defenseType === 'organon') this.completeDefenseMatch();
+      if (enemy.defenseType === 'organon' && !enemy.extraFixedInvader) this.completeDefenseMatch();
     }
 
     completeDefenseMatch() {
@@ -5858,6 +5945,7 @@
           wanderTimer: 0, wanderPoint: null,
           navCheckTimer: 0, navProgressTimer: 0, navLastX: null, navLastY: null, stuckTimer: 0, navBlockerId: null,
           avoidWaypoint: null, avoidWallId: null, avoidTimer: 0, wallBreakTarget: null, wallBreakTimer: 0,
+          navPath: [], navPathIndex: 0, navPathGoalX: null, navPathGoalY: null, navPathRecalcTimer: 0,
           movementMode: 'advance', movementModeTimer: 0, movementAngle: null, movementAngleTimer: 0,
           lastMoveAngle: null, lastDesiredMoveAngle: null, directionFlipCount: 0, directionFlipTimer: 0, strafeTimer: rand(1.4, 2.8),
           escapeWaypoint: null, escapeTimer: 0, recentNavPoints: [], navLastGoalDistance: null, failedDetours: 0,
@@ -5972,17 +6060,17 @@
     buildSlotHud(subject = this.human) {
       if (!subject) return;
       this.hudSubjectId = subject.id;
+      const extraProfile = subject.playableDefenseType ? this.getPlayableDefenseProfile(subject.playableDefenseType) : null;
       for (const hand of ['main', 'sub']) {
         const root = $(`#${hand}HudSlots`);
         root.innerHTML = '';
-        subject.loadout[hand].forEach((id, index) => {
-          const t = DATA.triggers[id] || DATA.triggers.empty;
+        const entries = extraProfile ? extraProfile[hand] : subject.loadout[hand];
+        entries.forEach((entry, index) => {
+          const trigger = extraProfile ? null : (DATA.triggers[entry] || DATA.triggers.empty);
           const key = hand === 'main' ? index + 1 : index + 5;
           const slot = document.createElement('div');
-          slot.className = 'hud-slot';
-          slot.dataset.hand = hand;
-          slot.dataset.index = index;
-          slot.innerHTML = `<span class="key">${key}</span><span class="name">${t.short || t.name}</span><span class="ammo"></span><span class="cooldown"><i></i></span>`;
+          slot.className = 'hud-slot'; slot.dataset.hand = hand; slot.dataset.index = index;
+          slot.innerHTML = `<span class="key">${key}</span><span class="name">${extraProfile ? entry : (trigger.short || trigger.name)}</span><span class="ammo"></span><span class="cooldown"><i></i></span>`;
           root.appendChild(slot);
         });
       }
@@ -5992,20 +6080,18 @@
     updateStaticHud() {
       const difficulty = AI_DIFFICULTIES[this.config.difficulty]?.label || '普通';
       const roleLabel = this.isPlayerOperator ? 'オペレーター' : this.isSetupSpectator ? '観戦' : '戦闘員';
-      const teamText = this.isSandboxMode ? '自由実験' : this.isDefenseMode ? `防衛隊 ${this.config.teamSize || 3}人` : this.config.mode === 'team' ? `${this.teamCount}チーム・各${this.config.teamSize || 3}人` : '個人戦';
+      const teamText = this.isDefenseMode ? `防衛隊 ${this.config.teamSize || 3}人` : this.config.mode === 'team' ? `${this.teamCount}チーム・各${this.config.teamSize || 3}人` : '個人戦';
       $('#modeLabel').textContent = `v${GAME_VERSION} / ${MAP_LABELS[this.mapId]} / ${teamText} / ${roleLabel} / ${difficulty}`;
       $('#teamScoreCard').classList.toggle('hidden', this.config.mode !== 'team');
       $('#defenseHud')?.classList.toggle('hidden', !this.isDefenseMode);
       $('#defenseBuildPanel')?.classList.toggle('hidden', !this.isDefenseMode);
-      $('#sandboxPanel')?.classList.toggle('hidden', !this.isSandboxMode);
       $('#operatorButton').classList.toggle('hidden', !this.isPlayerOperator);
-      $('#bailoutButton').classList.toggle('hidden', !this.isPlayerCombatant || this.isSandboxMode);
-      $('#spectateButton').classList.toggle('hidden', this.isPlayerOperator || this.isSandboxMode);
+      $('#bailoutButton').classList.toggle('hidden', !this.isPlayerCombatant);
+      $('#spectateButton').classList.toggle('hidden', this.isPlayerOperator);
       $('#slotHud').classList.toggle('hidden', !this.isPlayerCombatant && !this.spectating);
       $('#mobileControls').classList.toggle('operator-mode', this.isPlayerOperator);
       $('#gameScreen').classList.toggle('operator-role', this.isPlayerOperator);
-      $('#gameScreen').classList.toggle('sandbox-role', this.isSandboxMode);
-      $('#pauseBailoutButton').classList.toggle('hidden', !this.isPlayerCombatant || this.isSandboxMode);
+      $('#pauseBailoutButton').classList.toggle('hidden', !this.isPlayerCombatant);
       if (this.isPlayerOperator) $('#operatorButton').textContent = 'COMMAND';
       this.setSoundEnabled(this.soundEnabled, false);
     }
@@ -6056,7 +6142,6 @@
       if (this.actionConsume('battleLog')) this.toggleDebugPanel();
       if (this.actionConsume('operatorPanel') && this.isPlayerOperator) this.toggleOperatorPanel();
       if (this.paused || this.ended) return;
-      if (this.isSandboxMode) return;
       if (this.actionConsume('scope')) this.toggleScope();
       if (this.actionConsume('bailout')) this.manualBailout();
       if (this.actionConsume('spectate')) this.toggleSpectate();
@@ -6080,20 +6165,20 @@
       this.updateEnvironment(dt);
       if (this.config.mode === 'team' || this.isDefenseMode) this.updateOperators(dt);
       if (this.isDefenseMode) this.updateDefenseMode(dt);
+      else if (this.isExtraMode) { this.updateDefenseHazards(dt); this.updateDefenseAreas(dt); }
       this.updateInstallations(dt);
       this.updateLightSources(dt);
       this.updateGasFields(dt);
       this.updateSubwaySystems(dt);
-      if (this.isSandboxMode) this.updateSandboxMode(dt);
-      else if (this.isPlayerOperator) this.updateOperatorCamera(dt);
+      if (this.isPlayerOperator) this.updateOperatorCamera(dt);
       else if (this.isPlayerCombatant && !this.spectating) this.updateHuman(dt);
       for (const player of [...this.players]) {
         if (!player.human) {
-          const seekingDoor = !this.isSandboxMode && this.updateAutoPlatformDoorAccess(player, dt);
+          const seekingDoor = this.updateAutoPlatformDoorAccess(player, dt);
           if (!seekingDoor) {
-            if (this.isSandboxMode) this.updateSandboxUnitAI(player, dt);
-            else if (player.remoteControlled) this.updateRemoteControlledPlayer(player, dt);
+            if (player.remoteControlled) this.updateRemoteControlledPlayer(player, dt);
             else if (player.isDefenseEnemy) this.updateDefenseEnemyAI(player, dt);
+            else if (player.playableDefenseType) this.updatePlayableDefenseAI(player, dt);
             else this.updateAI(player, dt);
           }
         }
@@ -6121,6 +6206,7 @@
     updateHuman(dt) {
       const p = this.human;
       if (!this.isPlayerCombatant || p.dead || this.spectating) return;
+      if (p.playableDefenseType) { this.updatePlayableDefenseHuman(p, dt); return; }
       if ((p.cubedTimer || 0) > 0) { p.vx *= Math.pow(.03, dt); p.vy *= Math.pow(.03, dt); return; }
 
       const selectMap = [
@@ -7035,7 +7121,6 @@
 
     updatePlayer(p, dt) {
       if (p.dead) {
-        if (this.isSandboxMode) return;
         if (p.isDefenseEnemy) return;
         if (!(p.human && this.spectating)) {
           p.respawnTimer -= dt;
@@ -7049,6 +7134,12 @@
       p.metrics.longestLife = Math.max(p.metrics.longestLife, p.metrics.currentLife);
 
       for (const key of Object.keys(p.cooldowns)) p.cooldowns[key] = Math.max(0, p.cooldowns[key] - dt);
+      if (p.playableDefenseType) {
+        p.extraActionTimer = Math.max(0, (p.extraActionTimer || 0) - dt);
+        p.extraParryTimer = Math.max(0, (p.extraParryTimer || 0) - dt);
+        p.extraParryCooldown = Math.max(0, (p.extraParryCooldown || 0) - dt);
+        if (p.defenseAI) { p.defenseAI.shieldTimer=Math.max(0,(p.defenseAI.shieldTimer||0)-dt); p.defenseAI.coreCooldown=Math.max(0,(p.defenseAI.coreCooldown||0)-dt); p.defenseAI.actionTimer=Math.max(0,(p.defenseAI.actionTimer||0)-dt); }
+      }
       this.updateWeaponStates(p, dt);
       if (p.justCut) {
         p.justCut.timer -= dt;
@@ -7493,6 +7584,167 @@
       return viable[0];
     }
 
+
+    isAIWallBreakable(wall) {
+      return Boolean(wall && wall.hp > 0 && !wall.nonBlocking && !wall.indestructible && Number.isFinite(wall.hp) && Number.isFinite(wall.maxHp || wall.hp));
+    }
+
+    findAIWallBreakTarget(p, goalX, goalY, preferred = null) {
+      if (this.isAIWallBreakable(preferred)) return preferred;
+      const candidates = this.walls.filter((wall) => {
+        if (!this.isAIWallBreakable(wall)) return false;
+        const centerX = wall.x + wall.w / 2;
+        const centerY = wall.y + wall.h / 2;
+        const nearby = Math.hypot(centerX - p.x, centerY - p.y) <= 390 + p.radius;
+        const onRoute = this.segmentHitsExpandedRect(p.x, p.y, goalX, goalY, wall, p.radius + 9) !== null;
+        return nearby && onRoute;
+      });
+      candidates.sort((a, b) => {
+        const ax = a.x + a.w / 2, ay = a.y + a.h / 2;
+        const bx = b.x + b.w / 2, by = b.y + b.h / 2;
+        return Math.hypot(ax - p.x, ay - p.y) - Math.hypot(bx - p.x, by - p.y);
+      });
+      return candidates[0] || null;
+    }
+
+    findAINavigationPath(p, goalX, goalY) {
+      const directDistance = Math.hypot(goalX - p.x, goalY - p.y);
+      if (directDistance < 80 || !this.findBlockingWall(p.x, p.y, goalX, goalY, p.radius + 6)) return [];
+      const cell = clamp(Math.round((96 + p.radius * .42) / 16) * 16, 96, 144);
+      const margin = clamp(560 + directDistance * .28, 620, 1380);
+      const radius = p.radius + 8;
+      const minX = Math.max(radius + 10, Math.min(p.x, goalX) - margin);
+      const minY = Math.max(radius + 10, Math.min(p.y, goalY) - margin);
+      const maxX = Math.min(this.world.w - radius - 10, Math.max(p.x, goalX) + margin);
+      const maxY = Math.min(this.world.h - radius - 10, Math.max(p.y, goalY) + margin);
+      const cols = Math.max(2, Math.floor((maxX - minX) / cell) + 1);
+      const rows = Math.max(2, Math.floor((maxY - minY) / cell) + 1);
+      const keyOf = (ix, iy) => iy * cols + ix;
+      const pointOf = (ix, iy) => ({ x: minX + ix * cell, y: minY + iy * cell });
+      const openMemo = new Map();
+      const isOpen = (ix, iy) => {
+        if (ix < 0 || iy < 0 || ix >= cols || iy >= rows) return false;
+        const key = keyOf(ix, iy);
+        if (openMemo.has(key)) return openMemo.get(key);
+        const point = pointOf(ix, iy);
+        const open = this.isAINavPointOpen(point.x, point.y, p.radius);
+        openMemo.set(key, open);
+        return open;
+      };
+      const nearestOpen = (x, y, requireStartLine = false) => {
+        const baseX = clamp(Math.round((x - minX) / cell), 0, cols - 1);
+        const baseY = clamp(Math.round((y - minY) / cell), 0, rows - 1);
+        for (let ring = 0; ring <= 5; ring++) {
+          let best = null;
+          let bestDistance = Infinity;
+          for (let oy = -ring; oy <= ring; oy++) for (let ox = -ring; ox <= ring; ox++) {
+            if (Math.max(Math.abs(ox), Math.abs(oy)) !== ring) continue;
+            const ix = baseX + ox, iy = baseY + oy;
+            if (!isOpen(ix, iy)) continue;
+            const point = pointOf(ix, iy);
+            if (requireStartLine && this.findBlockingWall(p.x, p.y, point.x, point.y, p.radius + 4)) continue;
+            const distance = Math.hypot(point.x - x, point.y - y);
+            if (distance < bestDistance) { best = { ix, iy, point }; bestDistance = distance; }
+          }
+          if (best) return best;
+        }
+        return null;
+      };
+      const start = nearestOpen(p.x, p.y, true);
+      const goal = nearestOpen(goalX, goalY, false);
+      if (!start || !goal) return null;
+
+      const heap = [];
+      const push = (node) => {
+        heap.push(node);
+        let index = heap.length - 1;
+        while (index > 0) {
+          const parent = (index - 1) >> 1;
+          if (heap[parent].f <= node.f) break;
+          heap[index] = heap[parent]; index = parent;
+        }
+        heap[index] = node;
+      };
+      const pop = () => {
+        if (!heap.length) return null;
+        const root = heap[0];
+        const tail = heap.pop();
+        if (heap.length && tail) {
+          let index = 0;
+          while (true) {
+            const left = index * 2 + 1, right = left + 1;
+            if (left >= heap.length) break;
+            const child = right < heap.length && heap[right].f < heap[left].f ? right : left;
+            if (heap[child].f >= tail.f) break;
+            heap[index] = heap[child]; index = child;
+          }
+          heap[index] = tail;
+        }
+        return root;
+      };
+      const startKey = keyOf(start.ix, start.iy);
+      const goalKey = keyOf(goal.ix, goal.iy);
+      const gScore = new Map([[startKey, 0]]);
+      const cameFrom = new Map();
+      const closed = new Set();
+      const heuristic = (ix, iy) => {
+        const dx = Math.abs(goal.ix - ix), dy = Math.abs(goal.iy - iy);
+        return cell * (Math.max(dx, dy) + .4142 * Math.min(dx, dy));
+      };
+      push({ key: startKey, ix: start.ix, iy: start.iy, f: heuristic(start.ix, start.iy) });
+      const directions = [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+      let expansions = 0;
+      let found = false;
+      while (heap.length && expansions < 1900) {
+        const current = pop();
+        if (!current || closed.has(current.key)) continue;
+        if (current.key === goalKey) { found = true; break; }
+        closed.add(current.key); expansions++;
+        const currentPoint = pointOf(current.ix, current.iy);
+        for (const [dx, dy] of directions) {
+          const nx = current.ix + dx, ny = current.iy + dy;
+          if (!isOpen(nx, ny)) continue;
+          if (dx && dy && (!isOpen(current.ix + dx, current.iy) || !isOpen(current.ix, current.iy + dy))) continue;
+          const nextPoint = pointOf(nx, ny);
+          if (this.findBlockingWall(currentPoint.x, currentPoint.y, nextPoint.x, nextPoint.y, p.radius + 3)) continue;
+          const nextKey = keyOf(nx, ny);
+          if (closed.has(nextKey)) continue;
+          const tentative = (gScore.get(current.key) ?? Infinity) + cell * (dx && dy ? 1.4142 : 1);
+          if (tentative >= (gScore.get(nextKey) ?? Infinity)) continue;
+          cameFrom.set(nextKey, current.key);
+          gScore.set(nextKey, tentative);
+          push({ key: nextKey, ix: nx, iy: ny, f: tentative + heuristic(nx, ny) });
+        }
+      }
+      if (!found) return null;
+      const raw = [];
+      let cursor = goalKey;
+      while (cursor !== startKey && cameFrom.has(cursor)) {
+        const ix = cursor % cols;
+        const iy = Math.floor(cursor / cols);
+        raw.push(pointOf(ix, iy));
+        cursor = cameFrom.get(cursor);
+      }
+      raw.reverse();
+      if (!raw.length) return [];
+      const simplified = [];
+      let anchor = { x: p.x, y: p.y };
+      let index = 0;
+      while (index < raw.length) {
+        let farthest = index;
+        for (let probe = index; probe < Math.min(raw.length, index + 7); probe++) {
+          const point = raw[probe];
+          if (this.findBlockingWall(anchor.x, anchor.y, point.x, point.y, p.radius + 4)) break;
+          farthest = probe;
+        }
+        const point = raw[farthest];
+        simplified.push(point);
+        anchor = point;
+        index = farthest + 1;
+      }
+      return simplified.slice(0, 28);
+    }
+
     updateAINavigationProgress(p, dt, wantsMovement, goalX = null, goalY = null) {
       if (p.ai.navLastX === null) {
         p.ai.navLastX = p.x;
@@ -7629,9 +7881,33 @@
       p.ai.navCheckTimer = Math.max(0, (p.ai.navCheckTimer || 0) - dt);
       p.ai.avoidTimer = Math.max(0, (p.ai.avoidTimer || 0) - dt);
       p.ai.wallBreakTimer = Math.max(0, (p.ai.wallBreakTimer || 0) - dt);
+      p.ai.navPathRecalcTimer = Math.max(0, (p.ai.navPathRecalcTimer || 0) - dt);
       this.updateAINavigationProgress(p, dt, movementScale > .18, goalX, goalY);
 
       if (p.ai.wallBreakTimer <= 0) p.ai.wallBreakTarget = null;
+      const pathGoalMoved = Number.isFinite(p.ai.navPathGoalX)
+        && Math.hypot(goalX - p.ai.navPathGoalX, goalY - p.ai.navPathGoalY) > 260;
+      if (pathGoalMoved) { p.ai.navPath = []; p.ai.navPathIndex = 0; }
+
+      let path = Array.isArray(p.ai.navPath) ? p.ai.navPath : [];
+      let pathIndex = p.ai.navPathIndex || 0;
+      while (pathIndex < path.length && Math.hypot(path[pathIndex].x - p.x, path[pathIndex].y - p.y) < Math.max(46, p.radius * 2.15)) pathIndex++;
+      if (pathIndex < path.length) {
+        for (let probe = Math.min(path.length - 1, pathIndex + 3); probe > pathIndex; probe--) {
+          if (!this.findBlockingWall(p.x, p.y, path[probe].x, path[probe].y, p.radius + 4)) { pathIndex = probe; break; }
+        }
+        const waypoint = path[pathIndex];
+        if (this.findBlockingWall(p.x, p.y, waypoint.x, waypoint.y, p.radius + 4)) {
+          p.ai.navPath = []; p.ai.navPathIndex = 0; path = [];
+        } else {
+          p.ai.navPathIndex = pathIndex;
+          p.ai.failedDetours = Math.max(0, (p.ai.failedDetours || 0) - dt * .7);
+          return Math.atan2(waypoint.y - p.y, waypoint.x - p.x);
+        }
+      } else if (path.length) {
+        p.ai.navPath = []; p.ai.navPathIndex = 0;
+      }
+
       if (p.ai.avoidWaypoint) {
         const reached = Math.hypot(p.ai.avoidWaypoint.x - p.x, p.ai.avoidWaypoint.y - p.y) < Math.max(38, p.radius * 2.2);
         const wallGone = !this.walls.some((wall) => wall.id === p.ai.avoidWallId && wall.hp > 0);
@@ -7641,43 +7917,63 @@
         }
       }
 
-      const directDistance = Math.hypot(goalX - p.x, goalY - p.y);
-      const lookDistance = Math.min(330, directDistance);
-      const lookX = p.x + Math.cos(fallbackAngle) * lookDistance;
-      const lookY = p.y + Math.sin(fallbackAngle) * lookDistance;
       let blocker = p.ai.navBlockerId ? this.walls.find((wall) => wall.id === p.ai.navBlockerId && wall.hp > 0) || null : null;
       if (p.ai.navCheckTimer <= 0) {
-        blocker = this.findBlockingWall(p.x, p.y, lookX, lookY, p.radius + 7);
+        blocker = this.findBlockingWall(p.x, p.y, goalX, goalY, p.radius + 7);
         p.ai.navBlockerId = blocker?.id || null;
-        p.ai.navCheckTimer = .14;
+        p.ai.navCheckTimer = .18;
+      }
+
+      if (blocker && p.ai.navPathRecalcTimer <= 0) {
+        const planned = this.findAINavigationPath(p, goalX, goalY);
+        p.ai.navPathRecalcTimer = rand(.78, 1.18);
+        p.ai.navPathGoalX = goalX; p.ai.navPathGoalY = goalY;
+        if (planned && planned.length) {
+          p.ai.navPath = planned;
+          p.ai.navPathIndex = 0;
+          p.ai.failedDetours = 0;
+          p.ai.avoidWaypoint = null; p.ai.avoidWallId = null;
+          p.metrics.aiWallAvoidances = (p.metrics.aiWallAvoidances || 0) + 1;
+          return Math.atan2(planned[0].y - p.y, planned[0].x - p.x);
+        }
+        p.ai.failedDetours = (p.ai.failedDetours || 0) + 1;
       }
 
       if (blocker && p.ai.wallBreakTarget !== blocker.id && (!p.ai.avoidWaypoint || p.ai.avoidWallId !== blocker.id)) {
         const waypoint = this.chooseAIWallDetour(p, blocker, goalX, goalY);
         if (waypoint) {
-          const changedWall = p.ai.avoidWallId !== blocker.id;
           p.ai.avoidWaypoint = waypoint;
           p.ai.avoidWallId = blocker.id;
-          p.ai.avoidTimer = 4.2;
-          p.ai.recentNavPoints = [...(p.ai.recentNavPoints || []).slice(-3), { x: waypoint.x, y: waypoint.y }];
-          p.ai.failedDetours = changedWall ? 0 : (p.ai.failedDetours || 0) + 1;
-          if (changedWall) p.metrics.aiWallAvoidances = (p.metrics.aiWallAvoidances || 0) + 1;
-        } else if (p.ai.stuckTimer > 6.2 && (p.ai.failedDetours || 0) >= 1 && Number.isFinite(blocker.hp)) {
-          p.ai.wallBreakTarget = blocker.id;
-          p.ai.wallBreakTimer = 2.2;
-          p.ai.stuckTimer = 1.8;
+          p.ai.avoidTimer = 3.2;
+          p.ai.recentNavPoints = [...(p.ai.recentNavPoints || []).slice(-4), { x: waypoint.x, y: waypoint.y }];
+        }
+      }
+
+      const shouldBreak = blocker && ((p.ai.failedDetours || 0) >= 3 || p.ai.stuckTimer > 5.2);
+      if (shouldBreak && !p.ai.wallBreakTarget) {
+        const breakWall = this.findAIWallBreakTarget(p, goalX, goalY, blocker);
+        if (breakWall) {
+          p.ai.wallBreakTarget = breakWall.id;
+          p.ai.wallBreakTimer = 4.8;
+          p.ai.navPath = []; p.ai.navPathIndex = 0;
+          p.ai.avoidWaypoint = null; p.ai.avoidWallId = null;
+          p.ai.stuckTimer = Math.max(1.8, p.ai.stuckTimer * .45);
           p.metrics.aiWallBreakFallbacks = (p.metrics.aiWallBreakFallbacks || 0) + 1;
         }
       }
 
-      if (!blocker && p.ai.avoidWaypoint && p.ai.navCheckTimer <= .02 && !this.findBlockingWall(p.x, p.y, goalX, goalY, p.radius + 5)) {
-        p.ai.avoidWaypoint = null;
-        p.ai.avoidWallId = null;
+      if (!blocker && p.ai.avoidWaypoint && !this.findBlockingWall(p.x, p.y, goalX, goalY, p.radius + 5)) {
+        p.ai.avoidWaypoint = null; p.ai.avoidWallId = null;
+      }
+      if (!blocker) {
+        p.ai.failedDetours = Math.max(0, (p.ai.failedDetours || 0) - dt * 1.6);
+        p.ai.navPath = []; p.ai.navPathIndex = 0;
       }
 
       if (p.ai.wallBreakTarget) {
         const wall = this.walls.find((candidate) => candidate.id === p.ai.wallBreakTarget && candidate.hp > 0);
-        if (wall) return Math.atan2(wall.y + wall.h / 2 - p.y, wall.x + wall.w / 2 - p.x);
+        if (wall && this.isAIWallBreakable(wall)) return Math.atan2(wall.y + wall.h / 2 - p.y, wall.x + wall.w / 2 - p.x);
+        p.ai.wallBreakTarget = null; p.ai.wallBreakTimer = 0;
       }
       if (p.ai.avoidWaypoint) return Math.atan2(p.ai.avoidWaypoint.y - p.y, p.ai.avoidWaypoint.x - p.x);
       if (p.ai.stuckTimer > 1.9 && !p.ai.escapeWaypoint) {
@@ -7685,6 +7981,47 @@
         if (escape) { p.ai.escapeWaypoint = escape; p.ai.escapeTimer = rand(1.4, 2.2); p.metrics.aiStuckEscapes = (p.metrics.aiStuckEscapes || 0) + 1; }
       }
       return fallbackAngle;
+    }
+
+
+    aiTryBreakNavigationWall(p) {
+      const wall = this.walls.find((candidate) => candidate.id === p.ai.wallBreakTarget && candidate.hp > 0);
+      if (!this.isAIWallBreakable(wall)) {
+        p.ai.wallBreakTarget = null; p.ai.wallBreakTimer = 0;
+        return false;
+      }
+      const cx = wall.x + wall.w / 2;
+      const cy = wall.y + wall.h / 2;
+      const closestX = clamp(p.x, wall.x, wall.x + wall.w);
+      const closestY = clamp(p.y, wall.y, wall.y + wall.h);
+      const edgeDistance = Math.hypot(closestX - p.x, closestY - p.y);
+      p.aim = Math.atan2(cy - p.y, cx - p.x);
+      if (edgeDistance > 620) return false;
+      if ((p.ai.attackTimer || 0) > 0) return true;
+
+      let choice = null;
+      if (edgeDistance <= 178 + p.radius) {
+        choice = this.findTriggerHand(p, (trigger) => trigger.kind === 'melee');
+        if (choice && !this.slotReady(p, choice.hand, choice.index, choice.trigger)) choice = null;
+      }
+      if (!choice) {
+        const candidates = [];
+        for (const hand of ['main', 'sub']) for (let index = 0; index < p.loadout[hand].length; index++) {
+          const trigger = DATA.triggers[p.loadout[hand][index]];
+          if (!trigger || !['gun', 'shooter', 'sniper'].includes(trigger.kind) || !this.slotReady(p, hand, index, trigger)) continue;
+          const range = this.getTriggerRangeProfile(trigger)?.max || 520;
+          if (edgeDistance > range * 1.08) continue;
+          candidates.push({ hand, index, trigger, range });
+        }
+        candidates.sort((a, b) => b.range - a.range);
+        choice = candidates[0] || null;
+      }
+      if (!choice) return true;
+      p.selected[choice.hand] = choice.index;
+      if (choice.trigger.id === 'scorpion') p.scorpionMode[choice.hand] = edgeDistance > 118 ? 1 : 0;
+      const used = this.tryUseHand(p, choice.hand, { shift: choice.trigger.id === 'kogetsu' && edgeDistance > 105 });
+      p.ai.attackTimer = used ? (choice.trigger.kind === 'melee' ? .32 : .46) : .12;
+      return true;
     }
 
     getAIBeaconMemory(p, beacon) {
@@ -7915,6 +8252,8 @@
       let navGoalX = engagementPoint && ['advance','retreat','hold'].includes(movementMode) ? engagementPoint.x : p.x + Math.cos(moveAngle) * navGoalDistance;
       let navGoalY = engagementPoint && ['advance','retreat','hold'].includes(movementMode) ? engagementPoint.y : p.y + Math.sin(moveAngle) * navGoalDistance;
       if (directive && Number.isFinite(directive.x) && Number.isFinite(directive.y)) { navGoalX = directive.x; navGoalY = directive.y; }
+      const combatRouteBlocked = !directive && movementMode !== 'retreat' && this.findBlockingWall(p.x, p.y, target.x, target.y, p.radius + 5);
+      if (combatRouteBlocked) { navGoalX = target.x; navGoalY = target.y; movementScale = Math.max(movementScale, .72); }
       moveAngle = this.getAINavigationAngle(p, navGoalX, navGoalY, moveAngle, dt, movementScale);
       moveAngle = this.stabilizeAIMovementAngle(p, moveAngle, navGoalX, navGoalY, dt, movementScale);
       p.vx += Math.cos(moveAngle) * p.speed * dt * 4.2 * profile.move * movementScale;
@@ -7956,6 +8295,7 @@
           if (fired) { p.ai.attackTimer = rand(profile.attackInterval[0], profile.attackInterval[1]) * .9; return; }
         }
       }
+      if (p.ai.wallBreakTarget && this.aiTryBreakNavigationWall(p)) return;
       if (p.ai.attackTimer > 0) return;
       p.ai.attackTimer = rand(profile.attackInterval[0], profile.attackInterval[1]);
       const attackBlocker = this.findBlockingWall(p.x, p.y, target.x, target.y, Math.max(3, p.radius * .22));
@@ -8176,7 +8516,7 @@
       for (const hand of ['main', 'sub']) {
         if (p.ai.forcedRangedHand && hand !== p.ai.forcedRangedHand) continue;
         p.loadout[hand].forEach((id, index) => {
-          const trigger = DATA.triggers[id];
+          const trigger = p.playableDefenseType ? null : DATA.triggers[id];
           if (!trigger || !this.slotReady(p, hand, index, trigger)) return;
           let score = -Infinity;
           if (trigger.kind === 'sniper') {
@@ -8235,7 +8575,7 @@
       for (const hand of ['main', 'sub']) {
         const other = hand === 'main' ? 'sub' : 'main';
         const rangedAvailable = p.loadout[other].some((id, index) => {
-          const trigger = DATA.triggers[id];
+          const trigger = p.playableDefenseType ? null : DATA.triggers[id];
           return trigger && ['gun', 'shooter', 'sniper'].includes(trigger.kind) && this.slotReady(p, other, index, trigger);
         });
         if (!rangedAvailable) continue;
@@ -8293,7 +8633,7 @@
       const options = [];
       for (const hand of ['main', 'sub']) {
         p.loadout[hand].forEach((id, index) => {
-          const trigger = DATA.triggers[id];
+          const trigger = p.playableDefenseType ? null : DATA.triggers[id];
           if (!trigger || !this.slotReady(p, hand, index, trigger)) return;
           let score = -Infinity;
           if (id === 'switchbox') score = p.archetype === '工作手' ? 8 : 2;
@@ -8641,6 +8981,14 @@
         const maxRange = this.getDefenseAttackMaxRange(attacker, info.name, info.sourceKey);
         if (!this.canDefenseEnemyAttackTarget(attacker, target, maxRange, 4)) return false;
       }
+      if ((target.playableDefenseType || target.isDefenseEnemy) && (target.extraParryTimer > 0 || target.defenseAI?.parryTimer > 0) && attacker && attacker !== target && EXTRA_PARRY_TYPES.has(target.playableDefenseType || target.defenseType)) {
+        target.extraParryTimer = 0; if(target.defenseAI)target.defenseAI.parryTimer=0; target.extraParryCooldown = Math.max(target.extraParryCooldown || 0, 1.2);
+        target.metrics.parryAttacks += 1;
+        this.effects.push({ type:'justCut', x:target.x, y:target.y, radius:target.radius+34, angle:target.aim, color:'#fff3a8', ttl:.38, maxTtl:.38 });
+        const counterDamage = Math.max(10, (target.extraDamage || 20) * .72);
+        this.damagePlayer(attacker, counterDamage, target, { x:attacker.x, y:attacker.y, type:'melee', name:'いなし反撃', sourceKey:'extraParry', skipJustCut:true });
+        return false;
+      }
       if (!info.skipJustCut && this.tryJustCut(target, attacker, info)) return false;
       const attackModifiers = this.getAttackDamageModifiers(attacker, target, amount, info);
       amount = attackModifiers.amount;
@@ -8655,7 +9003,7 @@
         this.recordRangeSample(attacker, info, shotDistance, rangeMultiplier);
       }
       if (rangeMultiplier < 1) amount *= rangeMultiplier;
-      if (target.isDefenseEnemy) {
+      if (target.isDefenseEnemy || target.playableDefenseType) {
         if (target.defenseCore && Number.isFinite(info.x) && Number.isFinite(info.y)) {
           const coreX = target.x + Math.cos(target.aim + target.defenseCore.angle) * target.defenseCore.distance;
           const coreY = target.y + Math.sin(target.aim + target.defenseCore.angle) * target.defenseCore.distance;
@@ -8663,6 +9011,17 @@
             amount *= 4.4;
             if (attacker?.metrics) attacker.metrics.coreHits += 1;
             this.effects.push({ type:'coreHit', x:coreX, y:coreY, ttl:.42, maxTtl:.42 });
+          }
+        }
+        if (target.defenseType === 'borboros' && target.defenseAI?.borborosCores?.length && Number.isFinite(info.x) && Number.isFinite(info.y)) {
+          for (let i=target.defenseAI.borborosCores.length-1;i>=0;i--) {
+            const core=target.defenseAI.borborosCores[i];
+            const a=target.aim+core.angle+Math.sin(this.elapsed*1.7+core.phase)*.18;
+            const coreX=target.x+Math.cos(a)*core.distance, coreY=target.y+Math.sin(a)*core.distance;
+            if (Math.hypot(info.x-coreX,info.y-coreY)>core.radius+(info.type==='projectile'?7:16)) continue;
+            if (core.trueCore) { amount*=4.4; if(attacker?.metrics)attacker.metrics.coreHits+=1; this.effects.push({type:'coreHit',x:coreX,y:coreY,ttl:.48,maxTtl:.48}); }
+            else { target.defenseAI.borborosCores.splice(i,1); amount*=.12; this.effects.push({type:'hit',x:coreX,y:coreY,ttl:.24,maxTtl:.24}); }
+            break;
           }
         }
         const sourceAngle = attacker ? Math.atan2(attacker.y - target.y, attacker.x - target.x) : 0;
@@ -9133,11 +9492,7 @@
     }
 
     updateCamera(dt) {
-      if (this.isSandboxMode) {
-        const focus=this.getSandboxControlled(); if(!focus)return;
-        this.camera.x=lerp(this.camera.x,focus.x-this.viewW/2,1-Math.pow(.001,dt));
-        this.camera.y=lerp(this.camera.y,focus.y-this.viewH/2,1-Math.pow(.001,dt));
-      } else if (this.isPlayerOperator) {
+      if (this.isPlayerOperator) {
         this.camera.x = lerp(this.camera.x, this.operatorCamera.x - this.viewW / 2, 1 - Math.pow(.0015, dt));
         this.camera.y = lerp(this.camera.y, this.operatorCamera.y - this.viewH / 2, 1 - Math.pow(.0015, dt));
       } else {
@@ -10646,7 +11001,7 @@ drawUndergroundFeatures(ctx){
     }
 
     drawDefenseHazards(ctx) {
-      if (!this.isDefenseMode) return;
+      if (!this.isDefenseMode && !this.isExtraMode) return;
       for (const area of this.defenseAreas) {
         const alpha = clamp(area.ttl / Math.max(.001, area.maxTtl || area.ttl), 0, 1);
         ctx.save();
@@ -10682,39 +11037,68 @@ drawUndergroundFeatures(ctx){
 
     drawBlackTriggerHumanoid(ctx, p) {
       const type = p.defenseType;
-      const phaseAlpha = type === 'borboros' && ['liquid', 'gas'].includes(p.defenseAI?.phase) ? .48 : 1;
+      const ai = p.defenseAI || {};
+      const action = String(ai.action || p.extraAction || '');
+      const phaseAlpha = type === 'borboros' && ['liquid','gas'].includes(ai.phase) ? (ai.phase === 'gas' ? .38 : .62) : 1;
+      const colors = {
+        fujin:'#23704a', seals:'#dfe7ef', alektor:'#628d55', borboros:'#724c96', organon:'#89784f'
+      };
+      const previousColor = p.appearance?.bodyColor;
+      p.appearance ||= {};
+      p.appearance.bodyColor = colors[type] || previousColor || '#728895';
       this.drawHumanoid(ctx, p, phaseAlpha);
+      p.appearance.bodyColor = previousColor;
+
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.globalAlpha = phaseAlpha;
-      const symbol = { fujin: '風', seals: '印', alektor: '卵', borboros: '泥', organon: '星' }[type] || '黒';
-      ctx.fillStyle = 'rgba(8,12,18,.82)';
-      ctx.fillRect(-8, -11, 16, 16);
-      ctx.fillStyle = '#f5fbff';
-      ctx.font = '900 10px serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(symbol, 0, 1);
+      ctx.imageSmoothingEnabled = false;
+      const facing = Math.cos(p.aim || 0) < 0 ? -1 : 1;
+      ctx.scale(facing, 1);
+      const moving = Math.hypot(p.vx || 0, p.vy || 0) > 18;
+      const step = moving ? Math.round(Math.sin(this.elapsed * 9 + p.x * .002) * 2) : 0;
+      const actionMax = Math.max(.001, ai.actionMax || p.extraActionTimer || 1);
+      const actionT = (ai.actionTimer || p.extraActionTimer || 0) > 0 ? clamp((ai.actionTimer || p.extraActionTimer) / actionMax, 0, 1) : 0;
+      const swing = action ? Math.round((1 - actionT) * 10) : step;
+
       if (type === 'fujin') {
-        ctx.strokeStyle = '#52ee87'; ctx.lineWidth = 2;
-        for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(0, -2, 27 + i * 5, -.55 + i * .13, .15 + i * .13); ctx.stroke(); }
-      }
-      if (type === 'seals') {
-        ctx.fillStyle = '#f5f6ff'; ctx.font = '900 11px serif';
-        const seal = ['錨', '響', '門', '盾', '鎖', '弾'][Math.floor(this.elapsed * 1.6) % 6];
-        ctx.fillText(seal, 0, -35);
-        if (p.defenseAI?.shieldTimer > 0) { ctx.strokeStyle = '#f5f6ff'; ctx.lineWidth = 3; ctx.strokeRect(-25, -34, 50, 64); }
-      }
-      if (type === 'alektor') {
-        ctx.fillStyle = '#b6ee9b';
-        for (let i = 0; i < 5; i++) { const a = i / 5 * TAU + this.elapsed; ctx.fillRect(Math.cos(a) * 35 - 4, Math.sin(a) * 35 - 4, 8, 8); }
-      }
-      if (type === 'borboros') {
-        ctx.fillStyle = 'rgba(166,117,216,.35)';
-        ctx.beginPath(); ctx.arc(0, 0, 36 + Math.sin(this.elapsed * 3) * 5, 0, TAU); ctx.fill();
-      }
-      if (type === 'organon') {
-        ctx.strokeStyle = '#e4d8b6'; ctx.lineWidth = 2;
-        for (let r = 30; r <= 60; r += 15) { ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU); ctx.stroke(); }
+        ctx.fillStyle = '#10261c'; ctx.fillRect(-18,-19,7,33);
+        ctx.fillStyle = '#45ef83'; ctx.fillRect(17, -3 + swing, 43, 4); ctx.fillRect(52,-7+swing,11,3);
+        ctx.fillStyle = '#d9ffe7'; ctx.fillRect(59,-6+swing,8,2);
+        const count = action.includes('Multi') || action.includes('Field') ? 9 : 5;
+        ctx.strokeStyle = '#45ef83'; ctx.lineWidth = action === 'parry' ? 6 : 2;
+        for (let i=0;i<count;i++) { const a=i/count*TAU+this.elapsed*(action?2.8:1.15);const r=29+(i%3)*10;ctx.beginPath();ctx.arc(0,-2,r,a-.34,a+.18);ctx.stroke(); }
+        if(action==='parry'){ctx.strokeStyle='#dffff0';ctx.beginPath();ctx.arc(24,0,39,-.9,.9);ctx.stroke();}
+      } else if (type === 'seals') {
+        const boost=clamp(p.extraBoost||ai.sealBoost||1,1,3);
+        ctx.strokeStyle='#f7fbff';ctx.lineWidth=2+boost*.7;
+        for(let i=0;i<boost;i++){ctx.beginPath();ctx.arc(22+i*7,-5+swing,9+i*3,0,TAU);ctx.stroke();}
+        ctx.fillStyle='#607080';ctx.fillRect(-18,-18,5,32);ctx.fillRect(13,-18,5,32);
+        if ((ai.shieldTimer||0)>0 || p.shields?.sub || p.shields?.main) {
+          ctx.save();ctx.globalAlpha=.5;ctx.fillStyle='#dceaff';ctx.strokeStyle='#fff';ctx.lineWidth=3;
+          ctx.beginPath();ctx.moveTo(30,-40);ctx.lineTo(68,-19);ctx.lineTo(68,29);ctx.lineTo(30,46);ctx.lineTo(19,2);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+        }
+        if(action.includes('seal') || action.includes('Seal')){ctx.fillStyle='#fff';for(let i=0;i<5;i++){const a=i/5*TAU+this.elapsed*3;ctx.fillRect(Math.round(Math.cos(a)*32)-3,Math.round(Math.sin(a)*32)-3,6,6);}}
+      } else if (type === 'alektor') {
+        ctx.fillStyle='#315b2f';ctx.fillRect(-21,-19,7,34);ctx.fillRect(14,-19,7,34);
+        const orbit=action.includes('Swarm')?12:action.includes('Field')?9:6;
+        for(let i=0;i<orbit;i++){const a=i/orbit*TAU+this.elapsed*(action?3.1:1.35);const r=34+(i%2)*10;ctx.save();ctx.translate(Math.cos(a)*r,Math.sin(a)*r);ctx.rotate(a);ctx.fillStyle='#b6ee9b';ctx.beginPath();ctx.ellipse(0,0,6,9,0,0,TAU);ctx.fill();ctx.fillStyle='#efffe6';ctx.fillRect(-2,-5,4,3);ctx.restore();}
+        if(action==='parry'){ctx.strokeStyle='#d9ffc8';ctx.lineWidth=7;ctx.beginPath();ctx.arc(0,0,49,-1.1,1.1);ctx.stroke();}
+      } else if (type === 'borboros') {
+        ctx.save();ctx.globalAlpha*=ai.phase==='gas'?.42:ai.phase==='liquid'?.64:.82;
+        ctx.fillStyle=ai.phase==='gas'?'#c7a6ea':ai.phase==='liquid'?'#9967c8':'#68458a';
+        ctx.beginPath();ctx.ellipse(0,4,31+Math.sin(this.elapsed*4)*4,37+Math.cos(this.elapsed*3)*3,0,0,TAU);ctx.fill();ctx.restore();
+        for(const core of ai.borborosCores||[]){
+          const a=(p.aim||0)+core.angle+Math.sin(this.elapsed*1.7+core.phase)*.18;
+          const x=Math.cos(a)*core.distance, y=Math.sin(a)*core.distance;
+          ctx.fillStyle='#b890e2';ctx.strokeStyle='#eadff5';ctx.lineWidth=2;
+          ctx.beginPath();ctx.moveTo(x,y-core.radius);ctx.lineTo(x+core.radius,y);ctx.lineTo(x,y+core.radius);ctx.lineTo(x-core.radius,y);ctx.closePath();ctx.fill();ctx.stroke();
+        }
+      } else if (type === 'organon') {
+        ctx.fillStyle='#5d5138';ctx.fillRect(-21,-19,7,34);ctx.fillRect(14,-19,7,34);
+        ctx.strokeStyle='#e8ddbb';ctx.lineWidth=action==='parry'?6:2;
+        for(let r=28;r<=(action.includes('Ultimate')?84:58);r+=14){const a=this.elapsed*(r%2?1.8:-1.4);ctx.beginPath();ctx.arc(0,0,r,a,a+Math.PI*1.45);ctx.stroke();}
+        ctx.fillStyle='#fff0bd';for(let i=0;i<5;i++){const a=i/5*TAU+this.elapsed*2;ctx.save();ctx.translate(Math.cos(a)*48,Math.sin(a)*48);ctx.rotate(a);ctx.fillRect(-2,-8,4,16);ctx.restore();}
       }
       ctx.restore();
     }
@@ -11394,7 +11778,7 @@ drawUndergroundFeatures(ctx){
       }
       const hp = clamp(p.hp / p.maxHp, 0, 1);
       const width = p.defenseType === 'orochi' ? 220 : p.isDefenseBoss ? 160 : 90;
-      const title = hyakkiTypes.includes(type) && p.isDefenseBoss ? `百鬼夜行：${p.name}` : p.isDefenseBoss ? `BLACK TRIGGER：${p.name}` : p.name;
+      const title = p.playableDefenseType ? `${p.name}：${EXTRA_UNIT_DEFS[type]?.label || type}` : hyakkiTypes.includes(type) && p.isDefenseBoss ? `百鬼夜行：${p.name}` : p.isDefenseBoss ? `BLACK TRIGGER：${p.name}` : p.name;
       ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(p.x - width / 2, p.y - p.radius - 34, width, 7);
       ctx.fillStyle = p.isDefenseBoss ? '#ff5f73' : '#ffd369'; ctx.fillRect(p.x - width / 2, p.y - p.radius - 34, width * hp, 7);
       ctx.fillStyle = '#fff'; ctx.font = p.isDefenseBoss ? '900 12px sans-serif' : '800 10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(title, p.x, p.y - p.radius - 42);
@@ -11404,7 +11788,7 @@ drawUndergroundFeatures(ctx){
       const ordered = [...this.players].sort((a, b) => Number(a.human) - Number(b.human));
       for (const p of ordered) {
         if (p.dead || !this.inView(p.x, p.y, 120)) continue;
-        if (p.isDefenseEnemy) { this.drawDefenseEnemy(ctx, p); continue; }
+        if (p.isDefenseEnemy || p.playableDefenseType) { this.drawDefenseEnemy(ctx, p); continue; }
         let alpha = 1;
         if (p.toggles.chameleon && !p.human && p.markedTimer <= 0) alpha = .12;
         if (p.toggles.chameleon && p.human) alpha = .48;
@@ -12039,8 +12423,8 @@ drawUndergroundFeatures(ctx){
         const isObserver = p.id === observer.id;
         const hidden = !sameTeam && !isObserver && (p.toggles.bagworm || p.toggles.bagwormTag) && p.markedTimer <= 0 && p.revealTimer <= 0;
         if (hidden) continue;
-        ctx.fillStyle = p.isDefenseEnemy ? (p.isDefenseBoss ? '#ff3158' : '#ffb347') : isObserver ? '#ffffff' : sameTeam ? '#55eaff' : '#ff8871';
-        const rs=p.isDefenseBoss?7:p.isDefenseEnemy?5.2:isObserver?6:4.6;ctx.fillRect(p.x*sx-rs/2,p.y*sy-rs/2,rs,rs);
+        ctx.fillStyle = p.isDefenseEnemy ? (p.isDefenseBoss ? '#ff3158' : '#ffb347') : p.playableDefenseType ? (isObserver ? '#ffffff' : sameTeam ? '#55eaff' : '#ff8871') : isObserver ? '#ffffff' : sameTeam ? '#55eaff' : '#ff8871';
+        const rs=p.isDefenseBoss?7:(p.isDefenseEnemy||p.playableDefenseType)?5.2:isObserver?6:4.6;ctx.fillRect(p.x*sx-rs/2,p.y*sy-rs/2,rs,rs);
         if (p.markedTimer > 0) { ctx.strokeStyle = '#ffdf67'; ctx.strokeRect(p.x*sx-rs/2-1,p.y*sy-rs/2-1,rs+2,rs+2); }
       }
       ctx.strokeStyle = 'rgba(255,255,255,.22)';
@@ -12056,7 +12440,6 @@ drawUndergroundFeatures(ctx){
     }
 
     getHudSubject() {
-      if (this.isSandboxMode) return this.getSandboxControlled();
       if (this.spectating) return this.getSpectatorTarget() || this.players.find((p) => !p.dead) || null;
       if (this.isPlayerOperator) return this.players.find((p) => p.id === this.operatorSelectedUnit && !p.dead) || this.players.find((p) => p.team === this.playerTeam && !p.dead) || this.players.find((p) => !p.dead) || null;
       return this.human;
@@ -12067,7 +12450,6 @@ drawUndergroundFeatures(ctx){
       if (!p) return;
       if (this.hudSubjectId !== p.id) this.buildSlotHud(p);
       if (this.isDefenseMode) this.updateDefenseHud();
-      else if (this.isSandboxMode) $('#timerLabel').textContent = '∞';
       else $('#timerLabel').textContent = this.getClockLabel();
       $('#scoreLabel').textContent = Math.floor(p.score);
       $('#kdLabel').textContent = `${p.kills} / ${p.deaths}`;
@@ -12090,7 +12472,7 @@ drawUndergroundFeatures(ctx){
       if (p.operatorOrder) statuses.push(`ORDER ${p.operatorOrder.label || p.operatorOrder.type}`);
       if (this.isPlayerOperator) statuses.push(`COMMAND ${p.name}`);
       if (this.spectating) statuses.push(`VIEW ${p.name}`);
-      if (this.isSandboxMode) statuses.push(`SANDBOX ${p.isDefenseEnemy ? p.defenseType : p.archetype} / AI ${p.sandboxAiEnabled ? 'ON' : 'OFF'}`);
+      if (this.isExtraMode && p.playableDefenseType) statuses.push(`EXTRA ${EXTRA_UNIT_DEFS[p.playableDefenseType]?.label || p.playableDefenseType}`);
       if (p.operatorBoostTimer > 0) statuses.push(`MOBILITY ${p.operatorBoostTimer.toFixed(1)}s`);
       if (p.toggles.bagworm || p.toggles.bagwormTag) statuses.push('RADAR OFF');
       if (p.toggles.chameleon) statuses.push('CAMOUFLAGE');
@@ -12114,14 +12496,14 @@ drawUndergroundFeatures(ctx){
       for (const hand of ['main', 'sub']) {
         $$(`#${hand}HudSlots .hud-slot`).forEach((slot, index) => {
           slot.classList.toggle('active', p.selected[hand] === index);
-          const id = p.loadout[hand][index];
-          slot.classList.toggle('disabled', id === 'empty');
+          const id = p.playableDefenseType ? `extra:${hand}:${index}` : p.loadout[hand][index];
+          slot.classList.toggle('disabled', !p.playableDefenseType && id === 'empty');
           const key = `${hand}:${index}`;
           const remaining = p.cooldowns[key] || 0;
           const max = p.cooldownMax[key] || 1;
           slot.querySelector('.cooldown i').style.width = `${clamp(remaining / max, 0, 1) * 100}%`;
           const ammo = slot.querySelector('.ammo');
-          const trigger = DATA.triggers[id];
+          const trigger = p.playableDefenseType ? null : DATA.triggers[id];
           if (ammo) {
             if (trigger?.kind === 'gun') {
               const state = this.getGunState(p, hand, trigger, index);
