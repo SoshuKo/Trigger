@@ -80,10 +80,10 @@
     meteorMine: '設置メテオラ',
   };
   const AI_DIFFICULTIES = {
-    sandbag: { label: 'サンドバッグ', rethink: [1.4, 2.2], aimError: 4.2, move: 0, shieldChance: 0, utilityChance: 0, attackInterval: [99, 99], comboChance: 0, prediction: 0 },
-    weak: { label: '弱', rethink: [.7, 1.2], aimError: 2.25, move: .72, shieldChance: .28, utilityChance: .35, attackInterval: [.42, .82], comboChance: .02, prediction: 0 },
-    normal: { label: '普通', rethink: [.22, .5], aimError: 1, move: 1, shieldChance: .78, utilityChance: .78, attackInterval: [.11, .25], comboChance: .08, prediction: .06 },
-    strong: { label: '強', rethink: [.08, .2], aimError: .38, move: 1.12, shieldChance: .98, utilityChance: .95, attackInterval: [.055, .13], comboChance: .24, prediction: .22 },
+    sandbag: { label: 'サンドバッグ', rethink: [1.4, 2.2], aimError: 4.2, move: 0, shieldChance: 0, utilityChance: 0, attackInterval: [99, 99], comboChance: 0, prediction: 0, guardSkill:0, parrySkill:0, dodgeSkill:0, patience:0 },
+    weak: { label: '弱', rethink: [.72, 1.28], aimError: 2.35, move: .7, shieldChance: .22, utilityChance: .3, attackInterval: [.38, .78], comboChance: .015, prediction: 0, guardSkill:.2, parrySkill:.08, dodgeSkill:.18, patience:.12 },
+    normal: { label: '普通', rethink: [.24, .54], aimError: 1, move: 1, shieldChance: .66, utilityChance: .72, attackInterval: [.16, .34], comboChance: .09, prediction: .08, guardSkill:.48, parrySkill:.3, dodgeSkill:.42, patience:.48 },
+    strong: { label: '強', rethink: [.09, .22], aimError: .34, move: 1.1, shieldChance: .9, utilityChance: .94, attackInterval: [.1, .23], comboChance: .3, prediction: .26, guardSkill:.93, parrySkill:.8, dodgeSkill:.84, patience:.9 },
   };
   const DEFENSE_BUILD_DEFS = {
     barrier: { label: '防壁', cost: 22, cooldown: 7, ttl: 78, maxActive: 8 },
@@ -91,7 +91,17 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 57;
+  const GAME_VERSION = 59;
+  const MASTERY_RANKS = [
+    { id:'C', min:0, color:'#9fb0b8' },
+    { id:'B-', min:22, color:'#7fc7df' },
+    { id:'B+', min:38, color:'#66e0d0' },
+    { id:'A-', min:55, color:'#8cf58d' },
+    { id:'A+', min:72, color:'#ffd36b' },
+    { id:'S', min:90, color:'#ff8fcb' },
+  ];
+  const MASTERY_SPECIAL_ATTACKS = new Set(['senku','mantis','thruster']);
+  const MASTERY_TRAP_SOURCES = new Set(['switchbox','switchboxAttack','fixedTrap','spider','meteorMine']);
   const BEGINNER_SKILLS = {
     none: { label: '使用しない', budget: 18, description: '従来どおり18ポイントを能力へ配分します。' },
     autoGuard: { label: 'オートガード', budget: 12, description: 'シールドまたはレイガスト装備時、被弾直前に自動防御します。' },
@@ -113,9 +123,9 @@
     Space:'SPACE',Escape:'ESC',ArrowUp:'↑',ArrowDown:'↓',ArrowLeft:'←',ArrowRight:'→',ShiftLeft:'SHIFT',ShiftRight:'SHIFT',
   };
   const AI_TIER_PROFILES = {
-    lower: { label:'下級', aim:1.28, reaction:1.22, decision:.78, aggression:.82 },
-    middle: { label:'中級', aim:1, reaction:1, decision:1, aggression:1 },
-    upper: { label:'上級', aim:.72, reaction:.74, decision:1.22, aggression:1.16 },
+    lower: { label:'下級', aim:1.68, reaction:1.58, decision:.6, aggression:.66, defense:.62 },
+    middle: { label:'中級', aim:1, reaction:1, decision:1, aggression:1, defense:1 },
+    upper: { label:'上級', aim:.48, reaction:.52, decision:1.52, aggression:1.34, defense:1.42 },
   };
 
   function downloadText(filename, text, mime = 'application/json') {
@@ -1824,7 +1834,7 @@
         const firstState = !player.onlineSnapshotReady;
         const distance = Math.hypot(Number(state.x || 0) - Number(player.x || 0), Number(state.y || 0) - Number(player.y || 0));
         const mustSnap = firstState || wasDead !== Boolean(state.dead) || distance > 760;
-        for (const key of ['name','team','archetype','squadName','appearance','emblemPixels','stats','loadout','radius','facing','walkFrame','isMoving','maxHp','hp','maxTrion','trion','dead','respawnTimer','invulnTimer','score','kills','deaths','selected','shields','toggles','revealTimer','markedTimer','slowTimer','slowFactor','leadWeights','pendingComposite','shooterCharges','gunState','meleeChains','reloadVisual','scorpionMode','spiderMode','aiTier','beginnerSkill','isDefenseEnemy','defenseType','isDefenseBoss','flying','cubedTimer']) {
+        for (const key of ['name','team','archetype','squadName','appearance','emblemPixels','stats','loadout','radius','facing','walkFrame','isMoving','maxHp','hp','maxTrion','trion','dead','respawnTimer','invulnTimer','score','kills','deaths','selected','shields','shieldDurability','aiPersonality','masteryValue','masteryRank','toggles','revealTimer','markedTimer','slowTimer','slowFactor','leadWeights','pendingComposite','shooterCharges','gunState','meleeChains','reloadVisual','scorpionMode','spiderMode','aiTier','beginnerSkill','isDefenseEnemy','defenseType','isDefenseBoss','flying','cubedTimer']) {
           if (state[key] !== undefined) player[key] = state[key];
         }
         player.onlineTargetX = Number.isFinite(state.x) ? state.x : player.x;
@@ -2936,6 +2946,11 @@
       if (offensive) {
         player.metrics.attackActions += 1;
         player.metrics.attackActivations += 1;
+        if (activationId) {
+          this.ensureMasteryRuntime(player);
+          const alreadyHit = (player._activationHits.get(activationId)?.size || 0) > 0;
+          player._masteryPendingAttacks.set(activationId, { triggerId, hit:alreadyHit, expires:this.elapsed + (String(triggerId).startsWith('composite:') ? 4.2 : 2.8) });
+        }
       }
       player.metrics.triggerUses[name] = (player.metrics.triggerUses[name] || 0) + 1;
       const key = triggerId || name;
@@ -2948,6 +2963,8 @@
     registerEffectApplication(owner, sourceKey, sourceName, target, duration = 0, activationId = null) {
       if (!owner?.metrics) return;
       owner.metrics.effectApplications += 1;
+      this.adjustMastery(owner, .095, '有効効果');
+      if (MASTERY_TRAP_SOURCES.has(String(sourceKey || ''))) this.recordMasteryUtilitySuccess(owner, sourceKey, target, .36, 'トラップ成功');
       const stat = this.ensureTriggerStat(owner, sourceKey, sourceName);
       stat.effectApplications += 1;
       stat.effectDurationSeconds += Math.max(0, duration);
@@ -2977,6 +2994,9 @@
         attacker._activationHits.set(activationId, targets);
       }
       const firstHit = targets.size === 0;
+      this.ensureMasteryRuntime(attacker);
+      const masteryAttempt = attacker._masteryPendingAttacks.get(activationId);
+      if (masteryAttempt) masteryAttempt.hit = true;
       if (firstHit) attacker.metrics.activationsWithHit += 1;
       if (!targets.has(target.id)) {
         targets.add(target.id);
@@ -3131,6 +3151,8 @@
           team: player.team,
           archetype: player.archetype,
           squadName: player.squadName,
+          aiTier: player.aiTier,
+          aiPersonality: player.aiPersonality ? { calmness:Number(player.aiPersonality.calmness.toFixed(3)), aggression:Number(player.aiPersonality.aggression.toFixed(3)) } : null,
           stats: player.stats,
           loadout: player.loadout,
           spawnHistory: player.spawnHistory,
@@ -4370,6 +4392,7 @@
       if (!this.consumePlayableTrion(p, 5)) return false;
       p.extraParryTimer = .34;
       p.extraParryCooldown = 1.4;
+      p.masteryParryAttempt = true;
       this.setPlayableDefenseAction(p, 'parry', .34);
       this.effects.push({ type:'justCut', x:p.x, y:p.y, radius:p.radius+28, angle:p.aim, color:'#fff3a8', ttl:.34, maxTtl:.34 });
       return true;
@@ -4454,7 +4477,7 @@
       } else if (type === 'seals') {
         const mainSeals=['bullet','anchor','chain','gate']; const subSeals=['shield','echo','shoot','transfer'];
         if (hand==='main') p.extraSealPrimary=mainSeals[index]; else p.extraSealSecondary=subSeals[index];
-        if (hand==='sub'&&index===0) { p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.18); p.shields.sub={type:'shield',strength:1.1+boost*.45}; used=true;cd=.08;cost=.15;this.setPlayableDefenseAction(p,'sealShield',.18); }
+        if (hand==='sub'&&index===0) { p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.18); p.defenseAI.shieldHand='sub';this.activateShield(p,'sub','seal',{boost}); used=true;cd=.08;cost=.15;this.setPlayableDefenseAction(p,'sealShield',.18); }
         else if(hand==='main'&&index===0){used=circle(boost>1?`${boost}重弾印`:'弾印',90+boost*24,damage*(.45+.22*boost),'#f5f5ff',.35,'bounce');this.setPlayableDefenseAction(p,'sealBullet',.38);cd=1.15;cost=4*boost;}
         else if(hand==='main'&&index===1){used=circle(boost>1?`${boost}重錨印`:'錨印',92+boost*20,damage*(.32+.16*boost),'#252c35',.4,'anchor');this.setPlayableDefenseAction(p,'sealAnchor',.42);cd=1.35;cost=4*boost;}
         else if(hand==='main'&&index===2){used=line(boost>1?`${boost}重鎖印`:'鎖印',30+boost*7,damage*(.35+.18*boost),'#d5d9e3',.38,'chain',720);this.setPlayableDefenseAction(p,'sealChain',.42);cd=1.45;cost=4.5*boost;}
@@ -4464,7 +4487,7 @@
         else if(hand==='sub'&&index===3){const ally=this.players.filter(o=>!o.dead&&o.team===p.team&&o!==p).sort((a,b)=>dist2(p,a)-dist2(p,b))[0];if(ally){const ox=p.x,oy=p.y;p.x=ally.x+Math.cos(p.aim+Math.PI)*60;p.y=ally.y+Math.sin(p.aim+Math.PI)*60;this.effects.push({type:'teleport',x:ox,y:oy,x2:p.x,y2:p.y,ttl:.35,maxTtl:.35});used=true;}cd=2.5;cost=7;this.setPlayableDefenseAction(p,'sealTransfer',.4);}
         if (modifier && hand === 'main' && used) {
           const secondary = subSeals[p.selected?.sub ?? 0] || p.extraSealSecondary || 'shield';
-          if (secondary === 'shield') { p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.7+.25*boost);p.shields.main={type:'shield',strength:1.15+.42*boost}; }
+          if (secondary === 'shield') { p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.7+.25*boost);p.defenseAI.shieldHand='main';this.activateShield(p,'main','seal',{boost}); }
           else if (secondary === 'echo') {
             for(const enemy of this.players.filter(o=>this.canDamage(p,o)&&Math.hypot(o.x-target.x,o.y-target.y)<220+boost*55)){enemy.revealTimer=Math.max(enemy.revealTimer,4+boost*2);enemy.markedTimer=Math.max(enemy.markedTimer,2+boost);}
             this.effects.push({type:'composite',x:target.x,y:target.y,ttl:.5,maxTtl:.5});
@@ -4595,13 +4618,19 @@
       const d=Math.hypot(target.x-p.x,target.y-p.y);
       this.moveDefenseEnemy(p,target,dt,d>430?.82:d<120?-.18:.18);
       p.extraAiTimer=(p.extraAiTimer||0)-dt;
-      if(EXTRA_PARRY_TYPES.has(p.playableDefenseType)&&p.extraParryCooldown<=0&&this.projectileThreat(p)&&Math.random()<.16)this.beginPlayableParry(p);
+      const tier=AI_TIER_PROFILES[p.aiTier]||AI_TIER_PROFILES.middle,base=AI_DIFFICULTIES[this.config.difficulty]||AI_DIFFICULTIES.normal;
+      const pers=p.aiPersonality||{calmness:.5,aggression:.5};
+      const profile={...base,calmness:pers.calmness,aggression:pers.aggression,guardSkill:clamp((base.guardSkill||0)*(tier.defense||1),0,1),parrySkill:clamp((base.parrySkill||0)*(tier.defense||1),0,1),dodgeSkill:clamp((base.dodgeSkill||0)*(tier.defense||1),0,1)};
+      const defended=this.aiTryDefensiveRead(p,this.getProjectileThreatInfo(p),profile,tier,dt);
+      if(defended&&Math.random()<(base.patience||0))return;
       if(p.extraAiTimer>0)return;
-      const hand=Math.random()<.68?'main':'sub';
+      const attackBias=.42+pers.aggression*.46;
+      const hand=Math.random()<attackBias?'main':'sub';
       let index=irand(0,3);
-      if(p.playableDefenseType==='seals'){p.extraBoost=irand(1,3);if(hand==='sub'&&index===0){p.defenseAI.shieldTimer=1.2;p.shields.sub={type:'shield',strength:1.7};}}
-      this.usePlayableDefenseAction(p,hand,index,target,{ai:true,modifier:p.playableDefenseType==='seals'&&hand==='main'&&Math.random()<.42});
-      p.extraAiTimer=rand(.45,1.15);
+      if(p.playableDefenseType==='seals'){p.extraBoost=pers.calmness>.66?irand(1,3):(Math.random()<.58?3:irand(1,2));if(hand==='sub'&&index===0){p.defenseAI.shieldTimer=1.2;p.defenseAI.shieldHand='sub';this.activateShield(p,'sub','seal',{boost:p.extraBoost});}}
+      this.usePlayableDefenseAction(p,hand,index,target,{ai:true,modifier:p.playableDefenseType==='seals'&&hand==='main'&&Math.random()<(.2+pers.calmness*.42)});
+      const skillPace=.75+tier.decision*.25;
+      p.extraAiTimer=rand(.5,1.3)/(skillPace*(.7+pers.aggression*.55));
     }
 
 
@@ -5211,11 +5240,17 @@
       ai.castTimer = Math.max(0, (ai.castTimer || 0) - dt);
       ai.chameleonTimer = Math.max(0, (ai.chameleonTimer || 0) - dt);
       ai.actionTimer = Math.max(0, (ai.actionTimer || 0) - dt);
+      const defenseParryWasActive = (ai.parryTimer || 0) > 0;
       ai.parryTimer = Math.max(0, (ai.parryTimer || 0) - dt);
+      if (defenseParryWasActive && ai.parryTimer <= 0 && enemy.masteryParryAttempt) { this.adjustMastery(enemy, -.12, 'いなし失敗'); enemy.masteryParryAttempt = false; }
       ai.parryCooldown = Math.max(0, (ai.parryCooldown || 0) - dt);
       ai.coreCooldown = Math.max(0, (ai.coreCooldown || 0) - dt);
       if (ai.actionTimer <= 0) ai.action = '';
-      if (EXTRA_PARRY_TYPES.has(enemy.defenseType) && ai.parryCooldown <= 0 && this.projectileThreat(enemy) && Math.random() < .12) { ai.parryTimer=.3;ai.parryCooldown=1.8;ai.action='parry';ai.actionTimer=.3;ai.actionMax=.3; }
+      const defenseTier = AI_TIER_PROFILES[enemy.aiTier] || AI_TIER_PROFILES.middle;
+      const defenseBase = AI_DIFFICULTIES[this.config.difficulty] || AI_DIFFICULTIES.normal;
+      const defensePersonality = enemy.aiPersonality || {calmness:.5,aggression:.5};
+      const defenseProfile = { ...defenseBase, calmness:defensePersonality.calmness, aggression:defensePersonality.aggression, guardSkill:clamp((defenseBase.guardSkill||0)*(defenseTier.defense||1),0,1), parrySkill:clamp((defenseBase.parrySkill||0)*(defenseTier.defense||1),0,1), dodgeSkill:clamp((defenseBase.dodgeSkill||0)*(defenseTier.defense||1),0,1) };
+      this.aiTryDefensiveRead(enemy, this.getProjectileThreatInfo(enemy), defenseProfile, defenseTier, dt);
       if (enemy.defenseType === 'borboros' && (!ai.borborosCores || !ai.borborosCores.length || ai.coreCooldown <= 0)) this.deployBorborosCores(enemy, !ai.borborosCores?.length);
       const defenders = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
       const nearest = defenders.length ? [...defenders].sort((a, b) => dist2(enemy, a) - dist2(enemy, b))[0] : null;
@@ -5635,7 +5670,7 @@
           else if (roll === 0 && nearest) this.queueDefenseHazard({ type: 'circle', x: nearest.x, y: nearest.y, radius: 125, delay: .65, damage: ai.damage * .55, status: 'anchor', owner: enemy, name: combo ? '二重錨印' : '錨印', color: '#252c35' });
           else if (roll === 1) this.players.filter((p) => !p.isDefenseEnemy && !p.dead).forEach((p) => { p.revealTimer = Math.max(p.revealTimer, 6); p.markedTimer = Math.max(p.markedTimer, 4); });
           else if (roll === 2 && nearest) { enemy.x = clamp(nearest.x + rand(-180, 180), 60, this.world.w - 60); enemy.y = clamp(nearest.y + rand(-180, 180), 60, this.world.h - 60); }
-          else if (roll === 3) ai.shieldTimer = combo ? 4.5 : 2.7;
+          else if (roll === 3) { ai.shieldTimer = combo ? 4.5 : 2.7; ai.shieldHand='sub'; }
           else if (roll === 4 && nearest) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: nearest.x, y2: nearest.y, width: 38, delay: .5, damage: ai.damage * .65, status: 'chain', owner: enemy, name: '鎖印', color: '#d5d9e3' });
           else if (nearest) this.queueDefenseHazard({ type: 'circle', x: nearest.x, y: nearest.y, radius: combo ? 170 : 120, delay: .55, damage: ai.damage * .7, status: 'bounce', owner: enemy, name: combo ? '三重弾印' : '弾印', color: '#f5f5ff' });
           ai.specialCooldown = combo ? 3.9 : 2.7;
@@ -5841,6 +5876,140 @@
       $('#resultOverlay').classList.remove('hidden');
     }
 
+    getMasteryRank(value = 0) {
+      const score = clamp(Number(value) || 0, 0, 100);
+      return [...MASTERY_RANKS].reverse().find((rank) => score >= rank.min) || MASTERY_RANKS[0];
+    }
+
+    createInitialMastery(human, aiTier = 'middle', stats = null) {
+      if (human) return clamp(50 + ((Number(stats?.technique) || 6) - 6) * 1.25, 43, 59);
+      const ranges = { lower:[12,46], middle:[32,70], upper:[54,88] };
+      const [min,max] = ranges[aiTier] || ranges.middle;
+      const difficultyShift = this.config?.difficulty === 'strong' ? 4 : this.config?.difficulty === 'weak' ? -4 : 0;
+      return clamp(rand(min,max) + difficultyShift, 4, 89);
+    }
+
+    ensureMasteryRuntime(p) {
+      if (!p) return;
+      p.masteryValue = clamp(Number.isFinite(p.masteryValue) ? p.masteryValue : 50, 0, 100);
+      p.masteryRank = this.getMasteryRank(p.masteryValue).id;
+      p.masteryHitStreak = Number(p.masteryHitStreak || 0);
+      p.masteryLastHitAt = Number.isFinite(p.masteryLastHitAt) ? p.masteryLastHitAt : -999;
+      p.masteryLastSuccessAt = Number.isFinite(p.masteryLastSuccessAt) ? p.masteryLastSuccessAt : -999;
+      p._masteryPendingAttacks = p._masteryPendingAttacks instanceof Map ? p._masteryPendingAttacks : new Map();
+      p._masteryAwardKeys = p._masteryAwardKeys instanceof Map ? p._masteryAwardKeys : new Map();
+    }
+
+    adjustMastery(p, rawDelta, reason = '', options = {}) {
+      if (!p || !Number.isFinite(rawDelta) || rawDelta === 0) return 0;
+      this.ensureMasteryRuntime(p);
+      const before = p.masteryValue;
+      let delta = rawDelta;
+      if (delta > 0) {
+        const gainScale = clamp(1.02 - before * .0082, .2, 1);
+        delta *= gainScale;
+        p.masteryLastSuccessAt = this.elapsed;
+      } else {
+        const lossScale = .62 + before * .0042;
+        delta *= lossScale;
+        p.masteryHitStreak = 0;
+      }
+      const perEventCap = options.major ? 1.15 : .72;
+      delta = clamp(delta, -perEventCap, perEventCap);
+      p.masteryValue = clamp(before + delta, 0, 100);
+      const oldRank = p.masteryRank || this.getMasteryRank(before).id;
+      const newRank = this.getMasteryRank(p.masteryValue).id;
+      p.masteryRank = newRank;
+      p.masteryRecentDelta = delta;
+      p.masteryRecentReason = reason;
+      p.masteryRecentAt = this.elapsed;
+      if (p.human && newRank !== oldRank) this.toast(`熟練度 ${oldRank} → ${newRank}`);
+      return p.masteryValue - before;
+    }
+
+    awardMasteryOnce(p, key, delta, reason, cooldown = .35, options = {}) {
+      if (!p || !key) return 0;
+      this.ensureMasteryRuntime(p);
+      const last = p._masteryAwardKeys.get(key) ?? -999;
+      if (this.elapsed - last < cooldown) return 0;
+      p._masteryAwardKeys.set(key, this.elapsed);
+      if (p._masteryAwardKeys.size > 900) {
+        for (const [oldKey, time] of p._masteryAwardKeys) if (this.elapsed - time > 20) p._masteryAwardKeys.delete(oldKey);
+      }
+      return this.adjustMastery(p, delta, reason, options);
+    }
+
+    recordMasteryHit(attacker, info = {}, target, effectiveDamage = 0, rangeMultiplier = 1, shotDistance = null) {
+      if (!attacker || !target || attacker.id === target.id || effectiveDamage <= 0) return;
+      this.ensureMasteryRuntime(attacker);
+      const continuous = this.elapsed - attacker.masteryLastHitAt <= 3.2;
+      attacker.masteryHitStreak = continuous ? Math.min(18, attacker.masteryHitStreak + 1) : 1;
+      attacker.masteryLastHitAt = this.elapsed;
+      const streakBonus = Math.min(.09, Math.max(0, attacker.masteryHitStreak - 2) * .008);
+      this.adjustMastery(attacker, .105 + streakBonus, '有効打');
+
+      const sourceKey = String(info.sourceKey || info.name || 'attack');
+      const activationKey = info.activationId ? `${info.activationId}:${sourceKey}` : `${sourceKey}:${target.id}:${Math.floor(this.elapsed * 3)}`;
+      if (MASTERY_SPECIAL_ATTACKS.has(sourceKey)) this.awardMasteryOnce(attacker, `special:${activationKey}`, .46, `${info.name || sourceKey}命中`, 20, {major:true});
+      if (sourceKey.startsWith('composite:')) this.awardMasteryOnce(attacker, `composite:${activationKey}`, .5, '合成弾命中', 20, {major:true});
+      if (MASTERY_TRAP_SOURCES.has(sourceKey)) this.awardMasteryOnce(attacker, `trap:${activationKey}`, .38, 'トラップ成功', .5, {major:true});
+      if (info.rangeProfile && ['gun','sniper'].includes(info.rangeProfile.kind) && rangeMultiplier >= 1) {
+        const label = info.rangeProfile.kind === 'sniper' ? '狙撃適正距離' : '銃撃適正距離';
+        this.awardMasteryOnce(attacker, `range:${activationKey}`, .14, label, .15);
+      }
+    }
+
+    recordMasteryUtilitySuccess(owner, sourceKey, target, delta = .35, reason = 'トラップ成功') {
+      if (!owner || !target) return;
+      const key = `utility:${sourceKey}:${target.id}:${Math.floor(this.elapsed * 2)}`;
+      this.awardMasteryOnce(owner, key, delta, reason, .65, {major:true});
+    }
+
+    updateMasteryState(p, dt) {
+      if (!p || p.dead) return;
+      this.ensureMasteryRuntime(p);
+      for (const [activationId, attempt] of [...p._masteryPendingAttacks.entries()]) {
+        if (attempt.hit) { p._masteryPendingAttacks.delete(activationId); continue; }
+        if (this.elapsed < attempt.expires) continue;
+        const special = MASTERY_SPECIAL_ATTACKS.has(attempt.triggerId) || String(attempt.triggerId).startsWith('composite:');
+        this.adjustMastery(p, special ? -.15 : -.065, special ? '特殊攻撃失敗' : '攻撃失敗');
+        p._masteryPendingAttacks.delete(activationId);
+      }
+      if (p.masteryDodgeAttempt && this.elapsed >= p.masteryDodgeAttempt.until) {
+        const success = p.lastDamageAt < p.masteryDodgeAttempt.startedAt && Math.hypot(p.x-p.masteryDodgeAttempt.x,p.y-p.masteryDodgeAttempt.y) >= 28;
+        this.adjustMastery(p, success ? .34 : -.11, success ? '回避成功' : '回避失敗', {major:success});
+        p.masteryDodgeAttempt = null;
+      }
+      if (p.masteryValue > 90) {
+        const idle = Math.max(0, this.elapsed - p.masteryLastSuccessAt - 4);
+        const decay = (.03 + Math.min(.03, idle * .0032)) * dt;
+        p.masteryValue = Math.max(89.65, p.masteryValue - decay);
+        p.masteryRank = this.getMasteryRank(p.masteryValue).id;
+      }
+    }
+
+    trackProjectileDodges(projectile) {
+      if (!projectile || projectile.life <= 0) return;
+      projectile.nearMisses ||= {};
+      for (const target of this.players) {
+        if (target.dead || target.id === projectile.ownerId || (target.team === projectile.team && (this.config.mode === 'team' || this.isDefenseMode))) continue;
+        const dx = target.x - projectile.x, dy = target.y - projectile.y;
+        const d = Math.hypot(dx,dy);
+        const collision = target.radius + (projectile.radius || 5);
+        const danger = collision + 31;
+        if (d > danger + 35) continue;
+        const entry = projectile.nearMisses[target.id] ||= { min:d, awarded:false };
+        entry.min = Math.min(entry.min,d);
+        const movingAway = dx * projectile.vx + dy * projectile.vy < 0;
+        const targetMoving = Math.hypot(target.vx,target.vy) > Math.max(70,target.speed*.38);
+        if (!entry.awarded && targetMoving && movingAway && entry.min > collision + 2 && entry.min <= danger && d >= entry.min + 5) {
+          entry.awarded = true;
+          this.awardMasteryOnce(target, `dodge:${projectile.id}`, .32, '回避成功', 30, {major:true});
+          if (target.human) this.effects.push({type:'dash',x:target.x,y:target.y,angle:Math.atan2(target.vy,target.vx),color:'#d9fbff',ttl:.16,maxTtl:.16});
+        }
+      }
+    }
+
     randomStats() {
       const stats = { trion: 2, technique: 2, combat: 2 };
       let remaining = 12;
@@ -5859,11 +6028,17 @@
       const maxHp = 78 + stats.combat * 8;
       const maxTrion = 105 + stats.trion * 25;
       const app = { ...randomCpuAppearance(irand(0, 99), team), ...(appearance || {}) };
+      const aiTier = human ? 'player' : weightedChoice([{id:'lower',weight:42},{id:'middle',weight:34},{id:'upper',weight:24}]).id;
+      const aiPersonality = human ? { calmness:.5, aggression:.5 } : { calmness:rand(0,1), aggression:rand(0,1) };
+      const masteryValue = this.createInitialMastery(human, aiTier, stats);
       return {
         id, name, human, team, stats: { ...stats }, loadout,
         archetype,
         beginnerSkill: BEGINNER_SKILLS[beginnerSkill] ? beginnerSkill : 'none',
-        aiTier: human ? 'player' : weightedChoice([{id:'lower',weight:35},{id:'middle',weight:45},{id:'upper',weight:20}]).id,
+        aiTier,
+        aiPersonality,
+        masteryValue, masteryRank:this.getMasteryRank(masteryValue).id, masteryHitStreak:0, masteryLastHitAt:-999, masteryLastSuccessAt:-999, masteryRecentDelta:0, masteryRecentReason:'', masteryRecentAt:-999, masteryDodgeAttempt:null,
+        _masteryPendingAttacks:new Map(), _masteryAwardKeys:new Map(),
         squadName,
         emblemPixels: emblemPixels || app.emblemPixels,
         appearance: app,
@@ -5890,6 +6065,7 @@
         reloadVisual: null,
         justCut: null,
         shields: { main: null, sub: null },
+        shieldDurability: { main: null, sub: null },
         toggles: { bagworm: false, bagwormTag: false, chameleon: false },
         revealTimer: 0,
         markedTimer: 0,
@@ -5912,7 +6088,7 @@
         metrics: {
           triggerActivations: 0, attackActions: 0, attackActivations: 0, activationsWithHit: 0, uniqueTargetsHit: 0,
           projectilesFired: 0, projectilesSpawned: 0, projectilesHit: 0, projectileHits: 0, meleeHits: 0,
-          damageDealt: 0, damageTaken: 0, blockedDamage: 0, shieldDamagePrevented: 0, shieldBlocks: 0,
+          damageDealt: 0, damageTaken: 0, blockedDamage: 0, shieldDamagePrevented: 0, shieldBlocks: 0, justGuards: 0,
           justCuts: 0, rangePenaltyHits: 0, optimalRangeHits: 0, closeRangePenaltyHits: 0, farRangePenaltyHits: 0,
           shooterChargesStarted: 0, shooterChargesCompleted: 0, shooterChargeCancelled: 0, shooterSameHandLocks: 0,
           gunShots: 0, gunReloads: 0, gunEmptyAttempts: 0, reloadSeconds: 0,
@@ -6033,6 +6209,8 @@
       p.toggles.bagworm = false;
       p.toggles.bagwormTag = false;
       p.toggles.chameleon = false;
+      p.shields.main = null; p.shields.sub = null;
+      p.shieldDurability = { main:null, sub:null };
       if (p.ai) {
         p.ai.concealmentTimer = 0;
         p.ai.concealmentCooldown = 0;
@@ -6246,20 +6424,103 @@
       if (this.actionConsume('combo')) this.tryCombo(p);
     }
 
+    getShieldMaxDurability(p, type = 'shield', boost = 1) {
+      const trionStat = clamp(Number(p?.stats?.trion) || 6, 2, 10);
+      if (type === 'raygust') return 250;
+      if (type === 'seal') return Math.round((105 + trionStat * 14) * (1 + (clamp(boost, 1, 3) - 1) * .28));
+      return Math.round(105 + trionStat * 16);
+    }
+
+    getShieldRegenRate(p, type = 'shield') {
+      if (type === 'raygust') return 29;
+      if (type === 'seal') return 24;
+      return 22 + clamp(Number(p?.stats?.trion) || 6, 2, 10) * 1.25;
+    }
+
+    activateShield(p, hand, type = 'shield', options = {}) {
+      if (!p || !['main','sub'].includes(hand)) return false;
+      p.shieldDurability ||= { main:null, sub:null };
+      const boost = type === 'seal' ? clamp(Number(options.boost) || 1, 1, 3) : 1;
+      const max = this.getShieldMaxDurability(p, type, boost);
+      let state = p.shieldDurability[hand];
+      if (!state || state.type !== type || state.boost !== boost) {
+        const previous = state;
+        const ratio = previous && previous.max > 0 ? clamp(previous.current / previous.max, 0, 1) : 1;
+        state = { type, boost, max, current:max * ratio, lastActiveAt:previous?.lastActiveAt ?? -999, lastHitAt:previous?.lastHitAt ?? -999, brokenUntil:previous?.brokenUntil || 0, justGuardUntil:0, justGuardAvailable:false };
+        p.shieldDurability[hand] = state;
+      } else if (state.max !== max) {
+        const ratio = state.max > 0 ? clamp(state.current / state.max, 0, 1) : 1;
+        state.max = max; state.current = max * ratio;
+      }
+      if (state.current <= 0 && this.elapsed >= (state.brokenUntil || 0)) state.current = state.max * .42;
+      if (this.elapsed < (state.brokenUntil || 0) || state.current <= 0) { p.shields[hand] = null; return false; }
+      const newlyRaised = this.elapsed - (state.lastActiveAt ?? -999) > .12;
+      state.lastActiveAt = this.elapsed;
+      state.active = true;
+      if (newlyRaised) {
+        state.raisedAt = this.elapsed;
+        state.justGuardUntil = this.elapsed + (Number(options.justGuardWindow) || .145);
+        state.justGuardAvailable = true;
+        state.masteryAttempt = Boolean(options.masteryAttempt || this.getProjectileThreatInfo(p, .42));
+      }
+      const strength = type === 'raygust' ? 1.08 : type === 'seal' ? 1.02 + (boost - 1) * .035 : 1;
+      p.shields[hand] = { type, boost, strength, hand, state };
+      return true;
+    }
+
+    updateShieldDurability(p, dt) {
+      if (!p) return;
+      p.shieldDurability ||= { main:null, sub:null };
+      p.shields ||= { main:null, sub:null };
+      for (const hand of ['main','sub']) {
+        const state = p.shieldDurability[hand];
+        if (!state) { p.shields[hand] = null; continue; }
+        if (state.justGuardAvailable && this.elapsed > (state.justGuardUntil || 0)) {
+          state.justGuardAvailable = false;
+          if (state.masteryAttempt) this.adjustMastery(p, -.09, 'ジャストガード失敗');
+          state.masteryAttempt = false;
+        }
+        const active = this.elapsed - (state.lastActiveAt ?? -999) <= .12 && state.current > 0 && this.elapsed >= (state.brokenUntil || 0);
+        state.active = active;
+        if (!active) {
+          p.shields[hand] = null;
+          if (state.current <= 0 && this.elapsed >= (state.brokenUntil || 0)) state.current = state.max * .42;
+          const recoveryDelay = state.type === 'raygust' ? 1.25 : 1.05;
+          if (state.current > 0 && this.elapsed - (state.lastHitAt ?? -999) > recoveryDelay) {
+            state.current = Math.min(state.max, state.current + this.getShieldRegenRate(p, state.type) * dt);
+          }
+        } else if (p.shields[hand]) {
+          p.shields[hand].state = state;
+        }
+      }
+    }
+
+    breakShield(p, hand, state) {
+      if (!state) return;
+      state.current = 0;
+      state.justGuardAvailable = false;
+      state.brokenUntil = this.elapsed + (state.type === 'raygust' ? 2.8 : state.type === 'seal' ? 3 : 2.4);
+      if (p?.shields) p.shields[hand] = null;
+      this.effects.push({ type:'shieldBreak', x:p.x, y:p.y, angle:p.aim, color:state.type === 'raygust' ? '#b8ffff' : state.type === 'seal' ? '#f4f1ff' : '#74d8ff', ttl:.42, maxTtl:.42 });
+      if (p?.human) this.toast(state.type === 'raygust' ? 'レイガスト盾が破損' : state.type === 'seal' ? '盾印が破損' : 'シールドが破損');
+    }
+
+    getActiveShieldEntries(p) {
+      if (!p?.shields) return [];
+      return ['main','sub'].map((hand) => ({ hand, shield:p.shields[hand], state:p.shields[hand]?.state || p.shieldDurability?.[hand] })).filter(({shield,state}) => shield && state && state.current > 0 && this.elapsed - (state.lastActiveAt ?? -999) <= .14 && this.elapsed >= (state.brokenUntil || 0));
+    }
+
     handleHeldHand(p, hand, held, justPressed, dt, shiftOverride = null) {
       if (!held && !justPressed) return;
       const trigger = this.getSelectedTrigger(p, hand);
       if (!trigger || trigger.kind === 'empty') return;
       const shift = shiftOverride === null ? this.modifierDown() : Boolean(shiftOverride);
       if (trigger.kind === 'shield') {
-        if (held) p.shields[hand] = { type: 'shield', strength: 1 };
+        if (held) this.activateShield(p, hand, 'shield');
         return;
       }
       if (trigger.id === 'raygust' && shift) {
-        if (held) {
-          p.shields[hand] = { type: 'raygust', strength: 1.55 };
-          p.metrics.raygustShieldSeconds += dt;
-        }
+        if (held && this.activateShield(p, hand, 'raygust')) p.metrics.raygustShieldSeconds += dt;
         return;
       }
       const automatic = (trigger.kind === 'gun' && ['assault', 'gatling'].includes(trigger.gun)) || (trigger.kind === 'melee' && ['kogetsu','scorpion','raygust'].includes(trigger.id));
@@ -6317,6 +6578,7 @@
       const key = cut.slotKey;
       if (key && Number.isFinite(target.cooldowns[key])) target.cooldowns[key] *= .5;
       target.metrics.justCuts = (target.metrics.justCuts || 0) + 1;
+      this.adjustMastery(target, cut.sourceKey === 'kogetsuParry' ? .52 : .34, cut.sourceKey === 'kogetsuParry' ? 'いなし成功' : 'ジャストいなし', {major:true});
       this.effects.push({ type: 'justCut', x: target.x, y: target.y, angle: cut.angle, radius: target.radius + 31, ttl: .3, maxTtl: .3, color: cut.sourceKey === 'kogetsu' ? '#e7fbff' : '#c1a7ff' });
       this.sfx?.play('attacker', { x: target.x, y: target.y, bucket: `just-cut:${target.id}`, cooldown: .04, volume: .54, rate: 1.22 });
       if (target.human) this.toast('JUST CUT　クールダウン半減');
@@ -6544,6 +6806,7 @@
           slotKey: this.getSlotKey(p, hand),
           angle: p.aim,
           sourceKey: trigger.id === 'kogetsu' && options.shift ? 'kogetsuParry' : trigger.id,
+          masteryAttempt: trigger.id === 'kogetsu' && options.shift,
         };
       }
       this.revealOnAttack(p, 1.2);
@@ -7132,18 +7395,28 @@
       p.metrics.aliveTime += dt;
       p.metrics.currentLife += dt;
       p.metrics.longestLife = Math.max(p.metrics.longestLife, p.metrics.currentLife);
+      this.updateMasteryState(p, dt);
 
       for (const key of Object.keys(p.cooldowns)) p.cooldowns[key] = Math.max(0, p.cooldowns[key] - dt);
       if (p.playableDefenseType) {
         p.extraActionTimer = Math.max(0, (p.extraActionTimer || 0) - dt);
+        const parryWasActive = (p.extraParryTimer || 0) > 0;
         p.extraParryTimer = Math.max(0, (p.extraParryTimer || 0) - dt);
+        if (parryWasActive && p.extraParryTimer <= 0 && p.masteryParryAttempt) { this.adjustMastery(p, -.12, 'いなし失敗'); p.masteryParryAttempt = false; }
         p.extraParryCooldown = Math.max(0, (p.extraParryCooldown || 0) - dt);
         if (p.defenseAI) { p.defenseAI.shieldTimer=Math.max(0,(p.defenseAI.shieldTimer||0)-dt); p.defenseAI.coreCooldown=Math.max(0,(p.defenseAI.coreCooldown||0)-dt); p.defenseAI.actionTimer=Math.max(0,(p.defenseAI.actionTimer||0)-dt); }
       }
+      if ((p.playableDefenseType === 'seals' || p.defenseType === 'seals') && (p.defenseAI?.shieldTimer || 0) > 0) {
+        this.activateShield(p, p.defenseAI?.shieldHand || 'sub', 'seal', { boost:clamp(p.extraBoost || p.defenseAI?.sealBoost || 1, 1, 3) });
+      }
+      this.updateShieldDurability(p, dt);
       this.updateWeaponStates(p, dt);
       if (p.justCut) {
         p.justCut.timer -= dt;
-        if (p.justCut.timer <= 0) p.justCut = null;
+        if (p.justCut.timer <= 0) {
+          if (p.justCut.masteryAttempt) this.adjustMastery(p, -.1, 'いなし失敗');
+          p.justCut = null;
+        }
       }
       for (const hand of ['main', 'sub']) {
         if (p.modifierReady[hand]) {
@@ -7305,6 +7578,8 @@
             const support = dt * 1.6;
             owner.metrics.spiderSlowSeconds += dt;
             this.awardSupport(owner, support);
+            wire.masteryTargets ||= {};
+            if (!wire.masteryTargets[p.id]) { wire.masteryTargets[p.id] = true; this.recordMasteryUtilitySuccess(owner, 'spider', p, .34, 'スパイダー成功'); }
           }
           for (const mine of this.mines) {
             if (mine.team === wire.team && Math.hypot(mine.x - hit.x, mine.y - hit.y) < 125) this.detonateMine(mine);
@@ -7862,7 +8137,12 @@
       p.ai.strafeTimer = Math.max(0, (p.ai.strafeTimer || 0) - dt);
       if (p.ai.strafeTimer <= 0) { p.ai.strafeTimer = rand(1.7, 3.3); if (Math.random() < .42) p.ai.strafe *= -1; }
       let desired = p.ai.movementMode || 'advance';
+      const personality = p.aiPersonality || { calmness:.5, aggression:.5 };
+      const calmness = clamp(personality.calmness,0,1), aggression = clamp(personality.aggression,0,1);
       if (lowHeavyResources) desired = 'retreat';
+      else if (aggression < .24 && distanceToTarget < preferred * 1.28) desired = calmness > .42 ? 'retreat' : 'strafe';
+      else if (aggression > .8 && distanceToTarget > preferred * .72) desired = 'advance';
+      else if (calmness < .2 && p.hp < p.maxHp * .38 && aggression > .48) desired = 'advance';
       else if (role === '工作手' && distanceToTarget < 295) desired = 'retreat';
       else if (rangeBand && distanceToTarget < rangeBand.min * .92) desired = 'retreat';
       else if (rangeBand && distanceToTarget > rangeBand.max * 1.03) desired = 'advance';
@@ -8100,7 +8380,24 @@
       if ((p.cubedTimer || 0) > 0) { p.vx *= Math.pow(.02, dt); p.vy *= Math.pow(.02, dt); return; }
       const baseProfile = AI_DIFFICULTIES[this.config.difficulty] || AI_DIFFICULTIES.normal;
       const tier = AI_TIER_PROFILES[p.aiTier] || AI_TIER_PROFILES.middle;
-      const profile = { ...baseProfile, aimError: baseProfile.aimError * tier.aim, move: baseProfile.move * (.92 + tier.decision * .08), attackInterval: baseProfile.attackInterval.map((v) => v / tier.aggression), utilityChance: clamp(baseProfile.utilityChance * tier.decision, 0, 1), comboChance: clamp(baseProfile.comboChance * tier.decision, 0, 1) };
+      const personality = p.aiPersonality || { calmness:.5, aggression:.5 };
+      const calmness = clamp(personality.calmness, 0, 1), aggression = clamp(personality.aggression, 0, 1);
+      const emotionalRisk = 1 - calmness;
+      const attackDrive = tier.aggression * (.64 + aggression * .78) * (.94 + emotionalRisk * .14);
+      const profile = {
+        ...baseProfile,
+        calmness, aggression, emotionalRisk,
+        aimError: baseProfile.aimError * tier.aim * (1.14 - calmness * .22),
+        move: baseProfile.move * (.88 + tier.decision * .12),
+        attackInterval: baseProfile.attackInterval.map((v) => v / Math.max(.42, attackDrive)),
+        utilityChance: clamp(baseProfile.utilityChance * tier.decision * (.78 + calmness * .35), 0, 1),
+        comboChance: clamp(baseProfile.comboChance * tier.decision * (.65 + calmness * .48), 0, 1),
+        shieldChance: clamp(baseProfile.shieldChance * (tier.defense || 1) * (.72 + calmness * .52) * (1.22 - aggression * .38), 0, 1),
+        guardSkill: clamp((baseProfile.guardSkill || 0) * (tier.defense || 1) * (.62 + calmness * .5), 0, 1),
+        parrySkill: clamp((baseProfile.parrySkill || 0) * (tier.defense || 1) * (.5 + calmness * .62), 0, 1),
+        dodgeSkill: clamp((baseProfile.dodgeSkill || 0) * (tier.defense || 1) * (.58 + calmness * .5), 0, 1),
+        patience: clamp((baseProfile.patience || 0) * tier.decision * (.5 + calmness * .65) * (1.18 - aggression * .35), 0, 1),
+      };
       this.updateThreatAwareness(p, dt);
       p.shields.main = null;
       p.shields.sub = null;
@@ -8261,21 +8558,9 @@
       this.applyAISeparation(p, dt, false);
 
       p.ai.threatTime = threatened ? p.ai.threatTime + dt : 0;
-      const baseReaction = this.config.difficulty === 'strong' ? .11 : this.config.difficulty === 'normal' ? .18 : .32;
-      const canReact = threatened && p.ai.threatTime >= baseReaction * (role === '重装手' ? .62 : 1);
-      if (role === '重装手' && (canReact || d > 190)) {
-        const raygust = this.findTriggerHand(p, (trigger) => trigger.id === 'raygust');
-        if (raygust) {
-          p.selected[raygust.hand] = raygust.index;
-          p.shields[raygust.hand] = { type: 'raygust', strength: 1.55 };
-        }
-      } else if (canReact && Math.random() < profile.shieldChance) {
-        const shieldHand = this.findTriggerHand(p, (trigger) => trigger.kind === 'shield');
-        if (shieldHand) {
-          p.selected[shieldHand.hand] = shieldHand.index;
-          p.shields[shieldHand.hand] = { type: 'shield', strength: 1 };
-        }
-      }
+      p.ai.defenseCommitTimer = Math.max(0, (p.ai.defenseCommitTimer || 0) - dt);
+      const threatInfo = this.getProjectileThreatInfo(p);
+      const defensiveRead = this.aiTryDefensiveRead(p, threatInfo, profile, tier, dt);
 
       if (p.ai.utilityTimer <= 0) {
         if (Math.random() < profile.utilityChance || role === '工作手') this.aiUseUtility(p, d, target, profile);
@@ -8296,6 +8581,13 @@
         }
       }
       if (p.ai.wallBreakTarget && this.aiTryBreakNavigationWall(p)) return;
+      if (defensiveRead && p.ai.defenseCommitTimer > 0 && Math.random() < profile.patience) return;
+      const targetGuarding = this.getActiveShieldEntries(target).length > 0;
+      if (targetGuarding && p.ai.attackTimer <= 0 && Math.random() < profile.patience * (.7 + profile.calmness * .3)) {
+        p.ai.strafe *= -1;
+        p.ai.attackTimer = rand(.14, .38) * (1.22 - profile.aggression * .28);
+        return;
+      }
       if (p.ai.attackTimer > 0) return;
       p.ai.attackTimer = rand(profile.attackInterval[0], profile.attackInterval[1]);
       const attackBlocker = this.findBlockingWall(p.x, p.y, target.x, target.y, Math.max(3, p.radius * .22));
@@ -8685,13 +8977,106 @@
       return null;
     }
 
+    getProjectileThreatInfo(p, horizon = 1.15) {
+      let best = null;
+      let count = 0;
+      for (const proj of this.projectiles) {
+        if (proj.ownerId === p.id) continue;
+        if (proj.team === p.team && (this.config.mode === 'team' || this.isDefenseMode)) continue;
+        const rx = proj.x - p.x, ry = proj.y - p.y;
+        const rvx = proj.vx - (p.vx || 0), rvy = proj.vy - (p.vy || 0);
+        const vv = rvx * rvx + rvy * rvy;
+        if (vv < 1) continue;
+        const time = -(rx * rvx + ry * rvy) / vv;
+        if (time < 0 || time > horizon) continue;
+        const cx = rx + rvx * time, cy = ry + rvy * time;
+        const miss = Math.hypot(cx, cy);
+        const dangerRadius = p.radius + (proj.radius || 5) + 18;
+        if (miss > dangerRadius) continue;
+        count += 1;
+        const info = { projectile:proj, time, miss, count:1, incomingAngle:Math.atan2(-rvy, -rvx), sourceAngle:Math.atan2(proj.y-p.y, proj.x-p.x) };
+        if (!best || time < best.time) best = info;
+      }
+      if (best) best.count = count;
+      return best;
+    }
+
     projectileThreat(p) {
-      return this.projectiles.some((proj) => {
-        if (proj.team === p.team && (this.config.mode === 'team' || this.isDefenseMode)) return false;
-        if (Math.hypot(proj.x - p.x, proj.y - p.y) > 190) return false;
-        const toward = (p.x - proj.x) * proj.vx + (p.y - proj.y) * proj.vy;
-        return toward > 0;
-      });
+      return Boolean(this.getProjectileThreatInfo(p, .72));
+    }
+
+    aiTryDefensiveRead(p, threat, profile, tier, dt) {
+      if (!p || p.dead || !threat) return false;
+      const calmness = clamp(profile?.calmness ?? p.aiPersonality?.calmness ?? .5, 0, 1);
+      const aggression = clamp(profile?.aggression ?? p.aiPersonality?.aggression ?? .5, 0, 1);
+      const guardSkill = clamp(profile?.guardSkill ?? 0, 0, 1);
+      const parrySkill = clamp(profile?.parrySkill ?? 0, 0, 1);
+      const dodgeSkill = clamp(profile?.dodgeSkill ?? 0, 0, 1);
+      const reactionFactor = Math.max(.42, tier?.reaction || 1);
+      const idealLead = clamp((.36 - guardSkill * .22) * (.82 + reactionFactor * .22) + (1-calmness) * rand(-.035,.055), .095, .48);
+      if (threat.time > idealLead) return false;
+      const composure = clamp((guardSkill + parrySkill + dodgeSkill) / 2.4 * (.62 + calmness * .55), .05, .98);
+      const gambleChance = (1-calmness) * (.22 + aggression * .35);
+      const responseChance = clamp(composure * (1 - gambleChance * .72), .03, .98);
+      if (Math.random() > responseChance) return false;
+
+      const type = p.playableDefenseType || p.defenseType;
+      const canExtraParry = EXTRA_PARRY_TYPES.has(type) && (p.extraParryCooldown || p.defenseAI?.parryCooldown || 0) <= 0;
+      const kogetsu = !type ? this.findTriggerHand(p, (trigger) => trigger.id === 'kogetsu') : null;
+      const raygust = !type ? this.findTriggerHand(p, (trigger) => trigger.id === 'raygust') : null;
+      const shield = !type ? this.findTriggerHand(p, (trigger) => trigger.kind === 'shield') : null;
+      const canSealGuard = type === 'seals';
+      const urgent = threat.time <= .15 || threat.count > 1;
+      const parryWeight = (canExtraParry || kogetsu) ? parrySkill * (.72 + aggression * .4) * (urgent ? 1.15 : .82) : 0;
+      const guardWeight = (raygust || shield || canSealGuard) ? guardSkill * (1.28 - aggression * .48) * (threat.count > 1 ? 1.35 : 1) : 0;
+      const dodgeWeight = dodgeSkill * (.72 + calmness * .46) * (threat.count > 1 ? .55 : 1.1);
+      const choice = weightedChoice([
+        {id:'parry',weight:parryWeight}, {id:'guard',weight:guardWeight}, {id:'dodge',weight:dodgeWeight}
+      ].filter((item) => item.weight > 0), (item) => item.weight);
+      if (!choice) return false;
+
+      p.aim = threat.sourceAngle;
+      if (choice.id === 'parry') {
+        if (canExtraParry) {
+          if (p.isDefenseEnemy) {
+            p.defenseAI.parryTimer = .32; p.defenseAI.parryCooldown = 1.55; p.defenseAI.action='parry'; p.defenseAI.actionTimer=.32; p.defenseAI.actionMax=.32; p.masteryParryAttempt=true;
+          } else if (!this.beginPlayableParry(p)) return false;
+        } else if (kogetsu && this.slotReady(p, kogetsu.hand, kogetsu.index, kogetsu.trigger)) {
+          p.selected[kogetsu.hand] = kogetsu.index;
+          if (!this.tryUseHand(p, kogetsu.hand, { shift:true })) return false;
+        } else return false;
+        p.ai.defenseCommitTimer = .24;
+        return true;
+      }
+      if (choice.id === 'guard') {
+        if (canSealGuard) {
+          const boost = clamp(p.extraBoost || p.defenseAI?.sealBoost || 1, 1, 3);
+          p.defenseAI ||= {}; p.defenseAI.shieldTimer = Math.max(p.defenseAI.shieldTimer || 0, .2); p.defenseAI.shieldHand='sub';
+          if (!this.activateShield(p, 'sub', 'seal', {boost})) return false;
+        } else {
+          const selected = raygust && (p.archetype === '重装手' || !shield || Math.random() < .58) ? raygust : shield;
+          if (!selected) return false;
+          p.selected[selected.hand] = selected.index;
+          if (!this.activateShield(p, selected.hand, selected.trigger.id === 'raygust' ? 'raygust' : 'shield')) return false;
+        }
+        p.ai.defenseCommitTimer = urgent ? .22 : .32;
+        return true;
+      }
+
+      const velocityAngle = Math.atan2(threat.projectile.vy, threat.projectile.vx);
+      let side = p.ai?.strafe || (Math.random() < .5 ? -1 : 1);
+      const testDistance = 90;
+      const a1 = velocityAngle + side * Math.PI/2;
+      const tx = p.x + Math.cos(a1) * testDistance, ty = p.y + Math.sin(a1) * testDistance;
+      if (this.findBlockingWall(p.x,p.y,tx,ty,p.radius+3)) side *= -1;
+      const dodgeAngle = velocityAngle + side * Math.PI/2 + (1-calmness) * rand(-.22,.22);
+      const impulse = (250 + dodgeSkill * 180) * (urgent ? 1.08 : 1);
+      p.vx += Math.cos(dodgeAngle) * impulse;
+      p.vy += Math.sin(dodgeAngle) * impulse;
+      p.masteryDodgeAttempt = { startedAt:this.elapsed, until:this.elapsed + Math.max(.34, threat.time + .28), x:p.x, y:p.y, projectileId:threat.projectile?.id || null };
+      if (p.ai) { p.ai.strafe = side; p.ai.defenseCommitTimer = .18; p.ai.escapeTimer = Math.max(p.ai.escapeTimer || 0, .22); }
+      this.effects.push({type:'dash',x:p.x,y:p.y,angle:dodgeAngle,color:'#b9f4ff',ttl:.18,maxTtl:.18});
+      return true;
     }
 
     updateProjectiles(dt) {
@@ -8735,6 +9120,7 @@
         if (p.trail) this.particles.push({ x: p.x, y: p.y, vx: 0, vy: 0, radius: p.radius * .8, color: p.color, ttl: .16, maxTtl: .16 });
         p.x += p.vx * dt;
         p.y += p.vy * dt;
+        this.trackProjectileDodges(p);
 
         let removed = false;
         if (p.explosive && p.proximityFuse > 0) {
@@ -8950,7 +9336,7 @@
       if (!guard || (target.cooldowns[`${guard.hand}:${guard.index}`] || 0) > 0) return false;
       const cost = guard.trigger.id === 'raygust' ? 1.35 : .9;
       if (!this.consumeTrion(target, cost, true)) return false;
-      target.shields[guard.hand] = { type: guard.trigger.id === 'raygust' ? 'raygust' : 'shield', strength: guard.trigger.id === 'raygust' ? 1.55 : 1 };
+      if (!this.activateShield(target, guard.hand, guard.trigger.id === 'raygust' ? 'raygust' : 'shield', { justGuardWindow:.18 })) return false;
       this.setCooldownForHandIndex(target, guard.hand, guard.index, guard.trigger.cooldown || 1.15);
       if (target.human) this.toast('オートガード');
       return true;
@@ -8960,11 +9346,18 @@
       if (!attacker || !attacker.metrics || attacker.id === target.id) return { amount, critical:false };
       const hpRatio = attacker.maxHp > 0 ? attacker.hp / attacker.maxHp : 1;
       if (hpRatio <= .38) amount *= 1 + (.38 - hpRatio) * .9;
+      this.ensureMasteryRuntime(attacker);
+      const masteryRatio = clamp(attacker.masteryValue / 100, 0, 1);
+      const qualityCenter = .93 + masteryRatio * .13;
+      const qualitySpread = .13 - masteryRatio * .075;
+      const qualityMultiplier = clamp(qualityCenter + rand(-qualitySpread, qualitySpread), .78, 1.14);
+      amount *= qualityMultiplier;
       let critChance = .025 + attacker.stats.technique * .012;
+      critChance += clamp((attacker.masteryValue - 28) / 72, 0, 1) * .105;
       if (info.stationaryShot && info.rangeProfile && ['gun','sniper'].includes(info.rangeProfile.kind)) critChance += info.rangeProfile.kind === 'sniper' ? .11 : .07;
       if (attacker.beginnerSkill === 'aimAssist' && info.rangeProfile && ['gun','sniper'].includes(info.rangeProfile.kind)) critChance += .025;
       if (attacker.aiTier === 'upper') critChance += .025;
-      const critical = Math.random() < clamp(critChance, .03, .32);
+      const critical = Math.random() < clamp(critChance, .03, .42);
       if (critical) {
         const before = amount;
         amount *= 1.55;
@@ -8983,7 +9376,9 @@
       }
       if ((target.playableDefenseType || target.isDefenseEnemy) && (target.extraParryTimer > 0 || target.defenseAI?.parryTimer > 0) && attacker && attacker !== target && EXTRA_PARRY_TYPES.has(target.playableDefenseType || target.defenseType)) {
         target.extraParryTimer = 0; if(target.defenseAI)target.defenseAI.parryTimer=0; target.extraParryCooldown = Math.max(target.extraParryCooldown || 0, 1.2);
+        target.masteryParryAttempt = false;
         target.metrics.parryAttacks += 1;
+        this.adjustMastery(target, .54, 'いなし成功', {major:true});
         this.effects.push({ type:'justCut', x:target.x, y:target.y, radius:target.radius+34, angle:target.aim, color:'#fff3a8', ttl:.38, maxTtl:.38 });
         const counterDamage = Math.max(10, (target.extraDamage || 20) * .72);
         this.damagePlayer(attacker, counterDamage, target, { x:attacker.x, y:attacker.y, type:'melee', name:'いなし反撃', sourceKey:'extraParry', skipJustCut:true });
@@ -8993,8 +9388,10 @@
       const attackModifiers = this.getAttackDamageModifiers(attacker, target, amount, info);
       amount = attackModifiers.amount;
       const rangeMultiplier = this.getRangeDamageMultiplier(target, info);
+      let masteryShotDistance = null;
       if (info.rangeProfile && Number.isFinite(info.originX) && Number.isFinite(info.originY) && attacker?.metrics) {
         const shotDistance = Math.hypot(target.x - info.originX, target.y - info.originY);
+        masteryShotDistance = shotDistance;
         if (rangeMultiplier < 1) {
           attacker.metrics.rangePenaltyHits = (attacker.metrics.rangePenaltyHits || 0) + 1;
           if (shotDistance < info.rangeProfile.min) attacker.metrics.closeRangePenaltyHits += 1;
@@ -9030,7 +9427,6 @@
           amount *= front ? .38 : 1.08;
         }
         if (target.defenseType === 'ilgar' && target.defenseAI?.selfDestruct) amount *= .44;
-        if (target.defenseType === 'seals' && target.defenseAI?.shieldTimer > 0) amount *= .28;
         if (target.defenseType === 'borboros' && ['liquid', 'gas'].includes(target.defenseAI?.phase)) amount *= .08;
         if (target.defenseType === 'orochi' && attacker && amount <= (target.reflectThreshold || 0) && !attacker.dead) {
           this.damagePlayer(attacker, Math.max(8, amount * .72), target, { x: target.x, y: target.y, type: 'fire', name: '大蛇の反火', sourceKey: 'orochiReflect', skipJustCut: true, shieldPierce: true });
@@ -9054,30 +9450,53 @@
       if (target.ai && attacker && attacker.id !== target.id) target.ai.lastHostileContactAt = this.elapsed;
       const attackAngle = Math.atan2((Number.isFinite(info.y) ? info.y : attacker?.y || target.y) - target.y, (Number.isFinite(info.x) ? info.x : attacker?.x || target.x) - target.x);
       this.tryAutoGuard(target, info, amount);
-      const shields = Object.values(target.shields).filter(Boolean);
-      let blocked = false;
-      if (!info.shieldPierce && shields.length) {
-        const fullGuard = shields.length >= 2;
+      const shieldEntries = this.getActiveShieldEntries(target);
+      if (!info.shieldPierce && shieldEntries.length) {
+        const fullGuard = shieldEntries.length >= 2;
         const facing = target.aim;
         const inArc = Math.abs(angleDiff(attackAngle, facing)) < 1.18;
         if (fullGuard || inArc) {
-          const movementPenalty = Math.hypot(target.vx, target.vy) > target.speed * .25 ? .74 : 1;
-          const shieldStrength = shields.reduce((sum, shield) => sum + shield.strength, 0) * movementPenalty;
-          const trionCost = amount * .12 / Math.max(shieldStrength, .4) * this.desertReliefState(target).multiplier * this.shrineGardenState(target).multiplier;
-          if (target.trion >= trionCost) {
-            target.trion -= trionCost;
-            target.metrics.trionSpent += trionCost;
+          const justEntry = shieldEntries.find(({state}) => state.justGuardAvailable && this.elapsed <= (state.justGuardUntil || 0));
+          if (justEntry) {
+            justEntry.state.justGuardAvailable = false;
             target.metrics.blockedDamage += amount;
             target.metrics.shieldDamagePrevented += amount;
             target.metrics.shieldBlocks += 1;
-            blocked = true;
-            this.effects.push({ type: 'shieldHit', x: target.x, y: target.y, angle: attackAngle, ttl: .18, maxTtl: .18 });
+            target.metrics.justGuards = (target.metrics.justGuards || 0) + 1;
+            justEntry.state.masteryAttempt = false;
+            this.adjustMastery(target, .5, 'ジャストガード成功', {major:true});
+            this.effects.push({ type:'justCut', x:target.x, y:target.y, angle:attackAngle, radius:target.radius+34, ttl:.3, maxTtl:.3, color:justEntry.state.type === 'raygust' ? '#c9ffff' : justEntry.state.type === 'seal' ? '#fff7d2' : '#e0f8ff' });
+            if (target.human) this.toast('JUST GUARD');
+            return false;
           }
+          const originalAmount = amount;
+          let remaining = amount;
+          const moving = Math.hypot(target.vx, target.vy) > target.speed * .25;
+          const durabilityLossFactor = moving ? 1.2 : 1;
+          for (const entry of shieldEntries.sort((a,b) => (b.state.current*b.shield.strength)-(a.state.current*a.shield.strength))) {
+            if (remaining <= .001) break;
+            const capacity = entry.state.current * entry.shield.strength / durabilityLossFactor;
+            const absorbed = Math.min(remaining, capacity);
+            entry.state.current = Math.max(0, entry.state.current - absorbed / Math.max(.4, entry.shield.strength) * durabilityLossFactor);
+            entry.state.lastHitAt = this.elapsed;
+            entry.state.justGuardAvailable = false;
+            remaining -= absorbed;
+            if (entry.state.current <= .001) this.breakShield(target, entry.hand, entry.state);
+          }
+          const prevented = originalAmount - remaining;
+          if (prevented > 0) {
+            target.metrics.blockedDamage += prevented;
+            target.metrics.shieldDamagePrevented += prevented;
+            target.metrics.shieldBlocks += 1;
+            this.effects.push({ type:'shieldHit', x:target.x, y:target.y, angle:attackAngle, ttl:.18, maxTtl:.18 });
+          }
+          if (remaining <= .001) return false;
+          amount = remaining;
         }
       }
-      if (blocked) return false;
       const effectiveDamage = Math.min(target.hp, amount);
       target.hp -= amount;
+      if (attacker && attacker !== target && effectiveDamage > 0) this.recordMasteryHit(attacker, info, target, effectiveDamage, rangeMultiplier, masteryShotDistance);
       if (effectiveDamage >= target.maxHp * .18) target.lastMajorDamageAt = this.elapsed;
       target.metrics.damageTaken += effectiveDamage;
       if (target.toggles.chameleon && amount < target.maxHp * .18) {
@@ -9273,6 +9692,7 @@
               this.awardSupport(owner, 15);
               const switchStat = this.ensureTriggerStat(owner, 'switchbox', 'スイッチボックス');
               switchStat.automaticActivations += 1; switchStat.effectApplications += 1; switchStat.effectDurationSeconds += 4.5;
+              this.recordMasteryUtilitySuccess(owner, 'switchboxBind', target, .4, '拘束トラップ成功');
             }
             this.logEvent('trap_trigger', `${owner?.name || 'UNKNOWN'} 拘束トラップ起動`);
             this.effects.push({ type: 'bind', x: target.x, y: target.y, ttl: .65, maxTtl: .65 });
@@ -11219,7 +11639,7 @@ drawUndergroundFeatures(ctx){
       ctx.save();
       ctx.translate(p.x, p.y + bob);
       ctx.imageSmoothingEnabled = false;
-      ctx.globalAlpha = ai.chameleonTimer > 0 ? .22 : 1;
+      ctx.globalAlpha = (ai.chameleonTimer > 0 || p.toggles?.chameleon) ? (p.human ? .1 : .012) : 1;
       if (type === 'skeletonAttacker') {
         drawSkeletonCore('#c55353', '#7f2f2f');
         ctx.save();
@@ -11732,6 +12152,7 @@ drawUndergroundFeatures(ctx){
 
     drawDefenseEnemy(ctx, p) {
       const type = p.defenseType;
+      const defenseChameleonHidden = (p.toggles?.chameleon || (p.defenseAI?.chameleonTimer || 0) > 0) && (p.markedTimer || 0) <= 0;
       const hyakkiTypes = ['skeletonAttacker', 'skeletonShooter', 'skeletonSniper', 'yamagu', 'yagarasu', 'whitefox', 'nekomata', 'orochi'];
       if (hyakkiTypes.includes(type)) {
         this.drawHyakkiEnemySprite(ctx, p);
@@ -11776,6 +12197,7 @@ drawUndergroundFeatures(ctx){
         }
         ctx.restore();
       }
+      if (defenseChameleonHidden) return;
       const hp = clamp(p.hp / p.maxHp, 0, 1);
       const width = p.defenseType === 'orochi' ? 220 : p.isDefenseBoss ? 160 : 90;
       const title = p.playableDefenseType ? `${p.name}：${EXTRA_UNIT_DEFS[type]?.label || type}` : hyakkiTypes.includes(type) && p.isDefenseBoss ? `百鬼夜行：${p.name}` : p.isDefenseBoss ? `BLACK TRIGGER：${p.name}` : p.name;
@@ -11789,17 +12211,18 @@ drawUndergroundFeatures(ctx){
       for (const p of ordered) {
         if (p.dead || !this.inView(p.x, p.y, 120)) continue;
         if (p.isDefenseEnemy || p.playableDefenseType) { this.drawDefenseEnemy(ctx, p); continue; }
+        const chameleonHidden = p.toggles.chameleon && p.markedTimer <= 0;
         let alpha = 1;
-        if (p.toggles.chameleon && !p.human && p.markedTimer <= 0) alpha = .12;
-        if (p.toggles.chameleon && p.human) alpha = .48;
+        if (chameleonHidden && !p.human) alpha = .012;
+        if (chameleonHidden && p.human) alpha = .1;
         const color = p.appearance?.bodyColor || p.appearance?.uniformColor || ((this.config.mode === 'team' || this.isDefenseMode) ? this.teamColors[p.team] : (p.human ? '#66ecff' : '#ff8b75'));
         ctx.save();
-        if (!this.onlineReducedEffects) { ctx.shadowColor = color; ctx.shadowBlur = p.human ? 16 : 6; }
+        if (!this.onlineReducedEffects && !chameleonHidden) { ctx.shadowColor = color; ctx.shadowBlur = p.human ? 16 : 6; }
         this.drawHumanoid(ctx, p, alpha);
         ctx.shadowBlur = 0;
         ctx.restore();
 
-        if (p.shields.main || p.shields.sub) this.drawPlayerShield(ctx, p);
+        if (!chameleonHidden && (p.shields.main || p.shields.sub)) this.drawPlayerShield(ctx, p);
         if (p.invulnTimer > 0) {
           ctx.strokeStyle = `rgba(255,255,255,${.32 + Math.sin(this.elapsed * 8) * .14})`;
           ctx.lineWidth = 2;
@@ -11826,18 +12249,23 @@ drawUndergroundFeatures(ctx){
           ctx.fillStyle = 'rgba(145,232,255,.28)'; ctx.fillRect(p.x - 22, p.y - 28, 44, 52);
           ctx.strokeStyle = '#9feeff'; ctx.lineWidth = 3; ctx.strokeRect(p.x - 22, p.y - 28, 44, 52);
         }
-        this.drawPlayerLabel(ctx, p);
+        if (!chameleonHidden) this.drawPlayerLabel(ctx, p);
       }
     }
 
     drawPlayerShield(ctx, p) {
-      const count = Number(Boolean(p.shields.main)) + Number(Boolean(p.shields.sub));
+      const entries = this.getActiveShieldEntries(p);
+      const count = entries.length;
       const full = count >= 2;
-      const raygust = p.shields.main?.type === 'raygust' || p.shields.sub?.type === 'raygust';
-      ctx.strokeStyle = raygust ? 'rgba(155, 250, 255, .9)' : 'rgba(104, 204, 255, .75)';
-      ctx.lineWidth = raygust ? 8 : 5;
+      const raygust = entries.some(({state}) => state.type === 'raygust');
+      const seal = entries.some(({state}) => state.type === 'seal');
+      const ratio = entries.length ? entries.reduce((sum,{state}) => sum + clamp(state.current/state.max,0,1),0)/entries.length : 1;
+      ctx.globalAlpha = .42 + ratio * .58;
+      ctx.strokeStyle = raygust ? 'rgba(155,250,255,.95)' : seal ? 'rgba(244,241,255,.9)' : 'rgba(104,204,255,.82)';
+      ctx.lineWidth = raygust ? 8 : seal ? 6 : 5;
       if (full) ctx.strokeRect(p.x-p.radius-10,p.y-p.radius-10,(p.radius+10)*2,(p.radius+10)*2);
-      else {const cx=p.x+Math.cos(p.aim)*(p.radius+10),cy=p.y+Math.sin(p.aim)*(p.radius+10);ctx.save();ctx.translate(cx,cy);ctx.rotate(p.aim);ctx.strokeRect(-3,-p.radius-8,6,(p.radius+8)*2);ctx.restore();}
+      else {const cx=p.x+Math.cos(p.aim)*(p.radius+10),cy=p.y+Math.sin(p.aim)*(p.radius+10);ctx.save();ctx.translate(cx,cy);ctx.rotate(p.aim);ctx.strokeRect(-3,-p.radius-8,6,(p.radius+8)*2);if(ratio<.45){ctx.beginPath();ctx.moveTo(-4,-p.radius*.4);ctx.lineTo(5,0);ctx.lineTo(-3,p.radius*.45);ctx.stroke();}ctx.restore();}
+      ctx.globalAlpha = 1;
     }
 
     drawPlayerLabel(ctx, p) {
@@ -12249,6 +12677,8 @@ drawUndergroundFeatures(ctx){
           ctx.fillStyle = e.type === 'gasBurst' ? '#d7ef7b' : e.type === 'sakeBurst' ? '#ffb33f' : '#ff9e53';
           ctx.beginPath(); ctx.arc(e.x, e.y, e.radius * (.2 + progress * .8), 0, TAU); ctx.fill();
           ctx.strokeStyle = e.type === 'gasBurst' ? '#fff8be' : e.type === 'sakeBurst' ? '#fff1a8' : '#fff1b7'; ctx.lineWidth = e.type === 'gasBurst' ? 9 : e.type === 'sakeBurst' ? 7 : 5; ctx.stroke();
+        } else if (e.type === 'shieldBreak') {
+          const t=1-e.ttl/e.maxTtl;ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.angle||0);ctx.strokeStyle=e.color||'#9eeeff';ctx.lineWidth=3;ctx.globalAlpha=1-t;for(let i=0;i<9;i++){const a=(i/9-.5)*2.4;ctx.beginPath();ctx.moveTo(8,0);ctx.lineTo(24+Math.cos(a)*18,Math.sin(a)*34);ctx.stroke();}ctx.restore();ctx.globalAlpha=1;
         } else if (e.type === 'shieldHit') {
           ctx.globalAlpha = t;
           ctx.strokeStyle = '#b6f7ff'; ctx.lineWidth = 7;
@@ -12457,6 +12887,13 @@ drawUndergroundFeatures(ctx){
       $('#trionText').textContent = `${Math.ceil(p.trion)} / ${Math.ceil(p.maxTrion)}`;
       $('#hpBar').style.width = `${clamp(p.hp / p.maxHp, 0, 1) * 100}%`;
       $('#trionBar').style.width = `${p.maxTrion > 0 ? clamp(p.trion / p.maxTrion, 0, 1) * 100 : 0}%`;
+      this.ensureMasteryRuntime(p);
+      const masteryRank = this.getMasteryRank(p.masteryValue);
+      $('#masteryRank').textContent = masteryRank.id;
+      $('#masteryRank').style.color = masteryRank.color;
+      $('#masteryText').textContent = p.masteryValue.toFixed(1);
+      $('#masteryBar').style.width = `${p.masteryValue}%`;
+      $('#masteryBar').style.background = masteryRank.color;
       if (this.config.mode === 'team') {
         $('#teamScoreCard').innerHTML = this.teamScores.map((score, team) => `<span style="color:${this.teamColors[team]}">${this.teamMeta?.[team]?.name || TEAM_SHORT_NAMES[team]} ${Math.floor(score)}</span>`).join('<b>·</b>');
       }
@@ -12473,6 +12910,7 @@ drawUndergroundFeatures(ctx){
       if (this.isPlayerOperator) statuses.push(`COMMAND ${p.name}`);
       if (this.spectating) statuses.push(`VIEW ${p.name}`);
       if (this.isExtraMode && p.playableDefenseType) statuses.push(`EXTRA ${EXTRA_UNIT_DEFS[p.playableDefenseType]?.label || p.playableDefenseType}`);
+      statuses.push(`MASTERY ${this.getMasteryRank(p.masteryValue).id}`);
       if (p.operatorBoostTimer > 0) statuses.push(`MOBILITY ${p.operatorBoostTimer.toFixed(1)}s`);
       if (p.toggles.bagworm || p.toggles.bagwormTag) statuses.push('RADAR OFF');
       if (p.toggles.chameleon) statuses.push('CAMOUFLAGE');
@@ -12480,6 +12918,7 @@ drawUndergroundFeatures(ctx){
       if (p.leadWeights > 0) statuses.push(`WEIGHT ×${p.leadWeights}`);
       if ((p.cubedTimer || 0) > 0) statuses.push(`CUBED ${(p.cubedTimer || 0).toFixed(1)}s`);
       if ((p.defensePoisonTimer || 0) > 0) statuses.push(`GAS ${(p.defensePoisonTimer || 0).toFixed(1)}s`);
+      for (const {hand,state} of this.getActiveShieldEntries(p)) statuses.push(`${state.type==='raygust'?'RAYGUST':state.type==='seal'?`SEAL×${state.boost}`:'SHIELD'} ${Math.ceil(state.current)}/${state.max}`);
       if (this.isDefenseMode && this.defenseFlag && Math.hypot(p.x - this.defenseFlag.x, p.y - this.defenseFlag.y) < 130) statuses.push('F：TRION → FLAG');
       if (p.pendingComposite) statuses.push(`COMBINE ${Math.ceil((1 - p.pendingComposite.timer / p.pendingComposite.total) * 100)}%`);
       for (const hand of ['main', 'sub']) {

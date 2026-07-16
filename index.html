@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
   <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=57" />
+  <link rel="stylesheet" href="styles.css?v=59" />
 </head>
 <body>
   <main id="app">
@@ -16,7 +16,7 @@
         <p class="title-kicker">B-GRADE RANK WAR</p>
         <h1>TRION<br>ARENA</h1>
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
-        <div class="version-badge" aria-label="現在のバージョン">VERSION 57</div>
+        <div class="version-badge" aria-label="現在のバージョン">VERSION 59</div>
         <div class="title-actions">
           <button id="enterSetupButton" class="title-start" type="button">出撃準備へ</button>
           <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
@@ -493,6 +493,8 @@
           <div class="meter"><i id="hpBar"></i></div>
           <div class="meter-label"><span>TRION</span><strong id="trionText">200 / 200</strong></div>
           <div class="meter trion"><i id="trionBar"></i></div>
+          <div class="mastery-head"><span>MASTERY</span><strong id="masteryRank">B+</strong><small id="masteryText">50.0</small></div>
+          <div class="mastery-meter"><i id="masteryBar"></i><b id="masterySLine" aria-hidden="true"></b></div>
         </div>
         <div id="statusList" class="status-list"></div>
       </div>
@@ -633,6 +635,6 @@
   <script src="js/trigger-data.js?v=32"></script>
   <script src="js/online.js?v=32"></script>
   <script src="js/community.js?v=32"></script>
-  <script src="js/game.js?v=57"></script>
+  <script src="js/game.js?v=59"></script>
 </body>
 </html>

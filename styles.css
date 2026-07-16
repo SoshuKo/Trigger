@@ -641,3 +641,6 @@ body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity
 
 
 .extra-mode-fields{margin:12px 0;padding:12px;border:1px solid rgba(112,222,244,.32);border-radius:10px;background:rgba(10,34,45,.52)}.extra-mode-title{display:grid;gap:3px;margin-bottom:9px}.extra-mode-title strong{font-size:12px;letter-spacing:.12em;color:#74e4ff}.extra-mode-title span{font-size:9px;color:#9fb9c3}.cpu-extra-type{border-color:rgba(255,211,105,.42)!important}
+
+/* v59 mastery HUD */
+.mastery-head{display:grid;grid-template-columns:1fr auto auto;align-items:end;gap:8px;margin:9px 0 5px;color:var(--muted);font-size:8px;letter-spacing:.1em}.mastery-head strong{font-size:17px;line-height:1;color:#66e0d0;letter-spacing:.02em}.mastery-head small{min-width:31px;color:#dff9ff;text-align:right;font-size:8px;letter-spacing:0}.mastery-meter{position:relative;height:6px;background:rgba(255,255,255,.07);overflow:hidden}.mastery-meter i{display:block;height:100%;width:50%;background:linear-gradient(90deg,#7fc7df,#66e0d0);transition:width .18s,background-color .18s}.mastery-meter b{position:absolute;left:90%;top:0;width:1px;height:100%;background:rgba(255,255,255,.72);box-shadow:0 0 5px rgba(255,255,255,.55)}
