@@ -60,7 +60,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 35;
+  const GAME_VERSION = 36;
   const BEGINNER_SKILLS = {
     none: { label: '使用しない', budget: 18, description: '従来どおり18ポイントを能力へ配分します。' },
     autoGuard: { label: 'オートガード', budget: 12, description: 'シールドまたはレイガスト装備時、被弾直前に自動防御します。' },
@@ -3346,155 +3346,157 @@
 
     generateUndergroundArena() {
       const addWall = (id, x, y, w, h, type = 'buildingWall', hp = 520, options = {}) => {
+        if (w <= 0 || h <= 0) return null;
         const wall = { id, x, y, w, h, type, hp, maxHp: hp, ttl: Infinity, ...options };
         this.walls.push(wall);
         return wall;
       };
       const addProp = (kind, x, y, w, h, extra = {}) => this.terrain.subwayProps.push({ kind, x, y, w, h, ...extra });
-      const addRoom = (id, x, y, w, h, roomType, doorSide = 'south', doorCenter = .5, doorSize = 176) => {
+      const addRoom = (id, x, y, w, h, roomType, door = null) => {
         this.terrain.buildings.push({ id, x, y, w, h, subwayRoom: true, subwayRoomType: roomType });
         const t = 30;
-        if (doorSide === 'north' || doorSide === 'south') {
-          const dx = x + w * doorCenter - doorSize / 2;
-          addWall(`${id}-top-left`, x, y, Math.max(0, dx - x), t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          addWall(`${id}-top-right`, dx + doorSize, y, Math.max(0, x + w - (dx + doorSize)), t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          addWall(`${id}-bottom-left`, x, y + h - t, doorSide === 'south' ? Math.max(0, dx - x) : w, t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          addWall(`${id}-bottom-right`, doorSide === 'south' ? dx + doorSize : x + w, y + h - t, doorSide === 'south' ? Math.max(0, x + w - (dx + doorSize)) : 0, t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          if (doorSide === 'north') {
-            addWall(`${id}-bottom`, x, y + h - t, w, t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          }
-          if (doorSide === 'south') {
-            addWall(`${id}-top`, x, y, w, t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          }
-        } else {
-          const dy = y + h * doorCenter - doorSize / 2;
-          addWall(`${id}-left-top`, x, y, t, doorSide === 'west' ? Math.max(0, dy - y) : h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          addWall(`${id}-left-bottom`, x, doorSide === 'west' ? dy + doorSize : y + h, t, doorSide === 'west' ? Math.max(0, y + h - (dy + doorSize)) : 0, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          addWall(`${id}-right-top`, x + w - t, y, t, doorSide === 'east' ? Math.max(0, dy - y) : h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          addWall(`${id}-right-bottom`, x + w - t, doorSide === 'east' ? dy + doorSize : y + h, t, doorSide === 'east' ? Math.max(0, y + h - (dy + doorSize)) : 0, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          if (doorSide === 'west') addWall(`${id}-right`, x + w - t, y, t, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          if (doorSide === 'east') addWall(`${id}-left`, x, y, t, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-        }
+        const splitHorizontal = (prefix, yy, openCenter, openSize) => {
+          if (openCenter == null) { addWall(prefix, x, yy, w, t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] }); return; }
+          const start = clamp(openCenter - openSize / 2, x + 24, x + w - 24);
+          const end = clamp(openCenter + openSize / 2, x + 24, x + w - 24);
+          addWall(`${prefix}-a`, x, yy, Math.max(0, start - x), t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+          addWall(`${prefix}-b`, end, yy, Math.max(0, x + w - end), t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+        };
+        const splitVertical = (prefix, xx, openCenter, openSize) => {
+          if (openCenter == null) { addWall(prefix, xx, y, t, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] }); return; }
+          const start = clamp(openCenter - openSize / 2, y + 24, y + h - 24);
+          const end = clamp(openCenter + openSize / 2, y + 24, y + h - 24);
+          addWall(`${prefix}-a`, xx, y, t, Math.max(0, start - y), 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+          addWall(`${prefix}-b`, xx, end, t, Math.max(0, y + h - end), 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+        };
+        if (door?.side === 'north') splitHorizontal(`${id}-north`, y, x + (door.offset ?? w / 2), door.size || 170); else addWall(`${id}-north`, x, y, w, t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+        if (door?.side === 'south') splitHorizontal(`${id}-south`, y + h - t, x + (door.offset ?? w / 2), door.size || 170); else addWall(`${id}-south`, x, y + h - t, w, t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+        if (door?.side === 'west') splitVertical(`${id}-west`, x, y + (door.offset ?? h / 2), door.size || 170); else addWall(`${id}-west`, x, y, t, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+        if (door?.side === 'east') splitVertical(`${id}-east`, x + w - t, y + (door.offset ?? h / 2), door.size || 170); else addWall(`${id}-east`, x + w - t, y, t, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
       };
 
       const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false };
       Object.assign(subway, { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false });
 
-      const concourse = { id: 'concourse', x: 480, y: 480, w: 5440, h: 736 };
-      const track = { id: 'main-track', x: 360, y: 1312, w: 5680, h: 352, safeMargin: 128 };
-      const platform = { id: 'main-platform', x: 520, y: 1760, w: 5360, h: 720 };
-      const service = { id: 'service-deck', x: 360, y: 2680, w: 5680, h: 1320 };
+      const concourse = { id: 'concourse', x: 480, y: 460, w: 5440, h: 620 };
+      const platform = { id: 'main-platform', x: 520, y: 1280, w: 5360, h: 680 };
+      const track = { id: 'main-track', x: 360, y: 1990, w: 5680, h: 360, safeMargin: 128 };
+      const service = { id: 'service-deck', x: 360, y: 2580, w: 5680, h: 1420 };
       this.terrain.subwayPassengerZones.push(concourse, platform);
       this.terrain.subwayServiceZones.push(service);
       this.terrain.subwayTracks.push(track);
       this.terrain.subwayPlatforms.push(platform);
       this.terrain.plazas.push({ ...concourse, passenger: true }, { ...platform, passenger: true });
+
+      // Clear outer shell with obvious connections.
+      addWall('passenger-top', 460, 440, 5480, 34);
+      addWall('passenger-left', 460, 440, 34, 1520);
+      addWall('passenger-right', 5906, 440, 34, 1520);
+      addWall('platform-bottom-left', 460, 2380, 660, 34);
+      addWall('platform-bottom-mid-a', 1470, 2380, 1120, 34);
+      addWall('platform-bottom-mid-b', 3370, 2380, 1120, 34);
+      addWall('platform-bottom-right', 5290, 2380, 650, 34);
+      addWall('track-frame-top', track.x, track.y - 24, track.w, 16, 'platformEdge', 9999, { indestructible: true });
+      addWall('track-frame-bottom', track.x, track.y + track.h + 8, track.w, 16, 'platformEdge', 9999, { indestructible: true, nonBlocking: true });
+      addWall('service-left', 360, 2580, 34, 1420);
+      addWall('service-right', 6006, 2580, 34, 1420);
+      addWall('service-bottom', 360, 3986, 5680, 34);
+      addWall('service-top-left', 360, 2580, 720, 34);
+      addWall('service-top-a', 1430, 2580, 1460, 34);
+      addWall('service-top-b', 3270, 2580, 1400, 34);
+      addWall('service-top-right', 5050, 2580, 990, 34);
+
+      // Service corridors: neat and readable.
       this.terrain.roads.push(
-        { id: 'service-main', x: 420, y: 2950, w: 5560, h: 150 },
-        { id: 'service-west', x: 1460, y: 2920, w: 150, h: 780 },
-        { id: 'service-center', x: 3330, y: 2920, w: 150, h: 860 },
-        { id: 'service-east', x: 4240, y: 2920, w: 150, h: 860 },
-        { id: 'service-south-a', x: 700, y: 3720, w: 1660, h: 128 },
-        { id: 'service-south-b', x: 2520, y: 3720, w: 1680, h: 128 },
-        { id: 'service-south-c', x: 4460, y: 3720, w: 1080, h: 128 }
+        { id: 'service-main', x: 420, y: 2860, w: 5560, h: 144 },
+        { id: 'service-left-vert', x: 1480, y: 2860, w: 144, h: 980 },
+        { id: 'service-center-vert', x: 3140, y: 2860, w: 144, h: 1040 },
+        { id: 'service-right-vert', x: 4200, y: 2860, w: 144, h: 980 },
+        { id: 'service-lower', x: 760, y: 3680, w: 4700, h: 132 }
       );
 
-      // Passenger outer shell with broad openings to avoid dead ends.
-      addWall('passenger-top', 460, 440, 5480, 34);
-      addWall('passenger-left', 460, 440, 34, 2060);
-      addWall('passenger-right', 5906, 440, 34, 2060);
-      addWall('passenger-bottom-a', 460, 2500, 780, 34);
-      addWall('passenger-bottom-b', 1710, 2500, 1010, 34);
-      addWall('passenger-bottom-c', 3190, 2500, 1010, 34);
-      addWall('passenger-bottom-d', 4670, 2500, 1270, 34);
-      addWall('platform-lip-top', track.x, track.y - 24, track.w, 16, 'platformEdge', 9999, { indestructible: true });
-      addWall('platform-lip-bottom', track.x, track.y + track.h + 8, track.w, 16, 'platformEdge', 9999, { indestructible: true, nonBlocking: true });
-
-      // Service shell with three broad entrances from the platform area.
-      addWall('service-left', 360, 2680, 34, 1320);
-      addWall('service-right', 6006, 2680, 34, 1320);
-      addWall('service-bottom', 360, 3986, 5680, 34);
-      addWall('service-top-a', 360, 2680, 730, 34);
-      addWall('service-top-b', 1410, 2680, 1620, 34);
-      addWall('service-top-c', 3470, 2680, 1180, 34);
-      addWall('service-top-d', 5050, 2680, 990, 34);
-
-      // Platform screen doors and ticket gates.
-      const doorY = platform.y - 28;
+      // Platform doors and gates.
+      const doorY = track.y - 28;
       for (let i = 0; i < 20; i++) {
         const x = 700 + i * 252;
         addWall(`platform-door-${i}`, x, doorY, 168, 20, 'platformDoor', 240, { subwayDoor: true, indestructible: true });
       }
-      const gateXs = [1640, 1900, 2160, 2420, 3720, 3980, 4240, 4500];
-      gateXs.forEach((x, i) => addWall(`ticket-gate-${i}`, x, 1096, 88, 52, 'ticketGate', 320, { lowCover: true, respawnable: true, respawnDelay: [55, 78] }));
+      [1660, 1920, 2180, 2440, 3720, 3980, 4240, 4500].forEach((x, i) => addWall(`ticket-gate-${i}`, x, 1040, 88, 52, 'ticketGate', 320, { lowCover: true, respawnable: true, respawnDelay: [55, 78] }));
 
-      // Passenger props.
-      for (let i = 0; i < 14; i++) addProp('pillar', 840 + i * 360, 2056, 46, 46);
-      for (let i = 0; i < 10; i++) addProp('pillar', 760 + i * 480, 864, 42, 42);
-      [1180, 1980, 2780, 3580, 4380, 5180].forEach((x, idx) => addProp('bench', x, 2190, 156, 36, { variant: idx & 1 ? 'metal' : 'wood' }));
-      addProp('locker', 820, 720, 196, 92); addProp('locker', 5570, 720, 196, 92);
-      addProp('vending', 1080, 844, 92, 132); addProp('vending', 5280, 844, 92, 132);
-      addProp('ticketBooth', 3200, 738, 280, 120);
-      addProp('warningStripe', platform.x, platform.y - 50, platform.w, 20);
-      addProp('stairs', 1170, 2480, 260, 90); addProp('stairs', 3010, 2480, 260, 90); addProp('stairs', 4860, 2480, 260, 90);
-      addProp('stairs', 1170, 2620, 260, 84); addProp('stairs', 3010, 2620, 260, 84); addProp('stairs', 4860, 2620, 260, 84);
-      addProp('escalator', 1270, 1440, 180, 280, { dir: 'down' }); addProp('escalator', 3110, 1440, 180, 280, { dir: 'down' }); addProp('escalator', 4960, 1440, 180, 280, { dir: 'down' });
+      // Passenger props / landmarks.
+      for (let i = 0; i < 11; i++) addProp('pillar', 800 + i * 460, 720, 44, 44);
+      for (let i = 0; i < 10; i++) addProp('pillar', 880 + i * 470, 1650, 48, 48);
+      [1040, 1960, 2880, 3800, 4720].forEach((x, idx) => addProp('bench', x, 1780, 170, 42, { variant: idx & 1 ? 'metal' : 'wood' }));
+      addProp('locker', 840, 620, 196, 92); addProp('locker', 5570, 620, 196, 92);
+      addProp('vending', 1120, 760, 92, 132); addProp('vending', 5280, 760, 92, 132);
+      addProp('ticketBooth', 3200, 640, 320, 120);
+      addProp('warningStripe', platform.x + platform.w / 2, track.y - 56, platform.w - 40, 20);
+      addProp('stairs', 1220, 1160, 260, 90); addProp('stairs', 3200, 1160, 260, 90); addProp('stairs', 5080, 1160, 260, 90);
+      addProp('escalator', 1220, 1440, 180, 280, { dir: 'down' }); addProp('escalator', 3200, 1440, 180, 280, { dir: 'down' }); addProp('escalator', 5080, 1440, 180, 280, { dir: 'down' });
+      addProp('stairs', 1220, 2480, 260, 90); addProp('stairs', 3200, 2480, 260, 90); addProp('stairs', 5080, 2480, 260, 90);
+      addProp('stairs', 1220, 2640, 260, 84); addProp('stairs', 3200, 2640, 260, 84); addProp('stairs', 5080, 2640, 260, 84);
+      addProp('fence', 1220, track.y - 2, 170, 28); addProp('fence', 3200, track.y - 2, 170, 28); addProp('fence', 5080, track.y - 2, 170, 28);
+      addProp('signalBox', 4550, 1820, 86, 90);
+      this.terrain.subwaySigns.push({ id: 'board-a', x: 2060, y: 1410 }, { id: 'board-b', x: 4320, y: 1410 });
 
-      // Service rooms and narrow maintenance network.
-      addRoom('pump-room', 540, 2820, 1020, 500, 'pump', 'east', .56, 164);
-      addRoom('drain-room', 540, 3430, 1020, 450, 'drain', 'east', .48, 164);
-      addRoom('storage-room', 1820, 2820, 840, 460, 'storage', 'south', .34, 180);
-      addRoom('workshop-room', 2760, 2820, 980, 460, 'workshop', 'south', .66, 180);
-      addRoom('ops-room', 1780, 3410, 880, 420, 'ops', 'east', .52, 164);
-      addRoom('electrical-room', 4380, 2820, 1120, 560, 'electrical', 'west', .48, 176);
-      addRoom('breaker-room', 4720, 3460, 720, 380, 'breaker', 'north', .52, 170);
+      // Service rooms lined up logically.
+      addRoom('pump-room', 560, 2800, 840, 460, 'pump', { side: 'east', offset: 230, size: 176 });
+      addRoom('drain-room', 560, 3360, 840, 460, 'drain', { side: 'east', offset: 220, size: 176 });
+      addRoom('storage-room', 1760, 2800, 980, 460, 'storage', { side: 'south', offset: 420, size: 176 });
+      addRoom('ops-room', 1760, 3360, 980, 460, 'ops', { side: 'east', offset: 220, size: 176 });
+      addRoom('workshop-room', 3380, 2800, 720, 460, 'workshop', { side: 'south', offset: 320, size: 176 });
+      addRoom('control-room', 3380, 3360, 720, 460, 'ops', { side: 'west', offset: 220, size: 176 });
+      addRoom('electrical-room', 4380, 2800, 1120, 520, 'electrical', { side: 'west', offset: 250, size: 180 });
+      addRoom('breaker-room', 4520, 3460, 900, 360, 'breaker', { side: 'north', offset: 430, size: 176 });
 
-      const mazeWalls = [
-        ['maze-a', 2860, 3380, 30, 530], ['maze-b', 3160, 3200, 30, 530], ['maze-c', 3460, 3380, 30, 500], ['maze-d', 3760, 3200, 30, 500],
-        ['maze-e', 2860, 3200, 620, 30], ['maze-f', 3140, 3510, 650, 30], ['maze-g', 2860, 3800, 920, 30], ['maze-h', 3880, 3200, 360, 30], ['maze-i', 3980, 3510, 440, 30],
-        ['maze-j', 4480, 3180, 30, 680], ['maze-k', 5200, 3180, 30, 620], ['maze-l', 4540, 3180, 500, 30], ['maze-m', 4540, 3490, 560, 30], ['maze-n', 4680, 3800, 560, 30]
+      // Narrow maintenance passage: maze-like, but with continuous flow.
+      const maze = [
+        ['maze-v0', 2860, 3240, 30, 560], ['maze-v1', 3200, 3400, 30, 380], ['maze-v2', 3540, 3240, 30, 560], ['maze-v3', 3880, 3400, 30, 380],
+        ['maze-h0', 2860, 3240, 520, 30], ['maze-h1', 3040, 3540, 520, 30], ['maze-h2', 2860, 3800, 840, 30], ['maze-h3', 3540, 3400, 360, 30]
       ];
-      for (const [id, x, y, w, h] of mazeWalls) addWall(id, x, y, w, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+      for (const [id, x, y, w, h] of maze) addWall(id, x, y, w, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
 
-      // Waterways, sludge and electrical lines.
+      // Waterways / sludge.
       this.terrain.subwayWaterways.push(
-        { id: 'channel-west', x: 700, y: 3260, w: 700, h: 120, flowX: 54, flowY: 0 },
-        { id: 'channel-mid', x: 2280, y: 3260, w: 760, h: 120, flowX: 70, flowY: 0 },
-        { id: 'channel-drop', x: 3110, y: 3070, w: 120, h: 760, flowX: 0, flowY: 64 }
+        { id: 'channel-west', x: 700, y: 3200, w: 760, h: 110, flowX: 54, flowY: 0 },
+        { id: 'channel-drop', x: 3048, y: 3010, w: 110, h: 820, flowX: 0, flowY: 64 },
+        { id: 'channel-east', x: 3158, y: 3560, w: 820, h: 110, flowX: 60, flowY: 0 }
       );
       this.terrain.subwaySludge.push(
-        { id: 'sludge-0', x: 940, y: 3080, radius: 78, active: true, cooldown: 0 },
-        { id: 'sludge-1', x: 1670, y: 3640, radius: 72, active: true, cooldown: 0 },
-        { id: 'sludge-2', x: 3560, y: 3150, radius: 80, active: true, cooldown: 0 },
-        { id: 'sludge-3', x: 5410, y: 3640, radius: 86, active: true, cooldown: 0 }
+        { id: 'sludge-0', x: 980, y: 3090, radius: 76, active: true, cooldown: 0 },
+        { id: 'sludge-1', x: 1180, y: 3670, radius: 72, active: true, cooldown: 0 },
+        { id: 'sludge-2', x: 3440, y: 3160, radius: 80, active: true, cooldown: 0 },
+        { id: 'sludge-3', x: 5240, y: 3650, radius: 88, active: true, cooldown: 0 }
       );
       this.terrain.subwayWires.push(
-        { x1: 3190, y1: 1110, x2: 4970, y2: 3090 },
-        { x1: 3190, y1: 1110, x2: 1060, y2: 3080 },
-        { x1: 4970, y1: 3090, x2: 5190, y2: 3650 },
-        { x1: 1060, y1: 3080, x2: 1060, y2: 3650 },
-        { x1: 1060, y1: 3080, x2: 3230, y2: 3160 }
+        { x1: 3200, y1: 1080, x2: 4910, y2: 3060 },
+        { x1: 3200, y1: 1080, x2: 1010, y2: 3070 },
+        { x1: 4910, y1: 3060, x2: 5030, y2: 3620 },
+        { x1: 1010, y1: 3070, x2: 1010, y2: 3630 },
+        { x1: 1010, y1: 3070, x2: 3460, y2: 3150 }
       );
 
       // Service props.
-      addProp('pipeRack', 1050, 2850, 860, 36); addProp('pipeRack', 4920, 2850, 980, 36);
-      addProp('generator', 5120, 3140, 210, 120); addProp('pump', 1030, 3160, 210, 102);
-      addProp('crate', 2270, 3085, 78, 78); addProp('crate', 2360, 3170, 78, 78); addProp('crate', 2450, 3255, 78, 78);
-      addProp('cart', 4330, 3600, 136, 76); addProp('grate', 3220, 3720, 190, 78); addProp('grate', 1180, 3730, 210, 70);
-      addProp('cabinet', 2010, 3550, 120, 70); addProp('cabinet', 4900, 3590, 140, 84); addProp('signalBox', 4500, 2000, 86, 90);
-      addProp('fence', 3150, 2045, 170, 28); addProp('fence', 1510, 2045, 170, 28); addProp('fence', 4990, 2045, 170, 28);
-      this.terrain.subwaySigns.push({ id: 'board-a', x: 2060, y: 1865 }, { id: 'board-b', x: 4320, y: 1865 });
+      addProp('pipeRack', 980, 2860, 760, 36); addProp('pipeRack', 4900, 2860, 980, 36);
+      addProp('generator', 5100, 3100, 210, 120); addProp('pump', 1020, 3150, 210, 102);
+      addProp('crate', 2240, 3090, 78, 78); addProp('crate', 2330, 3175, 78, 78); addProp('crate', 2420, 3260, 78, 78);
+      addProp('cart', 4460, 3600, 136, 76); addProp('grate', 3230, 3730, 190, 78); addProp('grate', 1270, 3730, 210, 70);
+      addProp('cabinet', 2040, 3550, 120, 70); addProp('cabinet', 4910, 3580, 140, 84);
+      addProp('fence', 3200, 1935, 170, 28); addProp('fence', 1220, 1935, 170, 28); addProp('fence', 5080, 1935, 170, 28);
 
-      const utilityPoints = [['barricade', 1040, 2100], ['trap', 2550, 2140], ['turret', 5220, 2120], ['barricade', 880, 3580], ['trap', 2870, 3600], ['turret', 5410, 3580]];
+      const utilityPoints = [
+        ['barricade', 1180, 1760], ['trap', 3200, 1730], ['turret', 5120, 1760],
+        ['barricade', 900, 3550], ['trap', 3220, 3580], ['turret', 5410, 3550]
+      ];
       utilityPoints.forEach(([type, x, y], i) => this.installations.push({ id: `underground-facility-${i}`, type, x, y, radius: 24, hp: type === 'barricade' ? 280 : 205, maxHp: type === 'barricade' ? 280 : 205, active: false, team: null, work: 0, cooldown: 0, activeTimer: 0, respawnTimer: 0, destroyedLogged: false, subway: true }));
 
-      const lamps = [[1060, 620], [1820, 620], [2580, 620], [3340, 620], [4100, 620], [4860, 620], [5620, 620], [1160, 1960], [2200, 1960], [3240, 1960], [4280, 1960], [5320, 1960]];
+      const lamps = [[1060, 620], [1820, 620], [2580, 620], [3340, 620], [4100, 620], [4860, 620], [5620, 620], [1000, 1600], [2000, 1600], [3000, 1600], [4000, 1600], [5000, 1600]];
       lamps.forEach(([x, y], i) => this.lightSources.push({ id: `fluorescent-${i}`, kind: 'fluorescent', x, y, radius: 13, hp: 84, maxHp: 84, length: 96, lightRadius: 250, respawnTimer: 0, destroyedLogged: false }));
-      [[700, 1760], [3200, 1760], [5700, 1760], [620, 2960], [3200, 2960], [5740, 2960], [3200, 3880]].forEach(([x, y], i) => this.lightSources.push({ id: `emergency-${i}`, kind: 'emergencyLight', x, y, radius: 11, hp: 72, maxHp: 72, lightRadius: 170, respawnTimer: 0, destroyedLogged: false, emergency: true }));
+      [[700, 1280], [3200, 1280], [5700, 1280], [620, 2960], [3200, 2960], [5740, 2960], [3200, 3880]].forEach(([x, y], i) => this.lightSources.push({ id: `emergency-${i}`, kind: 'emergencyLight', x, y, radius: 11, hp: 72, maxHp: 72, lightRadius: 170, respawnTimer: 0, destroyedLogged: false, emergency: true }));
       this.lightSources.push(
-        { id: 'platform-switch', kind: 'platformSwitch', x: 3200, y: 2072, radius: 18, hp: 24, maxHp: 24, lightRadius: 0, respawnTimer: 0, destroyedLogged: false },
-        { id: 'watergate-switch', kind: 'waterGateSwitch', x: 1220, y: 3110, radius: 18, hp: 24, maxHp: 24, lightRadius: 0, respawnTimer: 0, destroyedLogged: false },
-        { id: 'breaker-switch', kind: 'breakerSwitch', x: 5150, y: 3590, radius: 18, hp: 24, maxHp: 24, lightRadius: 0, respawnTimer: 0, destroyedLogged: false }
+        { id: 'platform-switch', kind: 'platformSwitch', x: 3200, y: 1820, radius: 18, hp: 24, maxHp: 24, lightRadius: 0, respawnTimer: 0, destroyedLogged: false },
+        { id: 'watergate-switch', kind: 'waterGateSwitch', x: 1180, y: 3110, radius: 18, hp: 24, maxHp: 24, lightRadius: 0, respawnTimer: 0, destroyedLogged: false },
+        { id: 'breaker-switch', kind: 'breakerSwitch', x: 5050, y: 3590, radius: 18, hp: 24, maxHp: 24, lightRadius: 0, respawnTimer: 0, destroyedLogged: false }
       );
 
       for (let i = 0; i < BASE_PICKUP_COUNT; i++) this.pickups.push(this.makePickup());
@@ -9972,128 +9974,107 @@ drawUndergroundFeatures(ctx){
         ctx.fillStyle = '#dfe6e7'; ctx.fillRect(14, -2, 24, 4); ctx.fillRect(30, -6, 8, 3); ctx.fillRect(18, -6, 4, 18);
       } else if (type === 'skeletonShooter') {
         this.drawPixelSprite(ctx, [
-          '....111111....',
-          '...122222221...',
-          '..12234432221..',
-          '..12342224321..',
-          '..12344444321..',
-          '..12233333321..',
-          '...125777752...',
-          '...157666675...',
-          '..15776666751..',
-          '..15776666751..',
-          '..15756665751..',
-          '...755..557....',
-          '..88......88...',
-          '.88........88..',
-          '.8..........8..'
+          '....111111....','...122222221...','..12234432221..','..12342224321..','..12344444321..','..12233333321..','...125777752...','...157666675...','..15776666751..','..15776666751..','..15756665751..','...755..557....','..88......88...','.88........88..','.8..........8..'
         ], { '1':'#9aa4a8','2':'#e4ece8','3':'#101417','4':'#cfd8d5','5':'#4ea3dc','6':'#76828a','7':'#2a3a45','8':'#687075' }, 3, 0, 0, facing);
-        ctx.scale(facing, 1);
-        ctx.fillStyle = '#263743'; ctx.fillRect(12, 0, 30, 6); ctx.fillStyle = '#72e8ff'; ctx.fillRect(38, 1, 7, 4); ctx.fillStyle = '#4f6570'; ctx.fillRect(20, -4, 4, 14);
+        ctx.scale(facing, 1); ctx.fillStyle = '#263743'; ctx.fillRect(12, 0, 30, 6); ctx.fillStyle = '#72e8ff'; ctx.fillRect(38, 1, 7, 4); ctx.fillStyle = '#4f6570'; ctx.fillRect(20, -4, 4, 14);
       } else if (type === 'skeletonSniper') {
         this.drawPixelSprite(ctx, [
-          '....111111....',
-          '...122222221...',
-          '..12234432221..',
-          '..12342224321..',
-          '..12344444321..',
-          '..12233333321..',
-          '...125999952...',
-          '...159666695...',
-          '..15996666951..',
-          '..15996666951..',
-          '..15756665751..',
-          '...755..557....',
-          '..88......88...',
-          '.88........88..',
-          '.8..........8..'
+          '....111111....','...122222221...','..12234432221..','..12342224321..','..12344444321..','..12233333321..','...125999952...','...159666695...','..15996666951..','..15996666951..','..15756665751..','...755..557....','..88......88...','.88........88..','.8..........8..'
         ], { '1':'#9aa4a8','2':'#e4ece8','3':'#101417','4':'#cfd8d5','5':'#74bf7a','6':'#76828a','7':'#e0e6e3','8':'#687075','9':'#35503a' }, 3, 0, 0, facing);
-        ctx.scale(facing, 1);
-        ctx.fillStyle = '#324032'; ctx.fillRect(10, -1, 38, 4); ctx.fillRect(26, -4, 9, 3); ctx.fillStyle = '#edf5f7'; ctx.fillRect(44, -3, 8, 6); ctx.fillStyle = '#5f6d5d'; ctx.fillRect(16, 3, 4, 12);
+        ctx.scale(facing, 1); ctx.fillStyle = '#324032'; ctx.fillRect(10, -1, 38, 4); ctx.fillRect(26, -4, 9, 3); ctx.fillStyle = '#edf5f7'; ctx.fillRect(44, -3, 8, 6); ctx.fillStyle = '#5f6d5d'; ctx.fillRect(16, 3, 4, 12);
       } else if (type === 'yamagu') {
         this.drawPixelSprite(ctx, [
-          '........1111........',
-          '......11222211......',
-          '.....1223333221.....',
-          '....122334433221....',
-          '....123344444321....',
-          '...12344555444321...',
-          '...12345566554321...',
-          '...12345566554321...',
-          '..1234556666554321..',
-          '..1234556666554321..',
-          '..1234555555554321..',
-          '...1777......7771...',
-          '..88............88..',
-          '.88..............88.',
-          '.8................8.'
-        ], { '1':'#7a5440','2':'#c28b5d','3':'#d9b274','4':'#fff1de','5':'#9e4735','6':'#f0dcb8','7':'#d2d4d2','8':'#7a6d62' }, 5, 0, 6, facing);
+          '........11111............',
+          '......111222111..........',
+          '....11222333322111.......',
+          '...1222333444432211......',
+          '..1223334444444332211....',
+          '.122334444555544433221...',
+          '.12334444556655444433221.',
+          '.12334445566665544443321.',
+          '.12334445566665544443321.',
+          '.12334444555554444433221.',
+          '..123334444444444433221..',
+          '...177733333333337771....',
+          '..1888..33....33..8881...',
+          '.188....33....33....881..',
+          '.18.....66....66.....81..',
+          '........66....66.........',
+          '........77....77.........'
+        ], { '1':'#6c4735','2':'#a86943','3':'#d9b274','4':'#efc98e','5':'#fff2de','6':'#9c4335','7':'#5b3224','8':'#d8d8d2' }, 4, 0, 4, facing);
       } else if (type === 'yagarasu') {
         this.drawPixelSprite(ctx, [
-          '.......1111.......',
-          '.....111222111....',
-          '...1112222222111..',
-          '..112222333322221.',
-          '.12222333333332221',
-          '122233333333333221',
-          '122233344443333221',
-          '.12233344444333221',
-          '..122233333333221.',
-          '....1222333221....',
-          '..555111111111555.',
-          '.55............55.',
-          '7................7'
-        ], { '1':'#15181d','2':'#2b3038','3':'#24272c','4':'#8b8f98','5':'#0f1216','7':'#f1c16c' }, 5, 0, 0, facing);
-        ctx.scale(facing,1); ctx.fillStyle='#d96262'; ctx.fillRect(-8, -22, 5, 5); ctx.fillRect(4, -22, 5, 5);
+          '........11111...........',
+          '.....11122222111........',
+          '...111222333322211......',
+          '..112223333333322111....',
+          '.122233333444333322211..',
+          '12233333444444333332221.',
+          '12233334444444433332221.',
+          '.122333444444443333221..',
+          '..122233333333333221....',
+          '....1222223333321.......',
+          '..555511111111111555....',
+          '.555...............55...',
+          '..7.....................'
+        ], { '1':'#0f1317','2':'#1b2228','3':'#252b31','4':'#5b636d','5':'#11171b','7':'#d9ac59' }, 4, 0, -2, facing);
+        ctx.scale(facing, 1); ctx.fillStyle = '#d14a4a'; ctx.fillRect(16, -18, 5, 5); ctx.fillRect(26, -18, 5, 5); ctx.fillStyle = '#f1c16c'; ctx.fillRect(42, -4, 10, 4);
       } else if (type === 'whitefox') {
         this.drawPixelSprite(ctx, [
-          '........1111........',
-          '......111222111.....',
-          '.....11223322111....',
-          '....1123333332211...',
-          '....1233344433321...',
-          '...123334444433321..',
-          '...123344444444321..',
-          '...123333555533321..',
-          '..12333335555333321.',
-          '..12333335555333321.',
-          '...6666......6666...',
-          '..666666....666666..',
-          '.66....66..66....66.'
-        ], { '1':'#dbe4ea','2':'#eef3f8','3':'#f7fbff','4':'#0f1519','5':'#8ed5ff','6':'#f7fbff' }, 5, 0, 2, facing);
-        ctx.scale(facing,1); ctx.fillStyle='#d6edf9'; ctx.fillRect(16,-6,24,4);
+          '.........1111..............',
+          '......1112222111...........',
+          '....11222333322111.........',
+          '...1223334444332211........',
+          '..1223344444444332211......',
+          '.1223444445554444432211....',
+          '.12344444555555444433221...',
+          '.12344444566655444433221...',
+          '.12344445566665544433221...',
+          '..1234445555555544433221...',
+          '...1233334444444433321.....',
+          '....17777........77771.....',
+          '...1777777......7777771....',
+          '..1777....77....77....771..',
+          '.177......66....66......71.',
+          '..........66....66.........'
+        ], { '1':'#d7e0e7','2':'#eef3f8','3':'#f7fbff','4':'#ffffff','5':'#8ed5ff','6':'#0f1519','7':'#f8fbff' }, 4, 0, 2, facing);
       } else if (type === 'nekomata') {
         this.drawPixelSprite(ctx, [
-          '.......1111.......',
-          '.....111222111.....',
-          '....11223333211....',
-          '...1123333333211...',
-          '...1233344433321...',
-          '...12334444443321..',
-          '..1233445555443321.',
-          '..1233445555443321.',
-          '...12333333333321..',
-          '....166......661...',
-          '...1666......6661..',
-          '..66..6......6..66.',
-          '.6....6......6....6'
-        ], { '1':'#505364','2':'#676a77','3':'#cfd6de','4':'#11161b','5':'#af72ff','6':'#8b5bd8' }, 5, 0, 4, facing);
-        ctx.scale(facing,1); ctx.fillStyle='#af72ff'; ctx.fillRect(-34,-2,12,44); ctx.fillRect(22,-2,12,44); ctx.fillStyle='#ff7ae5'; ctx.fillRect(16,-4,18,4);
+          '........1111.............',
+          '.....1112222111..........',
+          '...11222333322111........',
+          '..1223334444332211.......',
+          '.1223344444444332211.....',
+          '.12334444555544433221....',
+          '.123444455666554443221...',
+          '.123444455666554443221...',
+          '..12344445555544433221...',
+          '...123333444444333221....',
+          '..1777..............771..',
+          '.17777...............771.',
+          '.17..77............77.71.',
+          '....677............776...',
+          '....677............776...'
+        ], { '1':'#3a3d48','2':'#555967','3':'#8f98a5','4':'#cfd6de','5':'#11161b','6':'#af72ff','7':'#7d53c7' }, 4, 0, 4, facing);
+        ctx.scale(facing, 1); ctx.fillStyle = '#af72ff'; ctx.fillRect(-34, 6, 12, 42); ctx.fillRect(-46, 0, 10, 38); ctx.fillStyle = '#ff7ae5'; ctx.fillRect(20, -4, 18, 4);
       } else if (type === 'orochi') {
         for (const segment of ai.bodySegments || []) this.drawOrochiSegment(ctx, segment.x - p.x, segment.y - p.y, segment.radius, ai.enraged);
         this.drawPixelSprite(ctx, [
-          '........111111........',
-          '......11122222111.....',
-          '....112223333322211...',
-          '...12223334444332221..',
-          '..1223333444444333221.',
-          '..1233334455554433321.',
-          '..1233334455554433321.',
-          '..1233333444444333321.',
-          '...12222333333332221..',
-          '....16666....66661...',
-          '...166...........661..'
-        ], { '1': ai.enraged ? '#8b3318' : '#547e39', '2': ai.enraged ? '#ff8e3c' : '#93b963', '3': ai.enraged ? '#f6b15f' : '#cce28c', '4':'#1a1d10', '5':'#d63737', '6':'#f6e2b8' }, 7, 0, -6, facing);
+          '..........1111111...............',
+          '......111122222221111...........',
+          '....11222233333332222111........',
+          '..112223333344444333322211......',
+          '.122233334445555444433322211....',
+          '.1223333444556665544433332211...',
+          '.1233334445566666654443333221...',
+          '.1233334445567776654443333221...',
+          '.1233334445566666654443333221...',
+          '.1223333444556665544433332211...',
+          '..12223333444555544433322211....',
+          '...11122223334444333222111......',
+          '......18888..........88881......',
+          '.........88..........88.........'
+        ], { '1': ai.enraged ? '#6d2513' : '#3c5a2d', '2': ai.enraged ? '#a83e1e' : '#547e39', '3': ai.enraged ? '#ff8e3c' : '#93b963', '4': ai.enraged ? '#ffc15f' : '#cce28c', '5':'#1a1d10', '6':'#f6e2b8', '7':'#d63737', '8':'#eadcb8' }, 4, 0, -8, facing);
       }
       ctx.restore();
     }
