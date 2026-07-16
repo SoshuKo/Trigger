@@ -60,7 +60,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 54;
+  const GAME_VERSION = 55;
   const BEGINNER_SKILLS = {
     none: { label: '使用しない', budget: 18, description: '従来どおり18ポイントを能力へ配分します。' },
     autoGuard: { label: 'オートガード', budget: 12, description: 'シールドまたはレイガスト装備時、被弾直前に自動防御します。' },
@@ -4222,7 +4222,70 @@
       return this.defenseScenario === 'hyakki';
     }
 
+
+    getDefenseAttackMaxRange(enemy, attackName = '', sourceKey = '') {
+      const type = String(enemy?.defenseType || '');
+      const name = String(attackName || '');
+      const key = String(sourceKey || '');
+      const exact = [
+        [/モールモッド|ラービット|孤月|山狗の爪|瞬歩斬り|大蛇の牙|固体斬撃/, 220],
+        [/旋空|連続引っ掻き|双尾突き/, 290],
+        [/ダッシュ突進/, 650],
+        [/黒い霧/, 620],
+        [/羽ばたき/, 540],
+        [/闇のブレス/, 720],
+        [/白狐・斬|転移斬り/, 620],
+        [/時計輪剣|毒ガス|円軌道刃/, 620],
+        [/妖尾狙撃/, 860],
+        [/空中妖光レーザー/, 760],
+        [/落星火/, 820],
+        [/極炎ブレス/, 880],
+        [/風刃/, 900],
+        [/錨印|鎖印|弾印/, 720],
+        [/アレクトール/, 680],
+        [/イルガー爆撃/, 760],
+        [/合成弾|アステロイド/, 680],
+        [/メテオラ/, 620],
+        [/イーグレット/, 1000],
+        [/アイビス/, 900],
+        [/鉛弾/, 820],
+      ];
+      for (const [pattern, range] of exact) if (pattern.test(name)) return range;
+      if (key === 'egret') return 1000;
+      if (key === 'ibis') return 900;
+      if (key === 'meteor') return 620;
+      if (key === 'asteroid') return 680;
+      return ({
+        marmod: 220, rabbit: 230, ilgar: 760,
+        skeletonAttacker: 290, skeletonShooter: 680, skeletonSniper: 1000,
+        yamagu: 650, yagarasu: 720, whitefox: 620, nekomata: 860, orochi: 880,
+        fujin: 900, seals: 720, alektor: 680, borboros: 260, organon: 620,
+      })[type] || 680;
+    }
+
+    canDefenseEnemyAttackPoint(enemy, x, y, maxRange = null, padding = 4) {
+      if (!enemy || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+      const range = Number.isFinite(maxRange) ? maxRange : this.getDefenseAttackMaxRange(enemy);
+      if (Math.hypot(x - enemy.x, y - enemy.y) > range + (enemy.radius || 0)) return false;
+      return !this.findBlockingWall(enemy.x, enemy.y, x, y, Math.max(2, padding));
+    }
+
+    canDefenseEnemyAttackTarget(enemy, target, maxRange = null, padding = 4) {
+      if (!enemy || !target || target.dead || target.hp === 0) return false;
+      const range = Number.isFinite(maxRange) ? maxRange : this.getDefenseAttackMaxRange(enemy);
+      return this.canDefenseEnemyAttackPoint(enemy, target.x, target.y, range + (target.radius || 0), padding);
+    }
+
+    canDefenseEnemyCreateRemoteEffect(owner, x, y, name = '', sourceKey = '') {
+      if (!owner?.isDefenseEnemy) return true;
+      const range = this.getDefenseAttackMaxRange(owner, name, sourceKey);
+      return this.canDefenseEnemyAttackPoint(owner, x, y, range, 4);
+    }
+
     spawnDefenseArea(area = {}) {
+      const owner = area.owner || null;
+      const areaX = Number(area.x || 0), areaY = Number(area.y || 0);
+      if (!this.canDefenseEnemyCreateRemoteEffect(owner, areaX, areaY, area.name || (area.kind === 'mist' ? '黒い霧' : '残火'))) return null;
       const patch = {
         id: `defense-area-${++this.defenseAreaSerial}`,
         kind: area.kind || 'fire', x: area.x || 0, y: area.y || 0,
@@ -4249,6 +4312,7 @@
           area.tick = area.interval || .45;
           for (const target of this.players.filter((player) => !player.isDefenseEnemy && !player.dead)) {
             if (Math.hypot(target.x - area.x, target.y - area.y) > area.radius + target.radius) continue;
+            if (this.findBlockingWall(area.x, area.y, target.x, target.y, 3)) continue;
             if (area.kind === 'mist') {
               this.damagePlayer(target, area.damage, area.owner, { x: area.x, y: area.y, type: 'poison', name: area.name, sourceKey: 'hyakkiMist' });
               target.defensePoisonTimer = Math.max(target.defensePoisonTimer || 0, 2.8);
@@ -4256,11 +4320,13 @@
               this.damagePlayer(target, area.damage, area.owner, { x: area.x, y: area.y, type: 'fire', name: area.name, sourceKey: 'hyakkiFire', shieldPierce: false });
             }
           }
-          if (area.hitsFlag && this.defenseFlag && Math.hypot(this.defenseFlag.x - area.x, this.defenseFlag.y - area.y) <= area.radius + this.defenseFlag.radius) {
+          if (area.hitsFlag && this.defenseFlag && Math.hypot(this.defenseFlag.x - area.x, this.defenseFlag.y - area.y) <= area.radius + this.defenseFlag.radius
+            && !this.findBlockingWall(area.x, area.y, this.defenseFlag.x, this.defenseFlag.y, 3)) {
             this.damageDefenseFlag(area.damage * .42, area.owner, area.name);
           }
           for (const decoy of this.beacons.filter((beacon) => beacon.defenseDecoy && beacon.hp > 0)) {
-            if (Math.hypot(decoy.x - area.x, decoy.y - area.y) <= area.radius + decoy.radius) this.damageDefenseDecoy(decoy, area.damage * .75, area.owner, area.name);
+            if (Math.hypot(decoy.x - area.x, decoy.y - area.y) <= area.radius + decoy.radius
+              && !this.findBlockingWall(area.x, area.y, decoy.x, decoy.y, 3)) this.damageDefenseDecoy(decoy, area.damage * .75, area.owner, area.name);
           }
         }
         if (area.ttl <= 0) this.defenseAreas.splice(i, 1);
@@ -4269,6 +4335,8 @@
 
     fireDefenseProjectile(enemy, target, options = {}) {
       if (!enemy || !target) return null;
+      const maxRange = this.getDefenseAttackMaxRange(enemy, options.sourceName, options.sourceKey);
+      if (!this.canDefenseEnemyAttackTarget(enemy, target, maxRange, 4)) return null;
       const tx = target.x + (target.vx || 0) * (options.leadTime || .18);
       const ty = target.y + (target.vy || 0) * (options.leadTime || .18);
       const angle = Math.atan2(ty - enemy.y, tx - enemy.x);
@@ -4593,8 +4661,8 @@
       const type=unit.defenseType;
       if(['skeletonAttacker','skeletonShooter','skeletonSniper','yamagu','yagarasu','whitefox','nekomata','orochi'].includes(type)) this.updateHyakkiEnemyAI(unit,dt,target,target,null);
       else if(['fujin','seals','alektor','borboros','organon'].includes(type)) this.updateBlackTriggerAI(unit,dt,target,target,null);
-      else if(type==='marmod'){const d=this.moveDefenseEnemy(unit,target,dt,1.1);if(ai.attackCooldown<=0&&d<82){this.damagePlayer(target,ai.damage||16,unit,{x:unit.x,y:unit.y,type:'melee',name:'モールモッド・ブレード',sourceKey:'marmodBlade'});ai.attackCooldown=.8;}}
-      else if(type==='rabbit'){const d=this.moveDefenseEnemy(unit,target,dt,.9);if(ai.attackCooldown<=0&&d<92){this.damagePlayer(target,(ai.damage||25)*.55,unit,{x:unit.x,y:unit.y,type:'melee',name:'ラービット捕獲腕',sourceKey:'rabbitCapture'});target.cubedTimer=Math.max(target.cubedTimer||0,1.9);ai.attackCooldown=1.5;}}
+      else if(type==='marmod'){const d=this.moveDefenseEnemy(unit,target,dt,1.1);if(ai.attackCooldown<=0&&d<82&&this.canDefenseEnemyAttackTarget(unit,target,220,4)){this.damagePlayer(target,ai.damage||16,unit,{x:unit.x,y:unit.y,type:'melee',name:'モールモッド・ブレード',sourceKey:'marmodBlade'});ai.attackCooldown=.8;}}
+      else if(type==='rabbit'){const d=this.moveDefenseEnemy(unit,target,dt,.9);if(ai.attackCooldown<=0&&d<92&&this.canDefenseEnemyAttackTarget(unit,target,230,4)){const hit=this.damagePlayer(target,(ai.damage||25)*.55,unit,{x:unit.x,y:unit.y,type:'melee',name:'ラービット捕獲腕',sourceKey:'rabbitCapture'});if(hit)target.cubedTimer=Math.max(target.cubedTimer||0,1.9);ai.attackCooldown=1.5;}}
       else if(type==='ilgar'){this.moveDefenseEnemy(unit,target,dt,.72);if(ai.attackCooldown<=0){this.queueDefenseHazard({type:'circle',x:target.x,y:target.y,radius:105,delay:.65,damage:ai.damage||19,owner:unit,name:'イルガー爆撃',color:'#e7bf35'});ai.attackCooldown=3;}}
     }
 
@@ -5097,7 +5165,7 @@
             this.queueDefenseHazard({ type: 'circle', x: enemy.x, y: enemy.y, radius: 235, delay: .42, damage: ai.damage * 2.55, owner: enemy, name: 'イルガー自爆', hitsFlag: true, color: '#ffd24d' });
             this.defeatDefenseEnemy(enemy, null, '自爆');
           }
-        } else if (ai.attackCooldown <= 0 && target) {
+        } else if (ai.attackCooldown <= 0 && target && this.canDefenseEnemyAttackTarget(enemy, target, 760, 4)) {
           const targetingFlag = target === flag;
           const tx = targetingFlag ? flag.x : target.x + (target.vx || 0) * .45;
           const ty = targetingFlag ? flag.y : target.y + (target.vy || 0) * .45;
@@ -5109,8 +5177,8 @@
       if (type === 'marmod') {
         const target = objective || flag;
         const d = this.moveDefenseEnemy(enemy, target, dt, 1.15);
-        if (ai.attackCooldown <= 0 && d < (target === flag ? 225 : 72)) {
-          if (target === flag) this.damageDefenseFlag(ai.damage, enemy, 'モールモッドのブレード');
+        if (ai.attackCooldown <= 0 && this.canDefenseEnemyAttackTarget(enemy, target, 220, 4) && d < (target === flag ? 225 : 72)) {
+          if (target === flag && this.canDefenseEnemyAttackTarget(enemy, flag, 220, 4)) this.damageDefenseFlag(ai.damage, enemy, 'モールモッドのブレード');
           else if (target.defenseDecoy) this.damageDefenseDecoy(target, ai.damage * 1.2, enemy, 'モールモッドのブレード');
           else this.damagePlayer(target, ai.damage, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: 'モールモッド・ブレード', sourceKey: 'marmodBlade' });
           ai.attackCooldown = .78;
@@ -5120,8 +5188,8 @@
       if (type === 'rabbit') {
         const target = objective || flag;
         const d = this.moveDefenseEnemy(enemy, target, dt, .92);
-        if (ai.attackCooldown <= 0 && d < (target === flag ? 240 : 86)) {
-          if (target === flag) this.damageDefenseFlag(ai.damage * .8, enemy, 'ラービット打撃');
+        if (ai.attackCooldown <= 0 && this.canDefenseEnemyAttackTarget(enemy, target, 230, 4) && d < (target === flag ? 240 : 86)) {
+          if (target === flag && this.canDefenseEnemyAttackTarget(enemy, flag, 230, 4)) this.damageDefenseFlag(ai.damage * .8, enemy, 'ラービット打撃');
           else if (target.defenseDecoy) this.damageDefenseDecoy(target, ai.damage, enemy, 'ラービット打撃');
           else {
             this.damagePlayer(target, ai.damage * .55, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: 'ラービット捕獲腕', sourceKey: 'rabbitCapture' });
@@ -5140,6 +5208,7 @@
       const ai = enemy.defenseAI || (enemy.defenseAI = {});
       const type = enemy.defenseType;
       const target = objective || nearest || flag;
+      const targetAttackable = target && this.canDefenseEnemyAttackTarget(enemy, target, this.getDefenseAttackMaxRange(enemy), 4);
       const round = this.defenseRound;
       enemy.toggles.chameleon = ai.chameleonTimer > 0;
       if (['yamagu', 'yagarasu', 'whitefox', 'nekomata', 'orochi'].includes(type)) {
@@ -5152,14 +5221,14 @@
         if (round > 20 && ai.specialCooldown <= 0 && ai.chameleonTimer <= 0 && nearest && d > 170 && d < 520) {
           ai.chameleonTimer = 2.7; ai.specialCooldown = 6.2;
         }
-        if (round > 10 && ai.specialCooldown <= 0 && target && d < 240 && d > 70) {
+        if (round > 10 && ai.specialCooldown <= 0 && targetAttackable && d < 240 && d > 70) {
           ai.action = 'senku'; ai.actionTimer = .34; ai.actionMax = .34;
           this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x, y2: target.y, width: 38, delay: .32, damage: ai.damage * 1.45, owner: enemy, name: '旋空', hitsFlag: target === flag, color: '#d7f0ff' });
           ai.specialCooldown = 4.4; ai.attackCooldown = .95;
-        } else if (ai.attackCooldown <= 0 && target && d < (target === flag ? 175 : 78)) {
+        } else if (ai.attackCooldown <= 0 && targetAttackable && d < (target === flag ? 175 : 78)) {
           ai.action = 'slash'; ai.actionTimer = .22; ai.actionMax = .22;
           this.effects.push({ type: 'slash', x: enemy.x, y: enemy.y, range: 44, angle: enemy.aim, arc: 1.02, ttl: .14, maxTtl: .14, color: '#e6f7ff' });
-          if (target === flag) this.damageDefenseFlag(ai.damage * .95, enemy, '孤月');
+          if (target === flag && this.canDefenseEnemyAttackTarget(enemy, flag, 220, 4)) this.damageDefenseFlag(ai.damage * .95, enemy, '孤月');
           else if (target.defenseDecoy) this.damageDefenseDecoy(target, ai.damage, enemy, '孤月');
           else this.damagePlayer(target, ai.damage, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: '孤月', sourceKey: 'kogetsu' });
           ai.attackCooldown = .82;
@@ -5169,7 +5238,7 @@
       if (type === 'skeletonShooter') {
         const d = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
         this.moveDefenseEnemy(enemy, target, dt, d > 390 ? .82 : d < 250 ? -.38 : .15);
-        if (round > 20 && ai.specialCooldown <= 0 && target) {
+        if (round > 20 && ai.specialCooldown <= 0 && targetAttackable) {
           ai.action = 'composite'; ai.actionTimer = .34; ai.actionMax = .34;
           if (target === flag) this.queueDefenseHazard({ type: 'circle', x: flag.x, y: flag.y, radius: 110, delay: .65, damage: ai.damage * 1.05, owner: enemy, name: '合成弾', hitsFlag: true, color: '#d28dff' });
           else {
@@ -5177,13 +5246,13 @@
             this.fireDefenseProjectile(enemy, target, { sourceKey: 'asteroid', sourceName: '合成弾', speed: 720, damage: ai.damage * .66, radius: 5, homing: 1.45, targetId: target.id, color: '#7dffb8' });
           }
           ai.specialCooldown = 5.4;
-        } else if (round > 10 && ai.specialCooldown <= 0 && target) {
+        } else if (round > 10 && ai.specialCooldown <= 0 && target && this.canDefenseEnemyAttackTarget(enemy, target, 620, 4)) {
           ai.action = 'meteor'; ai.actionTimer = .34; ai.actionMax = .34;
           if (target === flag) this.queueDefenseHazard({ type: 'circle', x: flag.x, y: flag.y, radius: 102, delay: .75, damage: ai.damage, owner: enemy, name: 'メテオラ', hitsFlag: true, color: '#ffb95d' });
           else this.fireDefenseProjectile(enemy, target, { sourceKey: 'meteor', sourceName: 'メテオラ', speed: 620, damage: ai.damage, radius: 8, explosive: true, explosionRadius: 108, color: '#ffb95d', life: 1.8 });
           ai.specialCooldown = 5.8;
         }
-        if (ai.attackCooldown <= 0 && target) {
+        if (ai.attackCooldown <= 0 && targetAttackable) {
           ai.action = 'shoot'; ai.actionTimer = .22; ai.actionMax = .22;
           if (target === flag) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: flag.x, y2: flag.y, width: 24, delay: .24, damage: ai.damage * .88, owner: enemy, name: 'アステロイド', hitsFlag: true, color: '#72e8ff' });
           else this.fireDefenseProjectile(enemy, target, { sourceKey: 'asteroid', sourceName: 'アステロイド', speed: 760, damage: ai.damage * .9, radius: 5, color: '#72e8ff' });
@@ -5194,17 +5263,17 @@
       if (type === 'skeletonSniper') {
         const d = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
         this.moveDefenseEnemy(enemy, target, dt, d > 760 ? .72 : d < 500 ? -.34 : .05);
-        if (round > 20 && ai.specialCooldown <= 0 && nearest) {
+        if (round > 20 && ai.specialCooldown <= 0 && nearest && this.canDefenseEnemyAttackTarget(enemy, nearest, this.getDefenseAttackMaxRange(enemy, '鉛弾', 'egret'), 4)) {
           ai.action = 'lead'; ai.actionTimer = .3; ai.actionMax = .3;
           this.fireDefenseProjectile(enemy, nearest, { sourceKey: 'egret', sourceName: '鉛弾', speed: 840, damage: 0, radius: 5, trail: true, shieldPierce: true, lead: true, leadWeight: 3 + Math.min(2, this.defenseTier), color: '#c6e0ff' });
           ai.specialCooldown = 6.2;
-        } else if (round > 10 && ai.specialCooldown <= 0 && target) {
+        } else if (round > 10 && ai.specialCooldown <= 0 && target && this.canDefenseEnemyAttackTarget(enemy, target, 900, 4)) {
           ai.action = 'ibis'; ai.actionTimer = .4; ai.actionMax = .4;
           if (target === flag) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: flag.x, y2: flag.y, width: 28, delay: .42, damage: ai.damage * 1.72, owner: enemy, name: 'アイビス', hitsFlag: true, color: '#ffd1a6' });
           else this.fireDefenseProjectile(enemy, target, { sourceKey: 'ibis', sourceName: 'アイビス', speed: 1120, damage: ai.damage * 1.75, radius: 8, trail: true, penetration: 2, color: '#ffd1a6' });
           ai.specialCooldown = 5.2;
         }
-        if (ai.attackCooldown <= 0 && target) {
+        if (ai.attackCooldown <= 0 && targetAttackable) {
           ai.action = 'shoot'; ai.actionTimer = .26; ai.actionMax = .26;
           if (target === flag) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: flag.x, y2: flag.y, width: 18, delay: .2, damage: ai.damage * 1.05, owner: enemy, name: 'イーグレット', hitsFlag: true, color: '#f2f8ff' });
           else this.fireDefenseProjectile(enemy, target, { sourceKey: 'egret', sourceName: 'イーグレット', speed: 1380, damage: ai.damage * 1.05, radius: 4, trail: true, penetration: 1, color: '#f2f8ff' });
@@ -5273,27 +5342,28 @@
       const ai = enemy.defenseAI || (enemy.defenseAI = {});
       const type = enemy.defenseType;
       if (!target) target = nearest || flag;
+      const targetAttackable = target && this.canDefenseEnemyAttackTarget(enemy, target, this.getDefenseAttackMaxRange(enemy), 4);
       if (type === 'yamagu') {
         const d = this.moveDefenseEnemy(enemy, target, dt, ai.castMode === 'dash' ? 1.45 : .96);
-        if (ai.attackCooldown <= 0 && d < (target === flag ? 190 : 95)) {
+        if (ai.attackCooldown <= 0 && targetAttackable && d < (target === flag ? 190 : 95)) {
           ai.action = 'claw'; ai.actionTimer = .22; ai.actionMax = .22;
           this.effects.push({ type:'yamaguClaw', x:enemy.x, y:enemy.y, angle:enemy.aim, range:118, ttl:.34, maxTtl:.34 });
-          if (target === flag) this.damageDefenseFlag(ai.damage, enemy, '山狗の爪');
+          if (target === flag && this.canDefenseEnemyAttackTarget(enemy, flag, 220, 4)) this.damageDefenseFlag(ai.damage, enemy, '山狗の爪');
           else this.damagePlayer(target, ai.damage, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: '山狗の爪', sourceKey: 'yamaguClaw' });
           ai.attackCooldown = .88;
         }
-        if (ai.castMode === 'sharpen' && ai.castTimer <= 0 && target) {
+        if (ai.castMode === 'sharpen' && ai.castTimer <= 0 && targetAttackable) {
           ai.action = 'claw'; ai.actionTimer = .3; ai.actionMax = .3;
           this.effects.push({ type:'yamaguClaw', x:enemy.x, y:enemy.y, angle:enemy.aim, range:138, ttl:.42, maxTtl:.42 });
           for (let i = -1; i <= 1; i++) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x + i * 30, y2: target.y + i * 16, width: 34, delay: .18 + (i + 1) * .08, damage: ai.damage * 1.2, owner: enemy, name: '連続引っ掻き', hitsFlag: target === flag, color: '#ffd5a0' });
           ai.castMode = null;
-        } else if (ai.castMode === 'dash' && ai.castTimer <= 0 && target) {
+        } else if (ai.castMode === 'dash' && ai.castTimer <= 0 && targetAttackable) {
           ai.action = 'dash'; ai.actionTimer = .22; ai.actionMax = .22;
           this.effects.push({ type:'yamaguDash', x:enemy.x, y:enemy.y, x2:target.x, y2:target.y, ttl:.4, maxTtl:.4 });
           this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x, y2: target.y, width: 56, delay: .12, damage: ai.damage * 1.35, owner: enemy, name: 'ダッシュ突進', hitsFlag: true, color: '#ffc46c' });
           ai.castMode = null;
         }
-        if (ai.specialCooldown <= 0 && target) {
+        if (ai.specialCooldown <= 0 && targetAttackable) {
           if (d < 240) { ai.castMode = 'sharpen'; ai.castTimer = .8; ai.action = 'sharpen'; ai.actionTimer = .8; ai.actionMax = .8; this.effects.push({ type:'yamaguSharpen', x:enemy.x, y:enemy.y, angle:enemy.aim, ttl:.8, maxTtl:.8 }); ai.specialCooldown = 5.8; }
           else if (d < 620) { ai.castMode = 'dash'; ai.castTimer = .35; ai.action = 'dash'; ai.actionTimer = .35; ai.actionMax = .35; ai.specialCooldown = 6.4; }
         }
@@ -5301,21 +5371,23 @@
       }
       if (type === 'yagarasu') {
         this.moveDefenseEnemy(enemy, target, dt, .78);
-        if (ai.attackCooldown <= 0 && target) {
+        if (ai.attackCooldown <= 0 && target && this.canDefenseEnemyAttackTarget(enemy, target, 620, 4)) {
           ai.action = 'mist'; ai.actionTimer = .34; ai.actionMax = .34;
           this.effects.push({ type:'yagarasuMist', x:enemy.x, y:enemy.y, x2:target === flag ? flag.x : target.x, y2:target === flag ? flag.y : target.y, ttl:.7, maxTtl:.7 });
           this.spawnDefenseArea({ kind: 'mist', x: target === flag ? flag.x + rand(-40, 40) : target.x + rand(-65, 65), y: target === flag ? flag.y + rand(-40, 40) : target.y + rand(-65, 65), radius: 118, ttl: 5.6, damage: ai.damage * .16, interval: .7, owner: enemy, name: '黒い霧', hitsFlag: target === flag });
           ai.attackCooldown = 1.45;
         }
-        if (ai.specialCooldown <= 0 && target) {
-          if (Math.random() < .58) {
+        if (ai.specialCooldown <= 0 && targetAttackable) {
+          const canFlap = this.canDefenseEnemyAttackTarget(enemy, target, 540, 4);
+          const canBreath = this.canDefenseEnemyAttackTarget(enemy, target, 720, 4);
+          if (canFlap && (Math.random() < .58 || !canBreath)) {
             const angle = Math.atan2(target.y - enemy.y, target.x - enemy.x);
             ai.action = 'flap'; ai.actionTimer = .42; ai.actionMax = .42;
             this.effects.push({ type:'yagarasuFlap', x:enemy.x, y:enemy.y, angle, range:190, ttl:.5, maxTtl:.5 });
             this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x, y2: target.y, width: 92, delay: .32, damage: ai.damage * .58, owner: enemy, name: '羽ばたき', status: 'bounce', hitsFlag: true, color: '#8a939d' });
             for (const area of this.defenseAreas.filter((patch) => patch.kind === 'mist')) { area.vx += Math.cos(angle) * 80; area.vy += Math.sin(angle) * 80; }
             ai.specialCooldown = 4.1;
-          } else {
+          } else if (canBreath) {
             ai.action = 'breath'; ai.actionTimer = 1.02; ai.actionMax = 1.02;
             this.effects.push({ type:'yagarasuBreath', x:enemy.x, y:enemy.y, x2:target.x, y2:target.y, ttl:1.08, maxTtl:1.08 });
             this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x, y2: target.y, width: 86, delay: 1.02, damage: ai.damage * 1.52, owner: enemy, name: '闇のブレス', hitsFlag: true, color: '#6c5975' });
@@ -5327,26 +5399,27 @@
       if (type === 'whitefox') {
         const whitefoxDistance = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
         const d = this.moveDefenseEnemy(enemy, target, dt, whitefoxDistance > 160 ? .82 : -.08);
-        if (ai.attackCooldown <= 0 && target && d < (target === flag ? 175 : 88)) {
+        if (ai.attackCooldown <= 0 && targetAttackable && d < (target === flag ? 175 : 88)) {
           ai.action = 'slowSlash'; ai.actionTimer = .34; ai.actionMax = .34;
           this.effects.push({ type:'whitefoxSlash', x:enemy.x, y:enemy.y, angle:enemy.aim, range:112, slow:true, ttl:.42, maxTtl:.42 });
-          if (target === flag) this.damageDefenseFlag(ai.damage * .94, enemy, '瞬歩斬り');
+          if (target === flag && this.canDefenseEnemyAttackTarget(enemy, flag, 220, 4)) this.damageDefenseFlag(ai.damage * .94, enemy, '瞬歩斬り');
           else {
-            this.damagePlayer(target, ai.damage, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: '瞬歩斬り', sourceKey: 'whitefoxSlash' });
-            target.slowTimer = Math.max(target.slowTimer, 3.6); target.slowFactor = Math.min(target.slowFactor, .58);
+            const damaged = this.damagePlayer(target, ai.damage, enemy, { x: enemy.x, y: enemy.y, type: 'melee', name: '瞬歩斬り', sourceKey: 'whitefoxSlash' });
+            if (damaged) { target.slowTimer = Math.max(target.slowTimer, 3.6); target.slowFactor = Math.min(target.slowFactor, .58); }
           }
           ai.attackCooldown = .9;
         }
-        if (ai.specialCooldown <= 0) {
-          if (nearest && Math.random() < .55) {
+        if (ai.specialCooldown <= 0 && targetAttackable) {
+          const visibleNearest = nearest && this.canDefenseEnemyAttackTarget(enemy, nearest, 620, 4) ? nearest : null;
+          if (visibleNearest && Math.random() < .55) {
             const ox=enemy.x, oy=enemy.y;
-            enemy.x = clamp(nearest.x + rand(-72, 72), 60, this.world.w - 60);
-            enemy.y = clamp(nearest.y + rand(-72, 72), 60, this.world.h - 60);
-            enemy.aim = Math.atan2(nearest.y-enemy.y, nearest.x-enemy.x);
+            enemy.x = clamp(visibleNearest.x + rand(-72, 72), 60, this.world.w - 60);
+            enemy.y = clamp(visibleNearest.y + rand(-72, 72), 60, this.world.h - 60);
+            enemy.aim = Math.atan2(visibleNearest.y-enemy.y, visibleNearest.x-enemy.x);
             ai.action='teleport';ai.actionTimer=.38;ai.actionMax=.38;
             this.effects.push({type:'whitefoxTeleport',x:ox,y:oy,x2:enemy.x,y2:enemy.y,ttl:.42,maxTtl:.42});
             this.effects.push({type:'whitefoxSlash',x:enemy.x,y:enemy.y,angle:enemy.aim,range:125,ttl:.38,maxTtl:.38});
-            this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: nearest.x, y2: nearest.y, width: 38, delay: .18, damage: ai.damage * 1.05, owner: enemy, name: '白狐・斬', color: '#e6f7ff' });
+            this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: visibleNearest.x, y2: visibleNearest.y, width: 38, delay: .18, damage: ai.damage * 1.05, owner: enemy, name: '白狐・斬', color: '#e6f7ff' });
           } else {
             ai.castMode='clock';ai.castTimer=1.05;ai.action='clock';ai.actionTimer=1.05;ai.actionMax=1.05;
             this.effects.push({type:'whitefoxClock',x:enemy.x,y:enemy.y,radius:164,ttl:1.12,maxTtl:1.12});
@@ -5357,23 +5430,28 @@
         return;
       }
       if (type === 'nekomata') {
+        const visibleNearest = nearest && this.canDefenseEnemyAttackTarget(enemy, nearest, 860, 4) ? nearest : null;
         const d = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
         this.moveDefenseEnemy(enemy, target, dt, d > 260 ? .84 : d < 160 ? -.18 : .08);
-        if (ai.attackCooldown <= 0 && target) {
+        if (ai.attackCooldown <= 0 && targetAttackable) {
           if (d < 215) {
             ai.action='tailStrike';ai.actionTimer=.42;ai.actionMax=.42;this.effects.push({type:'nekomataTail',x:enemy.x,y:enemy.y,angle:enemy.aim,range:150,ttl:.48,maxTtl:.48});
             for (const shift of [-18, 18]) this.queueDefenseHazard({ type: 'line', x: enemy.x + shift, y: enemy.y, x2: target.x, y2: target.y, width: 24, delay: .22, damage: ai.damage * .72, owner: enemy, name: '双尾突き', hitsFlag: true, color: '#b073ff' });
-          } else if (nearest) {
-            ai.action='snipe';ai.actionTimer=.32;ai.actionMax=.32;this.effects.push({type:'nekomataSnipe',x:enemy.x,y:enemy.y,x2:nearest.x,y2:nearest.y,ttl:.34,maxTtl:.34});
-            this.fireDefenseProjectile(enemy, nearest, { sourceKey: 'egret', sourceName: '妖尾狙撃', speed: 1280, damage: ai.damage, radius: 4, trail: true, color: '#b073ff' });
+          } else if (visibleNearest) {
+            ai.action='snipe';ai.actionTimer=.32;ai.actionMax=.32;this.effects.push({type:'nekomataSnipe',x:enemy.x,y:enemy.y,x2:visibleNearest.x,y2:visibleNearest.y,ttl:.34,maxTtl:.34});
+            this.fireDefenseProjectile(enemy, visibleNearest, { sourceKey: 'egret', sourceName: '妖尾狙撃', speed: 1280, damage: ai.damage, radius: 4, trail: true, color: '#b073ff' });
           }
           ai.attackCooldown = 1.2;
         }
-        if (ai.specialCooldown <= 0 && (nearest || flag)) {
-          const beamTarget = nearest || flag;
-          ai.action='laser';ai.actionTimer=1.0;ai.actionMax=1.0;this.effects.push({type:'nekomataLaser',x:beamTarget.x,y:beamTarget.y-300,x2:beamTarget.x,y2:beamTarget.y+25,ttl:1.08,maxTtl:1.08});
-          this.queueDefenseHazard({ type: 'line', x: beamTarget.x, y: beamTarget.y - 280, x2: beamTarget.x, y2: beamTarget.y, width: 70, delay: 1.0, damage: ai.damage * 1.62, owner: enemy, name: '空中妖光レーザー', hitsFlag: beamTarget === flag, color: '#ff6ad5' });
-          ai.specialCooldown = 5.9;
+        if (ai.specialCooldown <= 0) {
+          const beamTarget = visibleNearest && this.canDefenseEnemyAttackTarget(enemy, visibleNearest, 760, 4)
+            ? visibleNearest
+            : (flag && this.canDefenseEnemyAttackTarget(enemy, flag, 760, 4) ? flag : null);
+          if (beamTarget) {
+            ai.action='laser';ai.actionTimer=1.0;ai.actionMax=1.0;this.effects.push({type:'nekomataLaser',x:beamTarget.x,y:beamTarget.y-300,x2:beamTarget.x,y2:beamTarget.y+25,ttl:1.08,maxTtl:1.08});
+            this.queueDefenseHazard({ type: 'line', x: beamTarget.x, y: beamTarget.y - 280, x2: beamTarget.x, y2: beamTarget.y, width: 70, delay: 1.0, damage: ai.damage * 1.62, owner: enemy, name: '空中妖光レーザー', hitsFlag: beamTarget === flag, color: '#ff6ad5' });
+            ai.specialCooldown = 5.9;
+          }
         }
         return;
       }
@@ -5382,11 +5460,14 @@
         this.moveDefenseEnemy(enemy, focus, dt, .44);
         const crushDamage = ai.enraged ? ai.damage * .92 : ai.damage * .74;
         for (const defender of this.players.filter((player) => !player.isDefenseEnemy && !player.dead)) {
-          let hit = Math.hypot(defender.x - enemy.x, defender.y - enemy.y) <= enemy.radius + defender.radius;
-          if (!hit) for (const segment of ai.bodySegments) if (Math.hypot(defender.x - segment.x, defender.y - segment.y) <= segment.radius + defender.radius) { hit = true; break; }
-          if (!hit || this.elapsed - (defender.lastOrochiBodyHitAt || -999) < .55) continue;
+          let contact = Math.hypot(defender.x - enemy.x, defender.y - enemy.y) <= enemy.radius + defender.radius ? enemy : null;
+          if (!contact) for (const segment of ai.bodySegments) {
+            if (Math.hypot(defender.x - segment.x, defender.y - segment.y) <= segment.radius + defender.radius) { contact = segment; break; }
+          }
+          if (!contact || this.findBlockingWall(contact.x, contact.y, defender.x, defender.y, 3)
+            || this.elapsed - (defender.lastOrochiBodyHitAt || -999) < .55) continue;
           defender.lastOrochiBodyHitAt = this.elapsed;
-          this.damagePlayer(defender, crushDamage, enemy, { x: enemy.x, y: enemy.y, type: 'hazard', name: '大蛇の巨体', sourceKey: 'orochiBody', skipJustCut: true });
+          this.damagePlayer(defender, crushDamage, enemy, { x: contact.x, y: contact.y, type: 'hazard', name: '大蛇の巨体', sourceKey: 'orochiBody', skipJustCut: true });
         }
         if (!ai.enraged && enemy.hp <= enemy.maxHp * .62) {
           ai.enraged = true; ai.action='enrage'; ai.actionTimer=1.45; ai.actionMax=1.45;this.effects.push({ type:'orochiAura', x:enemy.x, y:enemy.y, radius:250, ttl:1.55, maxTtl:1.55 });
@@ -5399,11 +5480,11 @@
             this.spawnDefenseArea({ kind: 'fire', x: enemy.x + rand(-18, 18), y: enemy.y + rand(-18, 18), radius: 88, ttl: 4.8, damage: ai.damage * .2, interval: .42, owner: enemy, name: '大蛇の残火', hitsFlag: true });
           }
         }
-        if (ai.specialCooldown <= 0 && focus) {
+        if (ai.specialCooldown <= 0 && focus && this.canDefenseEnemyAttackTarget(enemy, focus, this.getDefenseAttackMaxRange(enemy), 4)) {
           if (Math.random() < .52) {
-            const targets = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
+            const targets = this.players.filter((player) => !player.isDefenseEnemy && !player.dead && this.canDefenseEnemyAttackTarget(enemy, player, 820, 4));
             const points = targets.slice(0, 4).map((player) => ({ x: player.x + rand(-50, 50), y: player.y + rand(-50, 50) }));
-            if (flag) points.push({ x: flag.x + rand(-65, 65), y: flag.y + rand(-65, 65) });
+            if (flag && this.canDefenseEnemyAttackTarget(enemy, flag, 820, 4)) points.push({ x: flag.x + rand(-65, 65), y: flag.y + rand(-65, 65) });
             ai.action = 'meteor'; ai.actionTimer = 1.35; ai.actionMax = 1.35;
             points.slice(0, 5).forEach((point, index) => {
               const meteorDuration=1.55+index*.08;this.effects.push({ type:'orochiMeteor', x:point.x, y:point.y, radius:96 + index * 5, stagger:.08+index*.08, ttl:meteorDuration, maxTtl:meteorDuration });
@@ -5420,17 +5501,22 @@
           }
           ai.specialCooldown = 5.9;
         }
-        if (ai.attackCooldown <= 0 && flag && Math.hypot(flag.x - enemy.x, flag.y - enemy.y) < 210) {
+        if (ai.attackCooldown <= 0 && flag && this.canDefenseEnemyAttackTarget(enemy, flag, 220, 4) && Math.hypot(flag.x - enemy.x, flag.y - enemy.y) < 210) {
           ai.action='bite'; ai.actionTimer=.52; ai.actionMax=.52;this.effects.push({ type:'orochiBite', x:enemy.x, y:enemy.y, angle:enemy.aim, range:135, ttl:.62, maxTtl:.62 });
-          this.damageDefenseFlag(ai.damage * (ai.enraged ? .95 : .7), enemy, '大蛇の牙');
+          if (this.canDefenseEnemyAttackTarget(enemy, flag, 220, 4)) this.damageDefenseFlag(ai.damage * (ai.enraged ? .95 : .7), enemy, '大蛇の牙');
           ai.attackCooldown = 1.35;
         }
         if (!ai.ultimateUsed && enemy.hp <= enemy.maxHp * .28 && flag) {
           ai.ultimateUsed = true; ai.action='ultimate'; ai.actionTimer=2.55; ai.actionMax=2.55;this.effects.push({ type:'orochiUltimate', x:enemy.x, y:enemy.y, radius:460, ttl:2.75, maxTtl:2.75 });
           for (let i = 0; i < 24; i++) {
             let x, y, tries = 0;
-            do { x = rand(90, this.world.w - 90); y = rand(90, this.world.h - 90); tries += 1; } while (Math.hypot(x - flag.x, y - flag.y) < 360 && tries < 20);
-            this.spawnDefenseArea({ kind: 'fire', x, y, radius: 150 + rand(-15, 26), ttl: 5.6, damage: ai.damage * (ai.enraged ? .36 : .3), interval: .32, owner: enemy, name: '終焉の炎', hitsFlag: false });
+            do {
+              const angle = rand(0, TAU), distance = rand(240, 840);
+              x = clamp(enemy.x + Math.cos(angle) * distance, 90, this.world.w - 90);
+              y = clamp(enemy.y + Math.sin(angle) * distance, 90, this.world.h - 90);
+              tries += 1;
+            } while ((Math.hypot(x - flag.x, y - flag.y) < 300 || !this.canDefenseEnemyAttackPoint(enemy, x, y, 880, 4)) && tries < 28);
+            if (this.canDefenseEnemyAttackPoint(enemy, x, y, 880, 4)) this.spawnDefenseArea({ kind: 'fire', x, y, radius: 150 + rand(-15, 26), ttl: 5.6, damage: ai.damage * (ai.enraged ? .36 : .3), interval: .32, owner: enemy, name: '終焉の炎', hitsFlag: false });
           }
           this.showCenterMessage('終焉の炎', 'フラッグ周辺へ退避せよ', 2.1);
         }
@@ -5442,20 +5528,22 @@
       const ai = enemy.defenseAI;
       const type = enemy.defenseType;
       const target = objective || nearest || flag;
+      const targetAttackable = target && this.canDefenseEnemyAttackTarget(enemy, target, this.getDefenseAttackMaxRange(enemy), 4);
       if (type === 'fujin') {
         const currentD = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
         this.moveDefenseEnemy(enemy, target, dt, currentD > 430 ? .7 : -.15);
         if (ai.specialCooldown <= 0) {
-          const targets = this.players.filter((p) => !p.isDefenseEnemy && !p.dead).sort((a, b) => dist2(enemy, a) - dist2(enemy, b)).slice(0, 3 + Math.min(2, this.defenseTier));
+          const targets = this.players.filter((p) => !p.isDefenseEnemy && !p.dead && this.canDefenseEnemyAttackTarget(enemy, p, 900, 4)).sort((a, b) => dist2(enemy, a) - dist2(enemy, b)).slice(0, 3 + Math.min(2, this.defenseTier));
           targets.forEach((p, index) => this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: p.x, y2: p.y, width: 30, delay: .72 + index * .1, damage: ai.damage, owner: enemy, name: '風刃・遠隔斬撃', hitsFlag: true, color: '#45ef83' }));
-          if (flag) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: flag.x, y2: flag.y, width: 24, delay: 1.05, damage: ai.damage * .75, owner: enemy, name: '風刃・伝播斬撃', hitsFlag: true, color: '#45ef83' });
-          ai.specialCooldown = 3.5;
+          const flagVisible = flag && this.canDefenseEnemyAttackTarget(enemy, flag, 900, 4);
+          if (flagVisible) this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: flag.x, y2: flag.y, width: 24, delay: 1.05, damage: ai.damage * .75, owner: enemy, name: '風刃・伝播斬撃', hitsFlag: true, color: '#45ef83' });
+          if (targets.length || flagVisible) ai.specialCooldown = 3.5;
         }
         return;
       }
       if (type === 'seals') {
         this.moveDefenseEnemy(enemy, target, dt, .68);
-        if (ai.specialCooldown <= 0) {
+        if (ai.specialCooldown <= 0 && targetAttackable) {
           ai.sealCount += 1;
           const combo = ai.sealCount % 4 === 0;
           const roll = irand(0, 5);
@@ -5473,7 +5561,7 @@
       if (type === 'alektor') {
         const currentD = target ? Math.hypot(target.x - enemy.x, target.y - enemy.y) : Infinity;
         this.moveDefenseEnemy(enemy, target, dt, currentD > 360 ? .55 : -.18);
-        if (ai.specialCooldown <= 0 && target) {
+        if (ai.specialCooldown <= 0 && targetAttackable) {
           const count = 2 + Math.min(3, this.defenseTier);
           for (let i = 0; i < count; i++) this.queueDefenseHazard({ type: 'circle', x: target.x + (target === flag ? rand(-35, 35) : rand(-100, 100)), y: target.y + (target === flag ? rand(-35, 35) : rand(-100, 100)), radius: 58, delay: .65 + i * .18, damage: ai.damage * .35, status: 'cube', owner: enemy, name: 'アレクトール弾', hitsFlag: target === flag, color: '#b1e893' });
           ai.specialCooldown = 3.1;
@@ -5496,7 +5584,7 @@
           this.moveDefenseEnemy(enemy, target, dt, 1.35);
         } else {
           const d = this.moveDefenseEnemy(enemy, target, dt, .86);
-          if (ai.attackCooldown <= 0 && d < 180) {
+          if (ai.attackCooldown <= 0 && targetAttackable && d < 180) {
             this.queueDefenseHazard({ type: 'line', x: enemy.x, y: enemy.y, x2: target.x, y2: target.y, width: 55, delay: .38, damage: ai.damage, owner: enemy, name: 'ボルボロス固体斬撃', hitsFlag: true, color: '#b68be2' });
             ai.attackCooldown = 1.35;
           }
@@ -5525,7 +5613,19 @@
     }
 
     queueDefenseHazard(hazard) {
-      this.defenseHazards.push({ ...hazard, delay: hazard.delay ?? .6, ttl: (hazard.delay ?? .6) + .55, resolved: false });
+      const owner = hazard.owner || null;
+      if (owner?.isDefenseEnemy) {
+        const targetX = hazard.type === 'line' ? Number(hazard.x2) : Number(hazard.x);
+        const targetY = hazard.type === 'line' ? Number(hazard.y2) : Number(hazard.y);
+        if (!this.canDefenseEnemyCreateRemoteEffect(owner, targetX, targetY, hazard.name || '敵攻撃')) return false;
+      }
+      this.defenseHazards.push({
+        ...hazard,
+        originX: Number.isFinite(hazard.originX) ? hazard.originX : (Number.isFinite(owner?.x) ? owner.x : hazard.x),
+        originY: Number.isFinite(hazard.originY) ? hazard.originY : (Number.isFinite(owner?.y) ? owner.y : hazard.y),
+        delay: hazard.delay ?? .6, ttl: (hazard.delay ?? .6) + .55, resolved: false,
+      });
+      return true;
     }
 
     updateDefenseHazards(dt) {
@@ -5551,6 +5651,9 @@
         else if (hazard.type === 'line') hit = segmentPointDistance(hazard.x, hazard.y, hazard.x2, hazard.y2, target.x, target.y).distance <= (hazard.width || 24) + target.radius;
         else if (hazard.type === 'ring') hit = Math.abs(Math.hypot(target.x - hazard.x, target.y - hazard.y) - hazard.radius) <= (hazard.width || 24) + target.radius;
         if (!hit) continue;
+        const attackOriginX = Number.isFinite(hazard.originX) ? hazard.originX : hazard.x;
+        const attackOriginY = Number.isFinite(hazard.originY) ? hazard.originY : hazard.y;
+        if (this.findBlockingWall(attackOriginX, attackOriginY, target.x, target.y, 3)) continue;
         hits.push(target);
         this.damagePlayer(target, hazard.damage || 0, hazard.owner, { x: hazard.x, y: hazard.y, type: 'explosion', name: hazard.name, sourceKey: `defense:${hazard.name}` });
         if (hazard.status === 'cube') target.cubedTimer = Math.max(target.cubedTimer || 0, 2.35);
@@ -5564,7 +5667,11 @@
         if (hazard.type === 'circle') hitDecoy = Math.hypot(decoy.x - hazard.x, decoy.y - hazard.y) <= hazard.radius + decoy.radius;
         else if (hazard.type === 'line') hitDecoy = segmentPointDistance(hazard.x, hazard.y, hazard.x2, hazard.y2, decoy.x, decoy.y).distance <= (hazard.width || 24) + decoy.radius;
         else if (hazard.type === 'ring') hitDecoy = Math.abs(Math.hypot(decoy.x - hazard.x, decoy.y - hazard.y) - hazard.radius) <= (hazard.width || 24) + decoy.radius;
-        if (hitDecoy) this.damageDefenseDecoy(decoy, (hazard.damage || 0) * .9, hazard.owner, hazard.name);
+        if (hitDecoy) {
+          const attackOriginX = Number.isFinite(hazard.originX) ? hazard.originX : hazard.x;
+          const attackOriginY = Number.isFinite(hazard.originY) ? hazard.originY : hazard.y;
+          if (!this.findBlockingWall(attackOriginX, attackOriginY, decoy.x, decoy.y, 3)) this.damageDefenseDecoy(decoy, (hazard.damage || 0) * .9, hazard.owner, hazard.name);
+        }
       }
       const hazardHitsPoint = (x, y, radius = 0) => {
         if (hazard.type === 'circle') return Math.hypot(x - hazard.x, y - hazard.y) <= hazard.radius + radius;
@@ -5587,7 +5694,11 @@
         if (hazard.type === 'circle') hitFlag = Math.hypot(flag.x - hazard.x, flag.y - hazard.y) <= hazard.radius + flag.radius;
         else if (hazard.type === 'line') hitFlag = segmentPointDistance(hazard.x, hazard.y, hazard.x2, hazard.y2, flag.x, flag.y).distance <= (hazard.width || 24) + flag.radius;
         else if (hazard.type === 'ring') hitFlag = Math.abs(Math.hypot(flag.x - hazard.x, flag.y - hazard.y) - hazard.radius) <= (hazard.width || 24) + flag.radius;
-        if (hitFlag) this.damageDefenseFlag((hazard.damage || 0) * .62, hazard.owner, hazard.name);
+        if (hitFlag) {
+          const attackOriginX = Number.isFinite(hazard.originX) ? hazard.originX : hazard.x;
+          const attackOriginY = Number.isFinite(hazard.originY) ? hazard.originY : hazard.y;
+          if (!this.findBlockingWall(attackOriginX, attackOriginY, flag.x, flag.y, 3)) this.damageDefenseFlag((hazard.damage || 0) * .62, hazard.owner, hazard.name);
+        }
       }
       this.effects.push({ type: 'defenseImpact', x: hazard.x2 ?? hazard.x, y: hazard.y2 ?? hazard.y, ttl: .35, maxTtl: .35, color: hazard.color });
     }
@@ -8454,6 +8565,7 @@
         if (target.dead || target.id === excludeId || target.id === ownerId || (target.team === team && (this.config.mode === 'team' || this.isDefenseMode))) continue;
         const d = Math.hypot(target.x - x, target.y - y);
         if (d > radius + target.radius) continue;
+        if (owner?.isDefenseEnemy && this.findBlockingWall(x, y, target.x, target.y, 3)) continue;
         const scale = 1 - clamp(d / radius, 0, .82);
         this.damagePlayer(target, damage * scale, owner, {
           x, y, type: 'explosion', name: sourceName,
@@ -8525,6 +8637,10 @@
 
     damagePlayer(target, amount, attacker, info = {}) {
       if (target.dead || amount <= 0 || target.invulnTimer > 0) return false;
+      if (attacker?.isDefenseEnemy && !target.isDefenseEnemy && info.type === 'melee') {
+        const maxRange = this.getDefenseAttackMaxRange(attacker, info.name, info.sourceKey);
+        if (!this.canDefenseEnemyAttackTarget(attacker, target, maxRange, 4)) return false;
+      }
       if (!info.skipJustCut && this.tryJustCut(target, attacker, info)) return false;
       const attackModifiers = this.getAttackDamageModifiers(attacker, target, amount, info);
       amount = attackModifiers.amount;
