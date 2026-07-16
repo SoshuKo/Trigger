@@ -60,7 +60,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 36;
+  const GAME_VERSION = 42;
   const BEGINNER_SKILLS = {
     none: { label: '使用しない', budget: 18, description: '従来どおり18ポイントを能力へ配分します。' },
     autoGuard: { label: 'オートガード', budget: 12, description: 'シールドまたはレイガスト装備時、被弾直前に自動防御します。' },
@@ -1006,7 +1006,7 @@
       : mapId === 'snowShrine'
         ? '雪庭ではトリオン消費が34%増加します。障子と人魂は再生し、酒樽は爆発攻撃で誘爆します。東西の神像は一定間隔でトリオンを分けます。'
         : mapId === 'underground'
-          ? '電光掲示板の残り時間が0になると通過電車が走ります。ホームドア、水門、ブレーカーは攻撃で切り替えられます。停電中は非常灯とプレイヤーの光だけが頼りです。'
+          ? '電光掲示板の残り時間が0になると通過電車が走ります。ホームドア、水門、ブレーカーは近くで特殊操作キーを押して切り替えます。線路を渡るにはホームドアを開けてください。'
           : '撃破・トリオン粒子回収でポイント獲得。時間終了時の個人／チームスコアで順位を決定します。';
   }
 
@@ -1446,7 +1446,7 @@
       this.scopeTargetDistance = 0;
       this.scopeReticle = { x: 0, y: 0 };
       this.scopeTargetPoint = { x: 0, y: 0 };
-      this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [], shrineGardens: [], shrineRooms: [], shrineCorridors: [], shrineCourts: [], shrineStatues: [], torii: [], frozenPonds: [], snowDrifts: [], shrineApproaches: [], shrineSteps: [], shrineDecor: [], subwayTracks: [], subwayPlatforms: [], subwayPassengerZones: [], subwayServiceZones: [], subwayWaterways: [], subwaySludge: [], subwayWires: [], subwayProps: [], subwaySigns: [] };
+      this.terrain = { roads: [], plazas: [], rivers: [], forests: [], buildings: [], bridges: [], dunes: [], oases: [], quicksand: [], cliffs: [], fortresses: [], shades: [], gasFields: [], shrineGardens: [], shrineRooms: [], shrineCorridors: [], shrineCourts: [], shrineStatues: [], torii: [], frozenPonds: [], snowDrifts: [], shrineApproaches: [], shrineSteps: [], shrineDecor: [], subwayTracks: [], subwayPlatforms: [], subwayPassengerZones: [], subwayServiceZones: [], subwayWaterways: [], subwaySludge: [], subwayWires: [], subwayProps: [], subwaySigns: [], subwayCrossings: [] };
       this.terrainChunkSize = 640;
       this.terrainChunks = new Map();
       this.maxTerrainChunks = this.onlineMirror ? 12 : 24;
@@ -2266,6 +2266,11 @@
     }
 
     getTeamHome(team) {
+      if (this.mapId === 'underground') {
+        if (this.isDefenseMode) return { x: 3200, y: 3300 };
+        const undergroundHomes = [{ x: 620, y: 1450 }, { x: 5780, y: 1450 }, { x: 1800, y: 2520 }, { x: 4600, y: 2520 }];
+        return undergroundHomes[team % undergroundHomes.length];
+      }
       if (this.isDefenseMode) return { x: this.world.w / 2, y: this.world.h / 2 };
       if (this.teamCount <= 2) return team === 0 ? { x: 460, y: this.world.h / 2 } : { x: this.world.w - 460, y: this.world.h / 2 };
       const homes = [
@@ -2595,9 +2600,15 @@
       if(this.mapId === 'underground'){
         const subway=this.environment.subway||{};
         const states=[];
+        const waterLevel=this.subwayWaterLevel();
+        let waterState='';
+        if(waterLevel<=.02) waterState='水路排水済み';
+        else if(waterLevel>=.98) waterState='水路通水中';
+        else if(subway.waterDrained) waterState=`水路排水中 ${Math.round((1-waterLevel)*100)}%`;
+        else waterState=`水路注水中 ${Math.round(waterLevel*100)}%`;
         states.push(subway.breakerOff ? '停電中' : '通常照明');
         states.push(subway.homeDoorsClosed ? 'ホームドア閉' : 'ホームドア開');
-        states.push(subway.waterDrained ? '水路排水済み' : '水路通水中');
+        states.push(waterState);
         el.textContent=`${MAP_LABELS[this.mapId]}・人工照明・${states.join('・')}`;
         return;
       }
@@ -2707,12 +2718,13 @@
       }
       if(this.mapId==='underground'){
         const subway=this.environment.subway||{};
-        if(!subway.waterDrained){
+        const waterLevel=this.subwayWaterLevel();
+        if(waterLevel>.02){
           for(const water of this.terrain.subwayWaterways||[]){
             if(!this.isPointInRect(p.x,p.y,water)) continue;
-            factor*=0.58;
-            p.vx += (water.flowX||0) * dt;
-            p.vy += (water.flowY||0) * dt;
+            factor*=lerp(1,.58,waterLevel);
+            p.vx += (water.flowX||0) * dt * waterLevel;
+            p.vy += (water.flowY||0) * dt * waterLevel;
           }
         }
         for(const sludge of this.terrain.subwaySludge||[]){
@@ -3352,151 +3364,210 @@
         return wall;
       };
       const addProp = (kind, x, y, w, h, extra = {}) => this.terrain.subwayProps.push({ kind, x, y, w, h, ...extra });
-      const addRoom = (id, x, y, w, h, roomType, door = null) => {
+      const wallOptions = { respawnable: true, respawnDelay: [70, 96] };
+      const addRoom = (id, x, y, w, h, roomType, doors = []) => {
         this.terrain.buildings.push({ id, x, y, w, h, subwayRoom: true, subwayRoomType: roomType });
-        const t = 30;
-        const splitHorizontal = (prefix, yy, openCenter, openSize) => {
-          if (openCenter == null) { addWall(prefix, x, yy, w, t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] }); return; }
-          const start = clamp(openCenter - openSize / 2, x + 24, x + w - 24);
-          const end = clamp(openCenter + openSize / 2, x + 24, x + w - 24);
-          addWall(`${prefix}-a`, x, yy, Math.max(0, start - x), t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          addWall(`${prefix}-b`, end, yy, Math.max(0, x + w - end), t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+        const t = 28;
+        const openings = { north: [], south: [], west: [], east: [] };
+        for (const door of doors) openings[door.side]?.push(door);
+        const horizontal = (side, yy) => {
+          const list = openings[side].map((d) => ({ start: x + d.offset - d.size / 2, end: x + d.offset + d.size / 2 })).sort((a, b) => a.start - b.start);
+          let cursor = x;
+          let n = 0;
+          for (const opening of list) {
+            const start = clamp(opening.start, x + 20, x + w - 20);
+            const end = clamp(opening.end, x + 20, x + w - 20);
+            addWall(`${id}-${side}-${n++}`, cursor, yy, Math.max(0, start - cursor), t, 'maintenanceWall', 470, wallOptions);
+            cursor = Math.max(cursor, end);
+          }
+          addWall(`${id}-${side}-${n}`, cursor, yy, Math.max(0, x + w - cursor), t, 'maintenanceWall', 470, wallOptions);
         };
-        const splitVertical = (prefix, xx, openCenter, openSize) => {
-          if (openCenter == null) { addWall(prefix, xx, y, t, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] }); return; }
-          const start = clamp(openCenter - openSize / 2, y + 24, y + h - 24);
-          const end = clamp(openCenter + openSize / 2, y + 24, y + h - 24);
-          addWall(`${prefix}-a`, xx, y, t, Math.max(0, start - y), 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-          addWall(`${prefix}-b`, xx, end, t, Math.max(0, y + h - end), 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+        const vertical = (side, xx) => {
+          const list = openings[side].map((d) => ({ start: y + d.offset - d.size / 2, end: y + d.offset + d.size / 2 })).sort((a, b) => a.start - b.start);
+          let cursor = y;
+          let n = 0;
+          for (const opening of list) {
+            const start = clamp(opening.start, y + 20, y + h - 20);
+            const end = clamp(opening.end, y + 20, y + h - 20);
+            addWall(`${id}-${side}-${n++}`, xx, cursor, t, Math.max(0, start - cursor), 'maintenanceWall', 470, wallOptions);
+            cursor = Math.max(cursor, end);
+          }
+          addWall(`${id}-${side}-${n}`, xx, cursor, t, Math.max(0, y + h - cursor), 'maintenanceWall', 470, wallOptions);
         };
-        if (door?.side === 'north') splitHorizontal(`${id}-north`, y, x + (door.offset ?? w / 2), door.size || 170); else addWall(`${id}-north`, x, y, w, t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-        if (door?.side === 'south') splitHorizontal(`${id}-south`, y + h - t, x + (door.offset ?? w / 2), door.size || 170); else addWall(`${id}-south`, x, y + h - t, w, t, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-        if (door?.side === 'west') splitVertical(`${id}-west`, x, y + (door.offset ?? h / 2), door.size || 170); else addWall(`${id}-west`, x, y, t, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
-        if (door?.side === 'east') splitVertical(`${id}-east`, x + w - t, y + (door.offset ?? h / 2), door.size || 170); else addWall(`${id}-east`, x + w - t, y, t, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+        horizontal('north', y);
+        horizontal('south', y + h - t);
+        vertical('west', x);
+        vertical('east', x + w - t);
       };
 
-      const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false };
-      Object.assign(subway, { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false });
+      const subway = this.environment.subway ||= {};
+      Object.assign(subway, {
+        trainTimer: 12,
+        trainActive: false,
+        trainDirection: 1,
+        trainX: -1200,
+        trainPrevX: -1200,
+        homeDoorsClosed: true,
+        breakerOff: false,
+        waterDrained: false,
+        waterLevel: 1,
+        waterTarget: 1,
+        waterTransitionSeconds: 7,
+        doorControlCooldown: 0,
+        doorControlCooldownMax: 4.5,
+      });
 
-      const concourse = { id: 'concourse', x: 480, y: 460, w: 5440, h: 620 };
-      const platform = { id: 'main-platform', x: 520, y: 1280, w: 5360, h: 680 };
-      const track = { id: 'main-track', x: 360, y: 1990, w: 5680, h: 360, safeMargin: 128 };
-      const service = { id: 'service-deck', x: 360, y: 2580, w: 5680, h: 1420 };
+      this.subwayBounds = { x: 32, y: 32, w: this.world.w - 64, h: this.world.h - 64 };
+      const concourse = { id: 'concourse', x: 56, y: 56, w: 6288, h: 820 };
+      const platform = { id: 'main-platform', x: 56, y: 876, w: 6288, h: 930 };
+      const track = { id: 'main-track', x: 52, y: 1806, w: 6296, h: 492, safeMargin: 96 };
+      const service = { id: 'service-deck', x: 56, y: 2298, w: 6288, h: 1846 };
       this.terrain.subwayPassengerZones.push(concourse, platform);
       this.terrain.subwayServiceZones.push(service);
       this.terrain.subwayTracks.push(track);
       this.terrain.subwayPlatforms.push(platform);
       this.terrain.plazas.push({ ...concourse, passenger: true }, { ...platform, passenger: true });
 
-      // Clear outer shell with obvious connections.
-      addWall('passenger-top', 460, 440, 5480, 34);
-      addWall('passenger-left', 460, 440, 34, 1520);
-      addWall('passenger-right', 5906, 440, 34, 1520);
-      addWall('platform-bottom-left', 460, 2380, 660, 34);
-      addWall('platform-bottom-mid-a', 1470, 2380, 1120, 34);
-      addWall('platform-bottom-mid-b', 3370, 2380, 1120, 34);
-      addWall('platform-bottom-right', 5290, 2380, 650, 34);
-      addWall('track-frame-top', track.x, track.y - 24, track.w, 16, 'platformEdge', 9999, { indestructible: true });
-      addWall('track-frame-bottom', track.x, track.y + track.h + 8, track.w, 16, 'platformEdge', 9999, { indestructible: true, nonBlocking: true });
-      addWall('service-left', 360, 2580, 34, 1420);
-      addWall('service-right', 6006, 2580, 34, 1420);
-      addWall('service-bottom', 360, 3986, 5680, 34);
-      addWall('service-top-left', 360, 2580, 720, 34);
-      addWall('service-top-a', 1430, 2580, 1460, 34);
-      addWall('service-top-b', 3270, 2580, 1400, 34);
-      addWall('service-top-right', 5050, 2580, 990, 34);
+      addWall('station-north', 0, 0, this.world.w, 52, 'maintenanceWall', 9999, { indestructible: true });
+      addWall('station-south', 0, this.world.h - 52, this.world.w, 52, 'maintenanceWall', 9999, { indestructible: true });
+      addWall('station-west', 0, 52, 52, this.world.h - 104, 'maintenanceWall', 9999, { indestructible: true });
+      addWall('station-east', this.world.w - 52, 52, 52, this.world.h - 104, 'maintenanceWall', 9999, { indestructible: true });
 
-      // Service corridors: neat and readable.
-      this.terrain.roads.push(
-        { id: 'service-main', x: 420, y: 2860, w: 5560, h: 144 },
-        { id: 'service-left-vert', x: 1480, y: 2860, w: 144, h: 980 },
-        { id: 'service-center-vert', x: 3140, y: 2860, w: 144, h: 1040 },
-        { id: 'service-right-vert', x: 4200, y: 2860, w: 144, h: 980 },
-        { id: 'service-lower', x: 760, y: 3680, w: 4700, h: 132 }
-      );
-
-      // Platform doors and gates.
-      const doorY = track.y - 28;
-      for (let i = 0; i < 20; i++) {
-        const x = 700 + i * 252;
-        addWall(`platform-door-${i}`, x, doorY, 168, 20, 'platformDoor', 240, { subwayDoor: true, indestructible: true });
+      // Home doors on both sides of the track. Both rows share the same open/closed state.
+      let doorIndex = 0;
+      const doorPanelWidth = 160;
+      for (let x = track.x; x < track.x + track.w; x += doorPanelWidth) {
+        const width = Math.min(doorPanelWidth, track.x + track.w - x);
+        addWall(`platform-door-passenger-${doorIndex}`, x, track.y - 48, width, 22, 'platformDoor', 240, { subwayDoor: true, subwayDoorSide: 'passenger', indestructible: true });
+        addWall(`platform-door-service-${doorIndex}`, x, track.y + track.h + 26, width, 22, 'platformDoor', 240, { subwayDoor: true, subwayDoorSide: 'service', indestructible: true });
+        doorIndex += 1;
       }
-      [1660, 1920, 2180, 2440, 3720, 3980, 4240, 4500].forEach((x, i) => addWall(`ticket-gate-${i}`, x, 1040, 88, 52, 'ticketGate', 320, { lowCover: true, respawnable: true, respawnDelay: [55, 78] }));
 
-      // Passenger props / landmarks.
-      for (let i = 0; i < 11; i++) addProp('pillar', 800 + i * 460, 720, 44, 44);
-      for (let i = 0; i < 10; i++) addProp('pillar', 880 + i * 470, 1650, 48, 48);
-      [1040, 1960, 2880, 3800, 4720].forEach((x, idx) => addProp('bench', x, 1780, 170, 42, { variant: idx & 1 ? 'metal' : 'wood' }));
-      addProp('locker', 840, 620, 196, 92); addProp('locker', 5570, 620, 196, 92);
-      addProp('vending', 1120, 760, 92, 132); addProp('vending', 5280, 760, 92, 132);
-      addProp('ticketBooth', 3200, 640, 320, 120);
-      addProp('warningStripe', platform.x + platform.w / 2, track.y - 56, platform.w - 40, 20);
-      addProp('stairs', 1220, 1160, 260, 90); addProp('stairs', 3200, 1160, 260, 90); addProp('stairs', 5080, 1160, 260, 90);
-      addProp('escalator', 1220, 1440, 180, 280, { dir: 'down' }); addProp('escalator', 3200, 1440, 180, 280, { dir: 'down' }); addProp('escalator', 5080, 1440, 180, 280, { dir: 'down' });
-      addProp('stairs', 1220, 2480, 260, 90); addProp('stairs', 3200, 2480, 260, 90); addProp('stairs', 5080, 2480, 260, 90);
-      addProp('stairs', 1220, 2640, 260, 84); addProp('stairs', 3200, 2640, 260, 84); addProp('stairs', 5080, 2640, 260, 84);
-      addProp('fence', 1220, track.y - 2, 170, 28); addProp('fence', 3200, track.y - 2, 170, 28); addProp('fence', 5080, track.y - 2, 170, 28);
-      addProp('signalBox', 4550, 1820, 86, 90);
-      this.terrain.subwaySigns.push({ id: 'board-a', x: 2060, y: 1410 }, { id: 'board-b', x: 4320, y: 1410 });
+      // Automatic ticket gates: the concourse and platform are separated except for the gate lanes.
+      const gateCenters = [1240, 1440, 1640, 1840, 2040, 4360, 4560, 4760, 4960, 5160];
+      const gateBarrierY = 806;
+      const gateBarrierH = 46;
+      let gateCursor = 56;
+      gateCenters.forEach((center, i) => {
+        const start = center - 56;
+        const end = center + 56;
+        addWall(`gate-barrier-${i}`, gateCursor, gateBarrierY, Math.max(0, start - gateCursor), gateBarrierH, 'maintenanceWall', 9999, { indestructible: true });
+        addWall(`gate-post-left-${i}`, center - 46, gateBarrierY, 18, gateBarrierH + 18, 'ticketGate', 9999, { indestructible: true, lowCover: false });
+        addWall(`gate-post-right-${i}`, center + 28, gateBarrierY, 18, gateBarrierH + 18, 'ticketGate', 9999, { indestructible: true, lowCover: false });
+        gateCursor = end;
+      });
+      addWall('gate-barrier-final', gateCursor, gateBarrierY, Math.max(0, 6344 - gateCursor), gateBarrierH, 'maintenanceWall', 9999, { indestructible: true });
+      addProp('ticketBooth', 3200, 670, 360, 132);
+      gateCenters.forEach((x, i) => addProp('poster', x, 760, 44, 86, { variant: i & 1 ? 'blue' : 'red' }));
 
-      // Service rooms lined up logically.
-      addRoom('pump-room', 560, 2800, 840, 460, 'pump', { side: 'east', offset: 230, size: 176 });
-      addRoom('drain-room', 560, 3360, 840, 460, 'drain', { side: 'east', offset: 220, size: 176 });
-      addRoom('storage-room', 1760, 2800, 980, 460, 'storage', { side: 'south', offset: 420, size: 176 });
-      addRoom('ops-room', 1760, 3360, 980, 460, 'ops', { side: 'east', offset: 220, size: 176 });
-      addRoom('workshop-room', 3380, 2800, 720, 460, 'workshop', { side: 'south', offset: 320, size: 176 });
-      addRoom('control-room', 3380, 3360, 720, 460, 'ops', { side: 'west', offset: 220, size: 176 });
-      addRoom('electrical-room', 4380, 2800, 1120, 520, 'electrical', { side: 'west', offset: 250, size: 180 });
-      addRoom('breaker-room', 4520, 3460, 900, 360, 'breaker', { side: 'north', offset: 430, size: 176 });
+      // Concourse tenants and waiting area.
+      addRoom('tenant-west-1', 120, 100, 760, 320, 'tenant', [{ side: 'south', offset: 380, size: 160 }]);
+      addRoom('tenant-west-2', 940, 100, 680, 320, 'tenant', [{ side: 'south', offset: 340, size: 160 }]);
+      addRoom('tenant-west-3', 1680, 100, 720, 320, 'tenant', [{ side: 'south', offset: 360, size: 160 }]);
+      addRoom('tenant-east-1', 4000, 100, 720, 320, 'tenant', [{ side: 'south', offset: 360, size: 160 }]);
+      addRoom('tenant-east-2', 4780, 100, 660, 320, 'tenant', [{ side: 'south', offset: 330, size: 160 }]);
+      addRoom('tenant-east-3', 5500, 100, 720, 320, 'tenant', [{ side: 'south', offset: 360, size: 160 }]);
+      for (let x = 520; x <= 5880; x += 560) addProp('pillar', x, 520, 46, 46);
+      for (let x = 420; x <= 5980; x += 560) addProp('pillar', x, 1340, 48, 48);
+      [760, 1560, 2440, 3960, 4840, 5720].forEach((x, i) => addProp('bench', x, 612, 170, 42, { variant: i & 1 ? 'metal' : 'wood' }));
+      [760, 1640, 2520, 3880, 4760, 5640].forEach((x, i) => addProp('bench', x, 1530, 170, 42, { variant: i & 1 ? 'metal' : 'wood' }));
+      addProp('locker', 440, 650, 220, 96); addProp('locker', 5960, 650, 220, 96);
+      addProp('vending', 2600, 620, 96, 138); addProp('vending', 3800, 620, 96, 138); addProp('vending', 760, 640, 96, 138); addProp('vending', 5640, 640, 96, 138);
+      addProp('kiosk', 2860, 290, 240, 180); addProp('kiosk', 3540, 290, 240, 180);
+      addProp('planter', 2660, 510, 96, 42); addProp('planter', 3740, 510, 96, 42); addProp('planter', 3200, 510, 120, 42);
+      [260, 900, 1740, 4080, 4860, 5580].forEach((x, i) => addProp('poster', x, 520, 44, 84, { variant: i % 3 === 0 ? 'yellow' : i & 1 ? 'blue' : 'green' }));
+      [1080, 2280, 4120, 5320].forEach((x) => addProp('signStand', x, 730, 54, 90));
+      addProp('warningStripe', track.x + track.w / 2, track.y - 66, track.w, 20);
+      addProp('signalBox', 6040, 1690, 92, 98);
+      this.terrain.subwaySigns.push({ id: 'board-west', x: 2040, y: 1120 }, { id: 'board-east', x: 4360, y: 1120 });
 
-      // Narrow maintenance passage: maze-like, but with continuous flow.
+      // Service area: stronger sewer identity and more side rooms.
+      this.terrain.roads.push(
+        { id: 'service-main', x: 56, y: 2420, w: 6288, h: 180 },
+        { id: 'service-upper', x: 56, y: 2880, w: 6288, h: 132 },
+        { id: 'service-cross-west', x: 1090, y: 2420, w: 220, h: 1620 },
+        { id: 'service-cross-center', x: 3090, y: 2420, w: 220, h: 1620 },
+        { id: 'service-cross-east', x: 5090, y: 2420, w: 220, h: 1620 },
+        { id: 'service-lower', x: 56, y: 3860, w: 6288, h: 180 },
+      );
+      this.terrain.plazas.push({ id: 'defense-plaza', x: 2560, y: 2645, w: 1280, h: 300, service: true }, { id: 'sewer-landing', x: 2580, y: 3380, w: 1240, h: 320, service: true });
+
+      addRoom('pump-room', 80, 2660, 980, 340, 'pump', [{ side: 'east', offset: 170, size: 160 }, { side: 'south', offset: 740, size: 160 }]);
+      addRoom('filter-room', 1160, 2660, 700, 340, 'drain', [{ side: 'west', offset: 170, size: 160 }, { side: 'south', offset: 360, size: 160 }]);
+      addRoom('monitor-room', 1960, 2660, 940, 340, 'ops', [{ side: 'south', offset: 470, size: 170 }, { side: 'east', offset: 170, size: 160 }]);
+      addRoom('workshop-room', 3400, 2660, 780, 340, 'maintenance', [{ side: 'south', offset: 390, size: 170 }, { side: 'west', offset: 170, size: 160 }]);
+      addRoom('electrical-room', 5180, 2660, 1140, 340, 'electrical', [{ side: 'west', offset: 170, size: 160 }, { side: 'south', offset: 360, size: 170 }]);
+      addRoom('drain-room', 80, 3360, 980, 500, 'drain', [{ side: 'east', offset: 250, size: 170 }, { side: 'north', offset: 740, size: 170 }]);
+      addRoom('chemical-room', 1160, 3360, 740, 500, 'maintenance', [{ side: 'west', offset: 250, size: 170 }, { side: 'north', offset: 370, size: 170 }]);
+      addRoom('storage-room', 1960, 3360, 820, 500, 'storage', [{ side: 'east', offset: 250, size: 170 }, { side: 'north', offset: 410, size: 170 }]);
+      addRoom('sluice-room', 3600, 3360, 700, 500, 'ops', [{ side: 'west', offset: 250, size: 170 }, { side: 'north', offset: 350, size: 170 }]);
+      addRoom('breaker-room', 5240, 3360, 1040, 500, 'breaker', [{ side: 'west', offset: 250, size: 170 }, { side: 'north', offset: 330, size: 170 }]);
+      addRoom('tool-room', 4380, 2660, 640, 340, 'storage', [{ side: 'south', offset: 320, size: 160 }]);
+
       const maze = [
-        ['maze-v0', 2860, 3240, 30, 560], ['maze-v1', 3200, 3400, 30, 380], ['maze-v2', 3540, 3240, 30, 560], ['maze-v3', 3880, 3400, 30, 380],
-        ['maze-h0', 2860, 3240, 520, 30], ['maze-h1', 3040, 3540, 520, 30], ['maze-h2', 2860, 3800, 840, 30], ['maze-h3', 3540, 3400, 360, 30]
+        ['maze-v1', 3770, 3430, 28, 350], ['maze-v2', 3940, 3550, 28, 280], ['maze-v3', 4110, 3430, 28, 350],
+        ['maze-h1', 3770, 3430, 370, 28], ['maze-h2', 3940, 3700, 360, 28], ['maze-h3', 3770, 3830, 530, 28],
       ];
-      for (const [id, x, y, w, h] of maze) addWall(id, x, y, w, h, 'maintenanceWall', 470, { respawnable: true, respawnDelay: [64, 92] });
+      for (const [id, x, y, w, h] of maze) addWall(id, x, y, w, h, 'maintenanceWall', 470, wallOptions);
 
-      // Waterways / sludge.
       this.terrain.subwayWaterways.push(
-        { id: 'channel-west', x: 700, y: 3200, w: 760, h: 110, flowX: 54, flowY: 0 },
-        { id: 'channel-drop', x: 3048, y: 3010, w: 110, h: 820, flowX: 0, flowY: 64 },
-        { id: 'channel-east', x: 3158, y: 3560, w: 820, h: 110, flowX: 60, flowY: 0 }
+        { id: 'sewer-west', x: 56, y: 3130, w: 980, h: 184, flowX: 76, flowY: 0 },
+        { id: 'sewer-mid-west', x: 1320, y: 3130, w: 1660, h: 184, flowX: 76, flowY: 0 },
+        { id: 'sewer-mid-east', x: 3420, y: 3130, w: 1660, h: 184, flowX: 76, flowY: 0 },
+        { id: 'sewer-east', x: 5360, y: 3130, w: 984, h: 184, flowX: 76, flowY: 0 },
+        { id: 'spill-west', x: 460, y: 2860, w: 110, h: 270, flowX: 0, flowY: 62 },
+        { id: 'spill-east', x: 5700, y: 2860, w: 110, h: 270, flowX: 0, flowY: 62 },
       );
       this.terrain.subwaySludge.push(
-        { id: 'sludge-0', x: 980, y: 3090, radius: 76, active: true, cooldown: 0 },
-        { id: 'sludge-1', x: 1180, y: 3670, radius: 72, active: true, cooldown: 0 },
-        { id: 'sludge-2', x: 3440, y: 3160, radius: 80, active: true, cooldown: 0 },
-        { id: 'sludge-3', x: 5240, y: 3650, radius: 88, active: true, cooldown: 0 }
+        { id: 'sludge-west', x: 900, y: 3000, radius: 72, active: true, cooldown: 0 },
+        { id: 'sludge-center-left', x: 2260, y: 3520, radius: 70, active: true, cooldown: 0 },
+        { id: 'sludge-center-right', x: 3940, y: 3540, radius: 76, active: true, cooldown: 0 },
+        { id: 'sludge-east', x: 5860, y: 3520, radius: 82, active: true, cooldown: 0 },
+        { id: 'sludge-sewer', x: 3200, y: 3230, radius: 94, active: true, cooldown: 0 },
       );
       this.terrain.subwayWires.push(
-        { x1: 3200, y1: 1080, x2: 4910, y2: 3060 },
-        { x1: 3200, y1: 1080, x2: 1010, y2: 3070 },
-        { x1: 4910, y1: 3060, x2: 5030, y2: 3620 },
-        { x1: 1010, y1: 3070, x2: 1010, y2: 3630 },
-        { x1: 1010, y1: 3070, x2: 3460, y2: 3150 }
+        { x1: 3200, y1: 852, x2: 5700, y2: 2840 },
+        { x1: 3200, y1: 852, x2: 700, y2: 2840 },
+        { x1: 5700, y1: 2840, x2: 5700, y2: 3660 },
+        { x1: 700, y1: 2840, x2: 700, y2: 3660 },
+        { x1: 2100, y1: 2800, x2: 4300, y2: 2800 },
       );
 
-      // Service props.
-      addProp('pipeRack', 980, 2860, 760, 36); addProp('pipeRack', 4900, 2860, 980, 36);
-      addProp('generator', 5100, 3100, 210, 120); addProp('pump', 1020, 3150, 210, 102);
-      addProp('crate', 2240, 3090, 78, 78); addProp('crate', 2330, 3175, 78, 78); addProp('crate', 2420, 3260, 78, 78);
-      addProp('cart', 4460, 3600, 136, 76); addProp('grate', 3230, 3730, 190, 78); addProp('grate', 1270, 3730, 210, 70);
-      addProp('cabinet', 2040, 3550, 120, 70); addProp('cabinet', 4910, 3580, 140, 84);
-      addProp('fence', 3200, 1935, 170, 28); addProp('fence', 1220, 1935, 170, 28); addProp('fence', 5080, 1935, 170, 28);
+      addProp('pipeRack', 670, 2470, 980, 40); addProp('pipeRack', 3200, 2470, 1240, 40); addProp('pipeRack', 5710, 2470, 980, 40);
+      addProp('pump', 650, 2835, 220, 110); addProp('pump', 5700, 2835, 220, 110); addProp('generator', 5700, 3530, 220, 128);
+      addProp('shelf', 1420, 2820, 180, 72); addProp('shelf', 1620, 2820, 180, 72); addProp('workbench', 2440, 2820, 220, 78); addProp('workbench', 3800, 2820, 220, 78);
+      addProp('crate', 2100, 3520, 82, 82); addProp('crate', 2200, 3610, 82, 82); addProp('crate', 2300, 3520, 82, 82); addProp('crate', 2500, 3520, 82, 82);
+      addProp('cabinet', 1420, 3520, 132, 78); addProp('cabinet', 5680, 3520, 148, 90); addProp('cabinet', 3920, 3530, 132, 78);
+      addProp('cart', 2960, 3525, 144, 80); addProp('cart', 4700, 3525, 144, 80); addProp('grate', 3200, 3230, 210, 82); addProp('grate', 1180, 3230, 210, 76); addProp('grate', 5200, 3230, 210, 76);
+      addProp('barrel', 860, 3550, 64, 88); addProp('barrel', 1020, 3550, 64, 88); addProp('barrel', 5480, 3550, 64, 88); addProp('barrel', 5640, 3550, 64, 88);
+      addProp('valve', 1120, 3000, 54, 54); addProp('valve', 5580, 2890, 54, 54); addProp('valve', 5580, 3600, 54, 54);
+      addProp('fence', 1200, 3230, 220, 30); addProp('fence', 3200, 3230, 220, 30); addProp('fence', 5200, 3230, 220, 30);
+      [1160, 3200, 5240].forEach((x) => { addProp('planter', x, 2670, 90, 36); addProp('planter', x, 3770, 90, 36); });
+      [820, 1760, 4040, 5840].forEach((x, i) => addProp('poster', x, 1220, 44, 84, { variant: i & 1 ? 'green' : 'yellow' }));
 
-      const utilityPoints = [
-        ['barricade', 1180, 1760], ['trap', 3200, 1730], ['turret', 5120, 1760],
-        ['barricade', 900, 3550], ['trap', 3220, 3580], ['turret', 5410, 3550]
+      const facilities = [
+        ['barricade', 760, 1460], ['trap', 2420, 1480], ['turret', 5700, 1460],
+        ['barricade', 1710, 2740], ['trap', 3200, 2740], ['turret', 4690, 2740],
+        ['barricade', 1710, 3720], ['trap', 3200, 3720], ['turret', 4690, 3720],
       ];
-      utilityPoints.forEach(([type, x, y], i) => this.installations.push({ id: `underground-facility-${i}`, type, x, y, radius: 24, hp: type === 'barricade' ? 280 : 205, maxHp: type === 'barricade' ? 280 : 205, active: false, team: null, work: 0, cooldown: 0, activeTimer: 0, respawnTimer: 0, destroyedLogged: false, subway: true }));
+      facilities.forEach(([type, x, y], i) => this.installations.push({
+        id: `underground-facility-${i}`, type, x, y, radius: 24,
+        hp: type === 'barricade' ? 280 : 205, maxHp: type === 'barricade' ? 280 : 205,
+        active: false, team: null, work: 0, cooldown: 0, activeTimer: 0, respawnTimer: 0,
+        destroyedLogged: false, subway: true,
+      }));
 
-      const lamps = [[1060, 620], [1820, 620], [2580, 620], [3340, 620], [4100, 620], [4860, 620], [5620, 620], [1000, 1600], [2000, 1600], [3000, 1600], [4000, 1600], [5000, 1600]];
+      const lamps = [
+        [520, 260], [1320, 260], [2120, 260], [2920, 260], [3720, 260], [4520, 260], [5320, 260], [6120, 260],
+        [520, 1260], [1320, 1260], [2120, 1260], [2920, 1260], [3720, 1260], [4520, 1260], [5320, 1260], [6120, 1260],
+      ];
       lamps.forEach(([x, y], i) => this.lightSources.push({ id: `fluorescent-${i}`, kind: 'fluorescent', x, y, radius: 13, hp: 84, maxHp: 84, length: 96, lightRadius: 250, respawnTimer: 0, destroyedLogged: false }));
-      [[700, 1280], [3200, 1280], [5700, 1280], [620, 2960], [3200, 2960], [5740, 2960], [3200, 3880]].forEach(([x, y], i) => this.lightSources.push({ id: `emergency-${i}`, kind: 'emergencyLight', x, y, radius: 11, hp: 72, maxHp: 72, lightRadius: 170, respawnTimer: 0, destroyedLogged: false, emergency: true }));
+      [[1240, 840], [2040, 840], [4360, 840], [5160, 840], [3200, 1730], [180, 2460], [3200, 2460], [6220, 2460], [3200, 4060]].forEach(([x, y], i) => this.lightSources.push({ id: `emergency-${i}`, kind: 'emergencyLight', x, y, radius: 11, hp: 72, maxHp: 72, lightRadius: 170, respawnTimer: 0, destroyedLogged: false, emergency: true }));
       this.lightSources.push(
-        { id: 'platform-switch', kind: 'platformSwitch', x: 3200, y: 1820, radius: 18, hp: 24, maxHp: 24, lightRadius: 0, respawnTimer: 0, destroyedLogged: false },
-        { id: 'watergate-switch', kind: 'waterGateSwitch', x: 1180, y: 3110, radius: 18, hp: 24, maxHp: 24, lightRadius: 0, respawnTimer: 0, destroyedLogged: false },
-        { id: 'breaker-switch', kind: 'breakerSwitch', x: 5050, y: 3590, radius: 18, hp: 24, maxHp: 24, lightRadius: 0, respawnTimer: 0, destroyedLogged: false }
+        { id: 'platform-switch-passenger', kind: 'platformSwitch', x: 3200, y: 1640, radius: 18, hp: 9999, maxHp: 9999, lightRadius: 0, respawnTimer: 0, destroyedLogged: false, subwayControl: true, subwayDoorSide: 'passenger' },
+        { id: 'platform-switch-service', kind: 'platformSwitch', x: 3200, y: 2470, radius: 18, hp: 9999, maxHp: 9999, lightRadius: 0, respawnTimer: 0, destroyedLogged: false, subwayControl: true, subwayDoorSide: 'service' },
+        { id: 'watergate-switch', kind: 'waterGateSwitch', x: 1120, y: 3000, radius: 18, hp: 9999, maxHp: 9999, lightRadius: 0, respawnTimer: 0, destroyedLogged: false, subwayControl: true },
+        { id: 'breaker-switch', kind: 'breakerSwitch', x: 5580, y: 3600, radius: 18, hp: 9999, maxHp: 9999, lightRadius: 0, respawnTimer: 0, destroyedLogged: false, subwayControl: true },
       );
 
       for (let i = 0; i < BASE_PICKUP_COUNT; i++) this.pickups.push(this.makePickup());
@@ -3507,20 +3578,94 @@
 
     syncUndergroundMechanisms() {
       if (this.mapId !== 'underground') return;
-      const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false };
+      const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false, waterLevel: 1, waterTarget: 1, waterTransitionSeconds: 7 };
+      if (!Number.isFinite(subway.waterLevel)) subway.waterLevel = subway.waterDrained ? 0 : 1;
+      if (!Number.isFinite(subway.waterTarget)) subway.waterTarget = subway.waterDrained ? 0 : 1;
+      if (!Number.isFinite(subway.waterTransitionSeconds)) subway.waterTransitionSeconds = 7;
       for (const wall of this.walls) if (wall.subwayDoor) wall.hp = subway.homeDoorsClosed ? wall.maxHp : 0;
     }
 
-    subwayTrainCountdown() { const subway = this.environment.subway || {}; if (subway.trainActive) return 0; return Math.max(0, Math.ceil(subway.trainTimer || 0)); }
-    subwayTrainRect() { if (this.mapId !== 'underground') return null; const subway = this.environment.subway || {}; const track = this.terrain.subwayTracks?.[0]; if (!track || !subway.trainActive) return null; return { x: subway.trainX - 460, y: track.y + 30, w: 920, h: track.h - 60 }; }
-    updateSubwaySystems(dt) {
-      if (this.mapId !== 'underground') return; const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false }; const track = this.terrain.subwayTracks?.[0]; if (!track) return; this.syncUndergroundMechanisms();
-      for (const sludge of this.terrain.subwaySludge || []) { if (sludge.active !== false) continue; sludge.cooldown = Math.max(0, (sludge.cooldown || 0) - dt); if (sludge.cooldown <= 0) sludge.active = true; }
-      if (subway.trainActive) { subway.trainX += subway.trainDirection * dt * 1850; const out = subway.trainDirection > 0 ? subway.trainX - 460 > this.world.w + 220 : subway.trainX + 460 < -220; if (out) { subway.trainActive = false; subway.trainTimer = rand(12, 19); subway.trainDirection *= -1; subway.trainX = subway.trainDirection > 0 ? -600 : this.world.w + 600; } }
-      else { subway.trainTimer -= dt; if (subway.trainTimer <= 0) { subway.trainActive = true; subway.trainDirection = Math.random() < .5 ? 1 : -1; subway.trainX = subway.trainDirection > 0 ? -600 : this.world.w + 600; this.logEvent('subway_train_arrive', '通過電車が進入'); } }
+    subwayWaterLevel() {
+      const subway = this.environment.subway || {};
+      return clamp(Number.isFinite(subway.waterLevel) ? subway.waterLevel : (subway.waterDrained ? 0 : 1), 0, 1);
     }
-    applyUndergroundRailSafety(p, dt) { if (this.mapId !== 'underground' || p.dead) return; const track = this.terrain.subwayTracks?.[0]; const subway = this.environment.subway || {}; if (!track) return; const imminent = subway.trainActive || (subway.trainTimer || 0) < 3.3; if (!imminent) return; const warnZone = { x: track.x, y: track.y - 90, w: track.w, h: track.h + 180 }; if (!this.isPointInRect(p.x, p.y, warnZone)) return; if (p.human && !subway.trainActive) return; const centerY = track.y + track.h / 2; const push = p.y < centerY ? -1 : 1; p.vy += push * p.speed * dt * (subway.trainActive ? 5.4 : 3.2); if (!p.human) p.vx += (p.x < this.world.w / 2 ? -1 : 1) * dt * 12; }
-    checkUndergroundHazards(p) { if (this.mapId !== 'underground' || p.dead) return; const train = this.subwayTrainRect(); if (train && circleRectOverlap(p, train)) { const before = p.hp; this.damagePlayer(p, 9999, null, { x: train.x + train.w / 2, y: train.y + train.h / 2, type:'hazard', name:'通過電車', sourceKey:'subwayTrain' }); if (before > 0 && p.dead) { p.vx += (this.environment.subway?.trainDirection || 1) * 460; this.effects.push({ type:'slash', x:p.x, y:p.y, range:145, angle:0, arc:TAU, ttl:.3, maxTtl:.3, color:'#ffd17a' }); } } }
+
+    subwayTrainCountdown() { const subway = this.environment.subway || {}; if (subway.trainActive) return 0; return Math.max(0, Math.ceil(subway.trainTimer || 0)); }
+    subwayTrainRect(trainX = null) {
+      if (this.mapId !== 'underground') return null;
+      const subway = this.environment.subway || {};
+      const track = this.terrain.subwayTracks?.[0];
+      if (!track || !subway.trainActive) return null;
+      const x = Number.isFinite(trainX) ? trainX : subway.trainX;
+      return { x: x - 460, y: track.y + 10, w: 920, h: track.h - 20 };
+    }
+
+    subwayTrainSweepRect() {
+      const subway = this.environment.subway || {};
+      const current = this.subwayTrainRect(subway.trainX);
+      if (!current) return null;
+      const previous = this.subwayTrainRect(Number.isFinite(subway.trainPrevX) ? subway.trainPrevX : subway.trainX);
+      const left = Math.min(current.x, previous.x);
+      const right = Math.max(current.x + current.w, previous.x + previous.w);
+      return { x: left, y: current.y, w: right - left, h: current.h };
+    }
+    updateSubwaySystems(dt) {
+      if (this.mapId !== 'underground') return;
+      const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false, waterLevel: 1, waterTarget: 1, waterTransitionSeconds: 7, doorControlCooldown: 0, doorControlCooldownMax: 4.5 };
+      const track = this.terrain.subwayTracks?.[0];
+      if (!track) return;
+      subway.doorControlCooldown = Math.max(0, (subway.doorControlCooldown || 0) - dt);
+      if (!Number.isFinite(subway.waterLevel)) subway.waterLevel = subway.waterDrained ? 0 : 1;
+      if (!Number.isFinite(subway.waterTarget)) subway.waterTarget = subway.waterDrained ? 0 : 1;
+      const waterTarget = clamp(subway.waterTarget, 0, 1);
+      const waterStep = dt / Math.max(1, Number(subway.waterTransitionSeconds || 7));
+      if (subway.waterLevel < waterTarget) subway.waterLevel = Math.min(waterTarget, subway.waterLevel + waterStep);
+      else if (subway.waterLevel > waterTarget) subway.waterLevel = Math.max(waterTarget, subway.waterLevel - waterStep);
+      this.syncUndergroundMechanisms();
+      for (const sludge of this.terrain.subwaySludge || []) {
+        if (sludge.active !== false) continue;
+        sludge.cooldown = Math.max(0, (sludge.cooldown || 0) - dt);
+        if (sludge.cooldown <= 0) sludge.active = true;
+      }
+      if (subway.trainActive) {
+        subway.trainPrevX = subway.trainX;
+        subway.trainX += subway.trainDirection * dt * 1850;
+        const out = subway.trainDirection > 0 ? subway.trainX - 460 > this.world.w + 220 : subway.trainX + 460 < -220;
+        if (out) {
+          subway.trainActive = false;
+          subway.trainTimer = rand(12, 19);
+          subway.trainDirection *= -1;
+          subway.trainX = subway.trainDirection > 0 ? -600 : this.world.w + 600;
+          subway.trainPrevX = subway.trainX;
+        }
+      } else {
+        subway.trainTimer -= dt;
+        if (subway.trainTimer <= 0) {
+          subway.trainActive = true;
+          subway.trainDirection = Math.random() < .5 ? 1 : -1;
+          subway.trainX = subway.trainDirection > 0 ? -600 : this.world.w + 600;
+          subway.trainPrevX = subway.trainX;
+          this.logEvent('subway_train_arrive', '通過電車が進入');
+        }
+      }
+    }
+    applyUndergroundRailSafety() {
+      // No automatic push or dodge assistance. Entering the track is always the player's responsibility.
+    }
+
+    checkUndergroundHazards(p) {
+      if (this.mapId !== 'underground' || p.dead) return;
+      const train = this.subwayTrainRect();
+      const sweep = this.subwayTrainSweepRect();
+      if (!train || (!circleRectOverlap(p, train) && !circleRectOverlap(p, sweep))) return;
+      const direction = this.environment.subway?.trainDirection || 1;
+      p.vx = direction * 560;
+      p.vy *= .2;
+      this.effects.push({ type: 'slash', x: p.x, y: p.y, range: 160, angle: 0, arc: TAU, style: 'subwayTrain', ttl: .34, maxTtl: .34, color: '#ffd17a' });
+      if (p.isDefenseEnemy) this.defeatDefenseEnemy(p, null, '通過電車');
+      else this.bailout(p, null, '通過電車', { kind: 'hazard' });
+      this.logEvent('subway_train_hit', p.id, false);
+    }
     igniteSubwaySludge(sludge, ownerId, team) { if (!sludge || sludge.active === false) return; sludge.active = false; sludge.cooldown = rand(34, 52); this.effects.push({ type:'gasBurst', x: sludge.x, y: sludge.y, radius: 210, ttl:.72, maxTtl:.72 }); this.explode(sludge.x, sludge.y, 210, 112, ownerId, team, null, '汚泥爆発', { sourceKey:'subwaySludgeExplosion', sludgeChain:true }); }
 
     generateDesertArena() {
@@ -3673,21 +3818,53 @@
       this.lightSources=points.slice(0,34).map((p,i)=>({id:`light-${i}`,x:p.x,y:p.y,radius:15,hp:95,maxHp:95,lightRadius:255+(i%3)*25,respawnTimer:0,destroyedLogged:false}));
     }
 
+    tryInteractSubwayControl(actor) {
+      if (this.mapId !== 'underground' || !actor || actor.dead) return false;
+      const controls = this.lightSources
+        .filter((light) => light.subwayControl && light.hp > 0)
+        .map((light) => ({ light, distance: Math.hypot(light.x - actor.x, light.y - actor.y) }))
+        .filter((entry) => entry.distance <= 112)
+        .sort((a, b) => a.distance - b.distance);
+      if (!controls.length) return false;
+      const control = controls[0].light;
+      const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false, doorControlCooldown: 0, doorControlCooldownMax: 4.5 };
+      let stateText = '';
+      if (control.kind === 'platformSwitch') {
+        if ((subway.doorControlCooldown || 0) > 0) {
+          this.toast(`ホームドア操作待機 ${Math.ceil(subway.doorControlCooldown)}秒`);
+          return true;
+        }
+        subway.homeDoorsClosed = !subway.homeDoorsClosed;
+        subway.doorControlCooldown = subway.doorControlCooldownMax || 4.5;
+        for (const linked of this.lightSources.filter((light) => light.kind === 'platformSwitch')) linked.cooldown = subway.doorControlCooldown;
+        stateText = `両側ホームドア${subway.homeDoorsClosed ? '閉' : '開'} / 再操作まで${Math.ceil(subway.doorControlCooldown)}秒`;
+      } else {
+        if ((control.cooldown || 0) > 0) return true;
+        if (control.kind === 'waterGateSwitch') {
+          subway.waterDrained = !subway.waterDrained;
+          subway.waterTarget = subway.waterDrained ? 0 : 1;
+          if (!Number.isFinite(subway.waterLevel)) subway.waterLevel = subway.waterDrained ? 1 : 0;
+          stateText = subway.waterDrained ? '水門開放・排水開始' : '水門閉鎖・注水開始';
+        } else if (control.kind === 'breakerSwitch') {
+          subway.breakerOff = !subway.breakerOff;
+          stateText = `ブレーカー${subway.breakerOff ? 'OFF' : 'ON'}`;
+        } else {
+          return false;
+        }
+        control.cooldown = .65;
+      }
+      this.syncUndergroundMechanisms();
+      this.toast(stateText);
+      this.logEvent('subway_switch_toggle', stateText, false);
+      return true;
+    }
+
     updateLightSources(dt){
       for(let i=this.lightSources.length-1;i>=0;i--){
         const light=this.lightSources[i];
         if(['platformSwitch','waterGateSwitch','breakerSwitch'].includes(light.kind)){
           light.cooldown = Math.max(0, (light.cooldown || 0) - dt);
-          if(light.hp <= 0 && light.cooldown <= 0){
-            const subway = this.environment.subway ||= { trainTimer: 12, trainActive: false, trainDirection: 1, trainX: -1200, homeDoorsClosed: true, breakerOff: false, waterDrained: false };
-            if(light.kind === 'platformSwitch') subway.homeDoorsClosed = !subway.homeDoorsClosed;
-            else if(light.kind === 'waterGateSwitch') subway.waterDrained = !subway.waterDrained;
-            else if(light.kind === 'breakerSwitch') subway.breakerOff = !subway.breakerOff;
-            light.hp = light.maxHp;
-            light.cooldown = .7;
-            this.syncUndergroundMechanisms();
-            this.logEvent('subway_switch_toggle', `${light.kind} ${subway.homeDoorsClosed ? 'closed' : 'open'}` , false);
-          }
+          light.hp = light.maxHp;
           continue;
         }
         if(light.kind==='sakeBarrel'){
@@ -3756,10 +3933,32 @@
     }
 
     isPointInRect(x,y,r){ return x>=r.x&&x<=r.x+r.w&&y>=r.y&&y<=r.y+r.h; }
+    isOnSubwayCrossing(x, y, margin = 0) {
+      if (this.mapId !== 'underground') return false;
+      return (this.terrain.subwayCrossings || []).some((cross) => x >= cross.x - margin && x <= cross.x + cross.w + margin && y >= cross.y - margin && y <= cross.y + cross.h + margin);
+    }
+    isOnSubwayTrack(x, y, margin = 0) {
+      if (this.mapId !== 'underground') return false;
+      if (this.isOnSubwayCrossing(x, y, Math.max(0, margin * .35))) return false;
+      return (this.terrain.subwayTracks || []).some((track) => x >= track.x - margin && x <= track.x + track.w + margin && y >= track.y - margin && y <= track.y + track.h + margin);
+    }
+    isUndergroundSafePoint(x, y, margin = 36) {
+      if (this.mapId !== 'underground') return true;
+      const bounds = this.subwayBounds || { x: 56, y: 56, w: this.world.w - 112, h: this.world.h - 112 };
+      if (x < bounds.x + margin || x > bounds.x + bounds.w - margin || y < bounds.y + margin || y > bounds.y + bounds.h - margin) return false;
+      if (this.isOnSubwayTrack(x, y, margin)) return false;
+      if ((this.terrain.subwaySludge || []).some((zone) => zone.active !== false && Math.hypot(x - zone.x, y - zone.y) < zone.radius + margin)) return false;
+      if (this.subwayWaterLevel() > .18 && (this.terrain.subwayWaterways || []).some((water) => x >= water.x - margin && x <= water.x + water.w + margin && y >= water.y - margin && y <= water.y + water.h + margin)) return false;
+      return true;
+    }
     isOnActiveBridge(x,y){ return this.terrain.bridges.some(b=>{ const wall=this.walls.find(w=>w.id===b.id); return wall&&wall.hp>0&&this.isPointInRect(x,y,b); }); }
     isInRiver(x,y){ const river=this.terrain.rivers[0]; return Boolean(river)&&Math.abs(y-this.riverCenterAt(x))<river.width/2&&!this.isOnActiveBridge(x,y); }
-    makePickup(x = rand(50, this.world.w - 50), y = rand(50, this.world.h - 50), value = rand(1.5, 4), options = {}) {
+    makePickup(x = null, y = null, value = rand(1.5, 4), options = {}) {
       const temporary = Boolean(options.temporary);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || (this.mapId === 'underground' && !temporary && !this.isUndergroundSafePoint(x, y, 12))) {
+        if (this.mapId === 'underground') { const point = this.randomOpenPoint(null); x = point.x; y = point.y; }
+        else { x = rand(50, this.world.w - 50); y = rand(50, this.world.h - 50); }
+      }
       return {
         id: `pickup-${performance.now()}-${Math.random()}`,
         x, y, radius: 3 + value * 0.55, value, pulse: rand(0, TAU), active: true, respawn: 0,
@@ -4092,6 +4291,7 @@
           radius: 60,
         };
         if (this.isInRiver(point.x, point.y)) continue;
+        if (this.mapId === 'underground' && !this.isUndergroundSafePoint(point.x, point.y, point.radius)) continue;
         if (this.walls.some((wall) => wall.hp > 0 && !wall.nonBlocking && circleRectOverlap(point, wall))) continue;
         return point;
       }
@@ -4319,6 +4519,7 @@
         const point = { x: flag.x + Math.cos(angle) * radius, y: flag.y + Math.sin(angle) * radius, angle };
         if (point.x < 80 || point.y < 80 || point.x > this.world.w - 80 || point.y > this.world.h - 80) continue;
         if (this.isInRiver(point.x, point.y)) continue;
+        if (this.mapId === 'underground' && !this.isUndergroundSafePoint(point.x, point.y, 52)) continue;
         if (this.walls.some((wall) => wall.hp > 0 && Math.hypot(wall.x + wall.w / 2 - point.x, wall.y + wall.h / 2 - point.y) < 82)) continue;
         if (this.installations.some((facility) => facility.hp > 0 && Math.hypot(facility.x - point.x, facility.y - point.y) < 86)) continue;
         if (this.beacons.some((beacon) => beacon.hp > 0 && Math.hypot(beacon.x - point.x, beacon.y - point.y) < 58)) continue;
@@ -5125,6 +5326,7 @@
         }
         const point = { x: rand(minX, maxX), y: rand(minY, maxY), radius: 35 };
         if (this.isInRiver(point.x, point.y)) continue;
+        if (this.mapId === 'underground' && !this.isUndergroundSafePoint(point.x, point.y, point.radius)) continue;
         if (this.mapId === 'desert' && this.terrain.quicksand.some((zone) => this.isInCircleZone(point.x, point.y, zone))) continue;
         if (this.mapId === 'desert' && this.terrain.gasFields.some((zone) => zone.active && Math.hypot(point.x - zone.x, point.y - zone.y) < zone.radius + 80)) continue;
         if (this.walls.some((w) => w.hp > 0 && !w.nonBlocking && circleRectOverlap(point, w))) continue;
@@ -5282,6 +5484,7 @@
       if (this.spectating && this.actionConsume('spectatorPrev')) this.ensureSpectatorTarget(-1);
       if (this.spectating && this.actionConsume('spectatorNext')) this.ensureSpectatorTarget(1);
       if (this.actionConsume('utility') && this.isPlayerCombatant && !this.human.dead && !this.spectating) {
+        if (this.tryInteractSubwayControl(this.human)) return;
         this.human.trapMode = (this.human.trapMode + 1) % 3;
         this.toast(`スイッチボックス：${['攻撃', '拘束', '加速'][this.human.trapMode]}トラップ`);
       }
@@ -7747,12 +7950,12 @@
     damageWorldArc(x,y,angle,range,arc,damage,team){
       for(const wall of this.walls){if(!Number.isFinite(wall.hp)||wall.hp<=0)continue;const cx=wall.x+wall.w/2,cy=wall.y+wall.h/2,d=Math.hypot(cx-x,cy-y);if(d>range+Math.max(wall.w,wall.h)/2)continue;if(Math.abs(angleDiff(Math.atan2(cy-y,cx-x),angle))<=arc/2+.2)wall.hp-=damage;}
       for(const f of this.installations){if(f.hp<=0||(this.config.mode==='team'&&f.team===team))continue;const d=Math.hypot(f.x-x,f.y-y);if(d<=range+f.radius&&Math.abs(angleDiff(Math.atan2(f.y-y,f.x-x),angle))<=arc/2+.2)f.hp-=damage;}
-      for(const light of this.lightSources){if(light.hp<=0)continue;const d=Math.hypot(light.x-x,light.y-y);if(d<=range+light.radius&&Math.abs(angleDiff(Math.atan2(light.y-y,light.x-x),angle))<=arc/2+.2)light.hp-=damage;}
+      for(const light of this.lightSources){if(light.hp<=0||light.subwayControl)continue;const d=Math.hypot(light.x-x,light.y-y);if(d<=range+light.radius&&Math.abs(angleDiff(Math.atan2(light.y-y,light.x-x),angle))<=arc/2+.2)light.hp-=damage;}
     }
     damageWorldSegment(ax,ay,bx,by,damage,team,width=18){
       for(const wall of this.walls){if(!Number.isFinite(wall.hp)||wall.hp<=0)continue;const hit=segmentPointDistance(ax,ay,bx,by,wall.x+wall.w/2,wall.y+wall.h/2);if(hit.distance<width+Math.max(wall.w,wall.h)*.45)wall.hp-=damage;}
       for(const f of this.installations){if(f.hp<=0||(this.config.mode==='team'&&f.team===team))continue;const hit=segmentPointDistance(ax,ay,bx,by,f.x,f.y);if(hit.distance<width+f.radius)f.hp-=damage;}
-      for(const light of this.lightSources){if(light.hp<=0)continue;const hit=segmentPointDistance(ax,ay,bx,by,light.x,light.y);if(hit.distance<width+light.radius)light.hp-=damage;}
+      for(const light of this.lightSources){if(light.hp<=0||light.subwayControl)continue;const hit=segmentPointDistance(ax,ay,bx,by,light.x,light.y);if(hit.distance<width+light.radius)light.hp-=damage;}
     }
 
     explode(x, y, radius, damage, ownerId, team, excludeId = null, sourceName = 'メテオラ', context = {}) {
@@ -7793,7 +7996,7 @@
       }
       for(const f of this.installations){if(f.hp<=0||((this.config.mode==='team'||this.isDefenseMode)&&f.team===team))continue;const d=Math.hypot(f.x-x,f.y-y);if(d<radius+f.radius)f.hp-=damage*(1-clamp(d/(radius+1),0,.85));}
       for(const beacon of this.beacons){if(beacon.hp<=0||((this.config.mode==='team'||this.isDefenseMode)&&beacon.team===team))continue;const d=Math.hypot(beacon.x-x,beacon.y-y);if(d<radius+(beacon.radius||9))beacon.hp-=damage*(1-clamp(d/(radius+1),0,.85));}
-      for(const light of this.lightSources){if(light.hp<=0)continue;const d=Math.hypot(light.x-x,light.y-y);if(d<radius+light.radius)light.hp-=damage*(1-clamp(d/(radius+1),0,.85));}
+      for(const light of this.lightSources){if(light.hp<=0||light.subwayControl)continue;const d=Math.hypot(light.x-x,light.y-y);if(d<radius+light.radius)light.hp-=damage*(1-clamp(d/(radius+1),0,.85));}
       for (const mine of [...this.mines]) if (Math.hypot(mine.x - x, mine.y - y) < radius + 35) this.detonateMine(mine);
       for (const wire of this.wires) {
         const hit = segmentPointDistance(wire.x1, wire.y1, wire.x2, wire.y2, x, y);
@@ -8614,187 +8817,152 @@ renderUndergroundTerrainChunk(chunk) {
       ctx.imageSmoothingEnabled = false;
       ctx.save();
       ctx.translate(-chunk.x, -chunk.y);
-      ctx.beginPath();
-      ctx.rect(chunk.x, chunk.y, chunk.width, chunk.height);
-      ctx.clip();
+      ctx.beginPath(); ctx.rect(chunk.x, chunk.y, chunk.width, chunk.height); ctx.clip();
       const x0 = chunk.x, y0 = chunk.y, x1 = x0 + chunk.width, y1 = y0 + chunk.height;
-      const inChunk = (r) => !(r.x > x1 || r.x + r.w < x0 || r.y > y1 || r.y + r.h < y0);
-      const fillTiles = (rect, stepX, stepY, colors, border = null) => {
-        if (!inChunk(rect)) return;
-        const startY = Math.floor((Math.max(rect.y, y0) - rect.y) / stepY) * stepY + rect.y;
-        const startXBase = Math.floor((Math.max(rect.x, x0) - rect.x) / stepX) * stepX + rect.x;
-        for (let ty = startY; ty < rect.y + rect.h && ty < y1; ty += stepY) {
-          for (let tx = startXBase; tx < rect.x + rect.w && tx < x1; tx += stepX) {
-            const ix = ((tx - rect.x) / stepX) | 0;
-            const iy = ((ty - rect.y) / stepY) | 0;
-            const color = typeof colors === 'function' ? colors(ix, iy, tx, ty) : colors[(ix + iy) % colors.length];
-            ctx.fillStyle = color;
-            ctx.fillRect(tx, ty, Math.min(stepX, rect.x + rect.w - tx), Math.min(stepY, rect.y + rect.h - ty));
-            if (border) {
-              ctx.fillStyle = border.light;
-              ctx.fillRect(tx, ty, Math.min(stepX, rect.x + rect.w - tx), 2);
-              ctx.fillRect(tx, ty, 2, Math.min(stepY, rect.y + rect.h - ty));
-              ctx.fillStyle = border.shadow;
-              ctx.fillRect(tx, ty + Math.min(stepY, rect.y + rect.h - ty) - 2, Math.min(stepX, rect.x + rect.w - tx), 2);
-              ctx.fillRect(tx + Math.min(stepX, rect.x + rect.w - tx) - 2, ty, 2, Math.min(stepY, rect.y + rect.h - ty));
-            }
+      const visible = (r) => !(r.x > x1 || r.x + r.w < x0 || r.y > y1 || r.y + r.h < y0);
+      const tiled = (r, size, palette, inset = 1) => {
+        if (!visible(r)) return;
+        const sx = Math.floor(Math.max(r.x, x0) / size) * size;
+        const sy = Math.floor(Math.max(r.y, y0) / size) * size;
+        for (let y = sy; y < Math.min(r.y + r.h, y1); y += size) {
+          for (let x = sx; x < Math.min(r.x + r.w, x1); x += size) {
+            if (x + size < r.x || y + size < r.y) continue;
+            const ix = Math.floor((x - r.x) / size), iy = Math.floor((y - r.y) / size);
+            const base = palette[(ix * 3 + iy * 5) % palette.length];
+            ctx.fillStyle = base; ctx.fillRect(x, y, size, size);
+            ctx.fillStyle = 'rgba(255,255,255,.045)'; ctx.fillRect(x + inset + 1, y + inset + 1, Math.max(2, size - inset * 2 - 3), 1);
+            ctx.fillStyle = 'rgba(0,0,0,.14)'; ctx.fillRect(x + size - inset - 3, y + size - inset - 2, 2, 1);
+            if (((ix + iy) & 3) === 0) { ctx.fillStyle = 'rgba(255,255,255,.035)'; ctx.fillRect(x + size - 5, y + 4, 2, 2); }
           }
         }
       };
-      const drawRoom = (room) => {
-        if (!inChunk(room)) return;
-        const palettes = {
-          pump: ['#56676d', '#60727a'],
-          drain: ['#4d5e66', '#556770'],
-          storage: ['#60594f', '#6b6458'],
-          workshop: ['#6a6d63', '#75796d'],
-          ops: ['#55636b', '#61717b'],
-          electrical: ['#494d57', '#555b66'],
-          breaker: ['#4a5058', '#565e67'],
-        };
-        const colors = palettes[room.subwayRoomType] || ['#515e65', '#5c6a72'];
-        fillTiles(room, 16, 16, colors, { light: 'rgba(255,255,255,.06)', shadow: 'rgba(0,0,0,.18)' });
-        ctx.strokeStyle = 'rgba(23,28,31,.55)';
-        ctx.lineWidth = 4;
-        ctx.strokeRect(room.x + 2, room.y + 2, room.w - 4, room.h - 4);
-      };
 
-      ctx.fillStyle = '#141c22';
-      ctx.fillRect(x0, y0, chunk.width, chunk.height);
-      fillTiles({ x: x0, y: y0, w: chunk.width, h: chunk.height }, 16, 16, (ix, iy) => {
-        const palette = ['#1a242b', '#1d2931', '#202c34', '#1c2730'];
-        return palette[(ix * 3 + iy * 5) & 3];
-      }, { light: 'rgba(255,255,255,.04)', shadow: 'rgba(0,0,0,.15)' });
+      ctx.fillStyle = '#11181e'; ctx.fillRect(x0, y0, chunk.width, chunk.height);
+      tiled({ x: 0, y: 0, w: this.world.w, h: this.world.h }, 16, ['#182229', '#1b262d', '#1e2930', '#202c33']);
 
       for (const zone of this.terrain.subwayPassengerZones || []) {
-        if (!inChunk(zone)) continue;
         if (zone.id === 'concourse') {
-          fillTiles(zone, 24, 24, ['#546168', '#5f6e76'], { light: 'rgba(255,255,255,.10)', shadow: 'rgba(0,0,0,.18)' });
-          ctx.fillStyle = '#6d7d84'; ctx.fillRect(zone.x, zone.y, zone.w, 18); ctx.fillRect(zone.x, zone.y + zone.h - 18, zone.w, 18);
-          ctx.fillStyle = '#2d3a41'; ctx.fillRect(zone.x, zone.y + 18, zone.w, 5);
+          tiled(zone, 16, ['#536168', '#5e6d74', '#66747a']);
+          ctx.fillStyle = '#75838a'; ctx.fillRect(zone.x, zone.y, zone.w, 16); ctx.fillRect(zone.x, zone.y + zone.h - 16, zone.w, 16);
+          for (let x = zone.x + 32; x < zone.x + zone.w; x += 96) { ctx.fillStyle = '#8c989e'; ctx.fillRect(x, zone.y + 22, 48, 4); }
         } else {
-          fillTiles(zone, 20, 20, ['#70797f', '#7c858b'], { light: 'rgba(255,255,255,.08)', shadow: 'rgba(0,0,0,.20)' });
-          ctx.fillStyle = '#d2bc58'; ctx.fillRect(zone.x, zone.y + 18, zone.w, 16);
-          for (let x = zone.x + 6; x < zone.x + zone.w; x += 24) {
-            ctx.fillStyle = ((x / 24) & 1) ? '#d9ca79' : '#7c6830';
-            ctx.fillRect(x, zone.y + 19, 12, 14);
-          }
-          ctx.fillStyle = '#49555c'; ctx.fillRect(zone.x, zone.y + zone.h - 24, zone.w, 18);
+          tiled(zone, 16, ['#6f787e', '#7b858a', '#838c91']);
+          ctx.fillStyle = '#424c52'; ctx.fillRect(zone.x, zone.y, zone.w, 18);
+          ctx.fillStyle = '#d2b94f'; ctx.fillRect(zone.x, zone.y + zone.h - 44, zone.w, 18);
+          for (let x = zone.x + 8; x < zone.x + zone.w; x += 24) { ctx.fillStyle = ((x / 24) & 1) ? '#e2ce75' : '#78652d'; ctx.fillRect(x, zone.y + zone.h - 42, 12, 14); }
         }
       }
 
       for (const track of this.terrain.subwayTracks || []) {
-        if (!inChunk(track)) continue;
-        ctx.fillStyle = '#0b1115'; ctx.fillRect(track.x, track.y, track.w, track.h);
-        ctx.fillStyle = '#1d262b'; ctx.fillRect(track.x, track.y + 34, track.w, track.h - 68);
-        fillTiles({ x: track.x + 20, y: track.y + 62, w: track.w - 40, h: track.h - 124 }, 32, 16, ['#2d3132', '#353a3c', '#403a34'], { light: 'rgba(255,255,255,.03)', shadow: 'rgba(0,0,0,.18)' });
-        for (let x = track.x + 30; x < track.x + track.w - 20; x += 52) {
-          ctx.fillStyle = '#60462f'; ctx.fillRect(x, track.y + 96, 20, track.h - 192);
-          ctx.fillRect(x + 22, track.y + 96, 20, track.h - 192);
+        if (!visible(track)) continue;
+        ctx.fillStyle = '#080d11'; ctx.fillRect(track.x, track.y, track.w, track.h);
+        tiled({ x: track.x, y: track.y + 28, w: track.w, h: track.h - 56 }, 16, ['#262b2d', '#303638', '#373b3b']);
+        for (let x = track.x + 20; x < track.x + track.w; x += 48) {
+          ctx.fillStyle = '#5d4633'; ctx.fillRect(x, track.y + 82, 18, track.h - 164);
+          ctx.fillRect(x + 20, track.y + 82, 18, track.h - 164);
         }
-        ctx.fillStyle = '#c5d0d4'; ctx.fillRect(track.x, track.y + 106, track.w, 8); ctx.fillRect(track.x, track.y + track.h - 114, track.w, 8);
-        ctx.fillStyle = '#8b969b'; ctx.fillRect(track.x, track.y + 102, track.w, 3); ctx.fillRect(track.x, track.y + track.h - 109, track.w, 3);
-        ctx.fillStyle = '#0b1115'; ctx.fillRect(track.x + 240, track.y + 148, track.w - 480, 56);
+        ctx.fillStyle = '#c8d2d5'; ctx.fillRect(track.x, track.y + 98, track.w, 7); ctx.fillRect(track.x, track.y + track.h - 105, track.w, 7);
+        ctx.fillStyle = '#899499'; ctx.fillRect(track.x, track.y + 94, track.w, 3); ctx.fillRect(track.x, track.y + track.h - 101, track.w, 3);
+        ctx.fillStyle = '#080d11'; ctx.fillRect(track.x + 48, track.y + track.h / 2 - 24, track.w - 96, 48);
       }
 
-      for (const zone of this.terrain.subwayServiceZones || []) {
-        if (!inChunk(zone)) continue;
-        fillTiles(zone, 16, 16, ['#39454b', '#415057'], { light: 'rgba(255,255,255,.05)', shadow: 'rgba(0,0,0,.22)' });
-        ctx.fillStyle = '#2d393f'; ctx.fillRect(zone.x, zone.y, zone.w, 18);
-      }
-      for (const room of this.terrain.buildings.filter((b) => b.subwayRoom)) drawRoom(room);
-
+      for (const zone of this.terrain.subwayServiceZones || []) tiled(zone, 16, ['#37444a', '#3f4d54', '#45545a']);
       for (const road of this.terrain.roads || []) {
-        if (!road.id || !road.id.startsWith('service-') || !inChunk(road)) continue;
-        fillTiles(road, 16, 16, ['#616b70', '#70797f'], { light: 'rgba(255,255,255,.08)', shadow: 'rgba(0,0,0,.15)' });
+        if (!String(road.id || '').startsWith('service-')) continue;
+        tiled(road, 16, ['#606b70', '#69747a', '#737d82']);
+        ctx.fillStyle = 'rgba(220,230,232,.08)'; ctx.fillRect(road.x, road.y, road.w, 4);
+      }
+      for (const plaza of this.terrain.plazas || []) {
+        if (!plaza.service) continue;
+        tiled(plaza, 16, ['#68757a', '#748086', '#7c888d']);
+        ctx.fillStyle = '#334148'; ctx.fillRect(plaza.x, plaza.y, plaza.w, 10); ctx.fillRect(plaza.x, plaza.y + plaza.h - 10, plaza.w, 10);
       }
 
-      ctx.strokeStyle = 'rgba(210,181,88,.45)'; ctx.lineWidth = 4;
-      for (const wire of this.terrain.subwayWires || []) {
-        const minX = Math.min(wire.x1, wire.x2), minY = Math.min(wire.y1, wire.y2), maxX = Math.max(wire.x1, wire.x2), maxY = Math.max(wire.y1, wire.y2);
-        if (maxX < x0 || minX > x1 || maxY < y0 || minY > y1) continue;
-        ctx.beginPath(); ctx.moveTo(wire.x1, wire.y1); ctx.lineTo(wire.x2, wire.y2); ctx.stroke();
+      const roomPalettes = {
+        pump: ['#4d656d', '#56717a'], drain: ['#455b64', '#506872'], storage: ['#645b4e', '#706657'],
+        ops: ['#4e626d', '#5a707c'], workshop: ['#62665e', '#6d7268'], maintenance: ['#505a60', '#5b666c'],
+        electrical: ['#484e5a', '#535b68'], breaker: ['#444b54', '#505a64'], tenant: ['#6c6356', '#7a7061'],
+      };
+      for (const room of this.terrain.buildings.filter((b) => b.subwayRoom)) {
+        tiled(room, 16, roomPalettes[room.subwayRoomType] || ['#525f66', '#5d6a71']);
+        ctx.strokeStyle = 'rgba(14,19,22,.65)'; ctx.lineWidth = 4; ctx.strokeRect(room.x + 2, room.y + 2, room.w - 4, room.h - 4);
+        if (room.subwayRoomType === 'tenant') {
+          ctx.fillStyle = '#3a2f28'; ctx.fillRect(room.x + 16, room.y + room.h - 56, room.w - 32, 28);
+          ctx.fillStyle = '#d4b35d'; for (let x = room.x + 24; x < room.x + room.w - 30; x += 48) ctx.fillRect(x, room.y + room.h - 52, 24, 8);
+        }
       }
 
       for (const water of this.terrain.subwayWaterways || []) {
-        if (!inChunk(water)) continue;
-        fillTiles(water, 16, 16, ['#2c4f59', '#345d66'], { light: 'rgba(180,235,245,.18)', shadow: 'rgba(0,0,0,.18)' });
-        ctx.fillStyle = 'rgba(255,255,255,.10)'; ctx.fillRect(water.x, water.y, water.w, 4);
-        ctx.fillStyle = '#5a666c'; ctx.fillRect(water.x, water.y - 6, water.w, 6); ctx.fillRect(water.x, water.y + water.h, water.w, 6);
+        if (!visible(water)) continue;
+        ctx.fillStyle = '#20292d'; ctx.fillRect(water.x, water.y, water.w, water.h);
+        tiled(water, 16, ['#273238', '#2e3a40']);
+        ctx.fillStyle = '#68757a';
+        if (water.w >= water.h) { ctx.fillRect(water.x, water.y - 6, water.w, 6); ctx.fillRect(water.x, water.y + water.h, water.w, 6); }
+        else { ctx.fillRect(water.x - 6, water.y, 6, water.h); ctx.fillRect(water.x + water.w, water.y, 6, water.h); }
       }
 
-      for (const prop of this.terrain.subwayProps || []) {
-        const rect = { x: (prop.x || 0) - (prop.w || 0) / 2, y: (prop.y || 0) - (prop.h || 0) / 2, w: prop.w || 0, h: prop.h || 0 };
+      ctx.strokeStyle = 'rgba(218,186,86,.42)'; ctx.lineWidth = 4;
+      for (const wire of this.terrain.subwayWires || []) { ctx.beginPath(); ctx.moveTo(wire.x1, wire.y1); ctx.lineTo(wire.x2, wire.y2); ctx.stroke(); }
+
+      const drawProp = (prop) => {
+        const r = { x: prop.x - prop.w / 2, y: prop.y - prop.h / 2, w: prop.w, h: prop.h };
+        if (!visible(r)) return;
         if (prop.kind === 'pillar') {
-          if (prop.x + prop.w / 2 < x0 || prop.x - prop.w / 2 > x1 || prop.y + prop.h / 2 < y0 || prop.y - prop.h / 2 > y1) continue;
-          ctx.fillStyle = '#49545b'; ctx.fillRect(prop.x - prop.w / 2, prop.y - prop.h / 2, prop.w, prop.h);
-          ctx.fillStyle = '#97a2a7'; ctx.fillRect(prop.x - prop.w / 2 + 6, prop.y - prop.h / 2 + 6, prop.w - 12, prop.h - 12);
-          ctx.fillStyle = '#dce7ea'; ctx.fillRect(prop.x - prop.w / 2 + 8, prop.y - prop.h / 2 + 8, prop.w - 16, 4);
-          continue;
-        }
-        if (!inChunk(rect)) continue;
-        if (prop.kind === 'bench') {
-          ctx.fillStyle = prop.variant === 'metal' ? '#4b5b64' : '#4a4038';
-          ctx.fillRect(rect.x, rect.y + 8, rect.w, rect.h - 10);
-          ctx.fillStyle = prop.variant === 'metal' ? '#90a0a9' : '#8f623b';
-          ctx.fillRect(rect.x + 8, rect.y, rect.w - 16, 12);
-          ctx.fillRect(rect.x + 10, rect.y + 18, rect.w - 20, 6);
-        } else if (prop.kind === 'locker') {
-          ctx.fillStyle = '#263038'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-          for (let i = 0; i < Math.max(1, Math.floor(rect.w / 42)); i++) {
-            ctx.fillStyle = i & 1 ? '#546874' : '#5f7380';
-            ctx.fillRect(rect.x + 8 + i * 39, rect.y + 8, 32, rect.h - 16);
-            ctx.fillStyle = '#c8d4da'; ctx.fillRect(rect.x + 35 + i * 39, rect.y + 20, 2, 14);
-          }
-        } else if (prop.kind === 'vending') {
-          ctx.fillStyle = '#202a32'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-          ctx.fillStyle = '#4ea0d8'; ctx.fillRect(rect.x + 10, rect.y + 10, rect.w - 20, 36);
-          ctx.fillStyle = '#edf5f6'; for (let i = 0; i < 4; i++) ctx.fillRect(rect.x + 16, rect.y + 56 + i * 16, rect.w - 32, 8);
-          ctx.fillStyle = '#697c86'; ctx.fillRect(rect.x + rect.w - 22, rect.y + 56, 10, rect.h - 70);
+          ctx.fillStyle = '#424d54'; ctx.fillRect(r.x, r.y, r.w, r.h);
+          ctx.fillStyle = '#9aa6ab'; ctx.fillRect(r.x + 6, r.y + 6, r.w - 12, r.h - 12);
+          ctx.fillStyle = '#d8e1e4'; ctx.fillRect(r.x + 8, r.y + 8, r.w - 16, 4);
+        } else if (prop.kind === 'bench') {
+          ctx.fillStyle = '#303a40'; ctx.fillRect(r.x, r.y + 10, r.w, r.h - 12);
+          ctx.fillStyle = prop.variant === 'metal' ? '#8d9da5' : '#8d623e'; ctx.fillRect(r.x + 8, r.y, r.w - 16, 12); ctx.fillRect(r.x + 12, r.y + 20, r.w - 24, 7);
         } else if (prop.kind === 'ticketBooth') {
-          ctx.fillStyle = '#29343c'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-          ctx.fillStyle = '#78b5ce'; ctx.fillRect(rect.x + 12, rect.y + 12, rect.w - 24, 30);
-          ctx.fillStyle = '#97a6ad'; ctx.fillRect(rect.x + 18, rect.y + 56, rect.w - 36, rect.h - 74);
-          ctx.fillStyle = '#d0d6da'; ctx.fillRect(rect.x + 24, rect.y + rect.h - 26, rect.w - 48, 6);
+          ctx.fillStyle = '#28343b'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#75abc0'; ctx.fillRect(r.x + 12, r.y + 12, r.w - 24, 32); ctx.fillStyle = '#9daab0'; ctx.fillRect(r.x + 18, r.y + 58, r.w - 36, r.h - 76);
+        } else if (prop.kind === 'locker') {
+          ctx.fillStyle = '#273139'; ctx.fillRect(r.x, r.y, r.w, r.h);
+          for (let x = r.x + 8; x < r.x + r.w - 30; x += 40) { ctx.fillStyle = ((x / 40) & 1) ? '#526873' : '#5e7480'; ctx.fillRect(x, r.y + 8, 32, r.h - 16); ctx.fillStyle = '#d5dee2'; ctx.fillRect(x + 26, r.y + 22, 2, 14); }
+        } else if (prop.kind === 'vending') {
+          ctx.fillStyle = '#202a32'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#4ea0d8'; ctx.fillRect(r.x + 10, r.y + 10, r.w - 20, 38); ctx.fillStyle = '#edf5f6'; for (let i = 0; i < 4; i++) ctx.fillRect(r.x + 16, r.y + 58 + i * 16, r.w - 32, 8);
         } else if (prop.kind === 'warningStripe') {
-          for (let x = rect.x; x < rect.x + rect.w; x += 20) {
-            ctx.fillStyle = (((x - rect.x) / 20) | 0) & 1 ? '#1b1b1b' : '#dfc04a';
-            ctx.fillRect(x, rect.y, Math.min(18, rect.x + rect.w - x), rect.h);
-          }
+          for (let x = r.x; x < r.x + r.w; x += 20) { ctx.fillStyle = (((x - r.x) / 20) | 0) & 1 ? '#171717' : '#dfc04a'; ctx.fillRect(x, r.y, Math.min(18, r.x + r.w - x), r.h); }
         } else if (prop.kind === 'stairs') {
-          ctx.fillStyle = '#505962'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-          for (let y = rect.y + 6; y < rect.y + rect.h; y += 10) { ctx.fillStyle = '#98a2a8'; ctx.fillRect(rect.x + 8, y, rect.w - 16, 4); }
-        } else if (prop.kind === 'escalator') {
-          ctx.fillStyle = '#384149'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-          for (let y = rect.y + 6; y < rect.y + rect.h; y += 12) { ctx.fillStyle = '#8c979c'; ctx.fillRect(rect.x + 14, y, rect.w - 28, 5); }
-          ctx.fillStyle = '#c2d0d6'; ctx.fillRect(rect.x + 2, rect.y + 2, 8, rect.h - 4); ctx.fillRect(rect.x + rect.w - 10, rect.y + 2, 8, rect.h - 4);
+          ctx.fillStyle = '#4d5860'; ctx.fillRect(r.x, r.y, r.w, r.h); for (let y = r.y + 6; y < r.y + r.h; y += 10) { ctx.fillStyle = '#9aa4aa'; ctx.fillRect(r.x + 8, y, r.w - 16, 4); }
         } else if (prop.kind === 'pipeRack') {
-          ctx.fillStyle = '#364148'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-          ctx.fillStyle = '#8b9aa3'; ctx.fillRect(rect.x, rect.y + 6, rect.w, 6); ctx.fillRect(rect.x, rect.y + 18, rect.w, 6);
-          ctx.fillStyle = '#55636c'; for (let x = rect.x + 18; x < rect.x + rect.w; x += 60) ctx.fillRect(x, rect.y + 2, 6, rect.h - 4);
-        } else if (prop.kind === 'generator') {
-          ctx.fillStyle = '#20282d'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-          ctx.fillStyle = '#58666e'; ctx.fillRect(rect.x + 10, rect.y + 10, rect.w - 20, rect.h - 20);
-          ctx.fillStyle = '#e4c65c'; for (let i = 0; i < 4; i++) ctx.fillRect(rect.x + 20 + i * 40, rect.y + 18, 22, 12);
-          ctx.fillStyle = '#7a8b93'; ctx.fillRect(rect.x + 20, rect.y + rect.h - 26, rect.w - 40, 8);
+          ctx.fillStyle = '#344047'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#8d9ba3'; ctx.fillRect(r.x, r.y + 6, r.w, 6); ctx.fillRect(r.x, r.y + 20, r.w, 6); for (let x = r.x + 20; x < r.x + r.w; x += 64) { ctx.fillStyle = '#58666e'; ctx.fillRect(x, r.y + 2, 6, r.h - 4); }
         } else if (prop.kind === 'pump') {
-          ctx.fillStyle = '#314149'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-          ctx.fillStyle = '#688290'; ctx.fillRect(rect.x + 10, rect.y + 14, rect.w - 20, rect.h - 28);
-          ctx.strokeStyle = '#b7d4df'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(rect.x + 26, rect.y + 16); ctx.lineTo(rect.x + 26, rect.y - 24); ctx.lineTo(rect.x + rect.w - 22, rect.y - 24); ctx.stroke();
+          ctx.fillStyle = '#2f4048'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#6d8996'; ctx.fillRect(r.x + 12, r.y + 14, r.w - 24, r.h - 28); ctx.fillStyle = '#bfd8e0'; ctx.fillRect(r.x + 24, r.y - 20, 8, 36); ctx.fillRect(r.x + 24, r.y - 20, r.w - 48, 8);
+        } else if (prop.kind === 'generator') {
+          ctx.fillStyle = '#20282d'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#59676f'; ctx.fillRect(r.x + 10, r.y + 10, r.w - 20, r.h - 20); ctx.fillStyle = '#e4c65c'; for (let i = 0; i < 4; i++) ctx.fillRect(r.x + 20 + i * 42, r.y + 20, 22, 12);
         } else if (prop.kind === 'crate') {
-          ctx.fillStyle = '#5a4735'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#82654b'; ctx.fillRect(rect.x + 5, rect.y + 5, rect.w - 10, rect.h - 10); ctx.fillStyle = '#4f3928'; ctx.fillRect(rect.x + rect.w / 2 - 2, rect.y + 4, 4, rect.h - 8);
-        } else if (prop.kind === 'cart') {
-          ctx.fillStyle = '#2c3940'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#8da3ad'; ctx.fillRect(rect.x + 8, rect.y + 8, rect.w - 16, rect.h - 20); ctx.fillStyle = '#1d2428'; ctx.fillRect(rect.x + 12, rect.y + rect.h - 10, 18, 10); ctx.fillRect(rect.x + rect.w - 30, rect.y + rect.h - 10, 18, 10);
-        } else if (prop.kind === 'grate') {
-          ctx.fillStyle = '#1e252a'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.strokeStyle = '#71818a'; ctx.lineWidth = 2; for (let gx = rect.x + 8; gx < rect.x + rect.w; gx += 14) { ctx.beginPath(); ctx.moveTo(gx, rect.y + 4); ctx.lineTo(gx, rect.y + rect.h - 4); ctx.stroke(); } for (let gy = rect.y + 8; gy < rect.y + rect.h; gy += 14) { ctx.beginPath(); ctx.moveTo(rect.x + 4, gy); ctx.lineTo(rect.x + rect.w - 4, gy); ctx.stroke(); }
+          ctx.fillStyle = '#5a4735'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#82654b'; ctx.fillRect(r.x + 5, r.y + 5, r.w - 10, r.h - 10); ctx.fillStyle = '#4f3928'; ctx.fillRect(r.x + r.w / 2 - 2, r.y + 4, 4, r.h - 8);
         } else if (prop.kind === 'cabinet') {
-          ctx.fillStyle = '#445159'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#9ab1bc'; ctx.fillRect(rect.x + 8, rect.y + 8, rect.w - 16, rect.h - 16); ctx.fillStyle = '#29343b'; ctx.fillRect(rect.x + rect.w / 2 - 2, rect.y + 10, 4, rect.h - 20);
-        } else if (prop.kind === 'signalBox') {
-          ctx.fillStyle = '#2b343a'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); ctx.fillStyle = '#95aeb7'; ctx.fillRect(rect.x + 10, rect.y + 8, rect.w - 20, rect.h - 16); ctx.fillStyle = '#e6675b'; ctx.fillRect(rect.x + 18, rect.y + 18, 14, 14); ctx.fillStyle = '#6fe39a'; ctx.fillRect(rect.x + 18, rect.y + 40, 14, 14);
+          ctx.fillStyle = '#425159'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#94aab5'; ctx.fillRect(r.x + 8, r.y + 8, r.w - 16, r.h - 16); ctx.fillStyle = '#263138'; ctx.fillRect(r.x + r.w / 2 - 2, r.y + 10, 4, r.h - 20);
+        } else if (prop.kind === 'cart') {
+          ctx.fillStyle = '#2c3940'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#8da3ad'; ctx.fillRect(r.x + 8, r.y + 8, r.w - 16, r.h - 20); ctx.fillStyle = '#1d2428'; ctx.fillRect(r.x + 12, r.y + r.h - 10, 18, 10); ctx.fillRect(r.x + r.w - 30, r.y + r.h - 10, 18, 10);
+        } else if (prop.kind === 'grate') {
+          ctx.fillStyle = '#1e252a'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.strokeStyle = '#71818a'; ctx.lineWidth = 2; for (let x = r.x + 8; x < r.x + r.w; x += 14) { ctx.beginPath(); ctx.moveTo(x, r.y + 4); ctx.lineTo(x, r.y + r.h - 4); ctx.stroke(); } for (let y = r.y + 8; y < r.y + r.h; y += 14) { ctx.beginPath(); ctx.moveTo(r.x + 4, y); ctx.lineTo(r.x + r.w - 4, y); ctx.stroke(); }
         } else if (prop.kind === 'fence') {
-          ctx.fillStyle = '#707e86'; ctx.fillRect(rect.x, rect.y + rect.h / 2 - 3, rect.w, 6); for (let fx = rect.x + 8; fx < rect.x + rect.w; fx += 18) ctx.fillRect(fx, rect.y, 4, rect.h);
+          ctx.fillStyle = '#707e86'; ctx.fillRect(r.x, r.y + r.h / 2 - 3, r.w, 6); for (let x = r.x + 8; x < r.x + r.w; x += 18) ctx.fillRect(x, r.y, 4, r.h);
+        } else if (prop.kind === 'signalBox') {
+          ctx.fillStyle = '#2a343a'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#94aeb8'; ctx.fillRect(r.x + 10, r.y + 8, r.w - 20, r.h - 16); ctx.fillStyle = '#e75f55'; ctx.fillRect(r.x + 18, r.y + 18, 14, 14); ctx.fillStyle = '#70e197'; ctx.fillRect(r.x + 18, r.y + 42, 14, 14);
+        } else if (prop.kind === 'kiosk') {
+          ctx.fillStyle = '#2b353b'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#c45f4e'; ctx.fillRect(r.x + 10, r.y + 10, r.w - 20, 26); ctx.fillStyle = '#d8ddd9'; ctx.fillRect(r.x + 14, r.y + 42, r.w - 28, 42); ctx.fillStyle = '#8b9ca3'; ctx.fillRect(r.x + 18, r.y + 92, r.w - 36, r.h - 106);
+        } else if (prop.kind === 'planter') {
+          ctx.fillStyle = '#4f5a60'; ctx.fillRect(r.x, r.y + 10, r.w, r.h - 10); ctx.fillStyle = '#80936d'; ctx.fillRect(r.x + 8, r.y + 2, r.w - 16, 18); ctx.fillStyle = '#98b27e'; for (let x = r.x + 14; x < r.x + r.w - 14; x += 16) ctx.fillRect(x, r.y - 8 + ((x / 16) & 1) * 4, 8, 16);
+        } else if (prop.kind === 'poster') {
+          const c = prop.variant === 'red' ? '#d96c61' : prop.variant === 'green' ? '#7fc77a' : prop.variant === 'yellow' ? '#e0c35c' : '#65a7d5';
+          ctx.fillStyle = '#273139'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#dde4e7'; ctx.fillRect(r.x + 4, r.y + 4, r.w - 8, r.h - 8); ctx.fillStyle = c; ctx.fillRect(r.x + 8, r.y + 10, r.w - 16, 18); ctx.fillStyle = '#74838c'; ctx.fillRect(r.x + 8, r.y + 38, r.w - 16, 6); ctx.fillRect(r.x + 8, r.y + 52, r.w - 16, 6);
+        } else if (prop.kind === 'signStand') {
+          ctx.fillStyle = '#2d373d'; ctx.fillRect(r.x + r.w / 2 - 6, r.y + 10, 12, r.h - 16); ctx.fillStyle = '#9eb4bc'; ctx.fillRect(r.x + 6, r.y, r.w - 12, 34); ctx.fillStyle = '#1d252a'; ctx.fillRect(r.x + 10, r.y + 5, r.w - 20, 8);
+        } else if (prop.kind === 'shelf') {
+          ctx.fillStyle = '#584b3e'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#8b775e'; ctx.fillRect(r.x + 6, r.y + 10, r.w - 12, 8); ctx.fillRect(r.x + 6, r.y + 32, r.w - 12, 8); ctx.fillRect(r.x + 6, r.y + 54, r.w - 12, 8);
+        } else if (prop.kind === 'workbench') {
+          ctx.fillStyle = '#594b3e'; ctx.fillRect(r.x, r.y + 16, r.w, r.h - 16); ctx.fillStyle = '#9a7f60'; ctx.fillRect(r.x + 4, r.y, r.w - 8, 20); ctx.fillStyle = '#4b5d67'; ctx.fillRect(r.x + 18, r.y + 6, 18, 8); ctx.fillRect(r.x + 44, r.y + 8, 24, 6); ctx.fillRect(r.x + r.w - 48, r.y + 6, 18, 8);
+        } else if (prop.kind === 'barrel') {
+          ctx.fillStyle = '#3a2c24'; ctx.fillRect(r.x + 6, r.y, r.w - 12, r.h); ctx.fillStyle = '#7e5438'; ctx.fillRect(r.x, r.y + 8, r.w, r.h - 16); ctx.fillStyle = '#b38a58'; ctx.fillRect(r.x + 4, r.y + 18, r.w - 8, 6); ctx.fillRect(r.x + 4, r.y + r.h - 24, r.w - 8, 6);
+        } else if (prop.kind === 'valve') {
+          ctx.fillStyle = '#324148'; ctx.fillRect(r.x + r.w / 2 - 6, r.y + 20, 12, r.h - 20); ctx.strokeStyle = '#d26955'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(r.x + r.w / 2, r.y + 18, 16, 0, TAU); ctx.stroke(); ctx.fillStyle = '#e7d7d1'; ctx.fillRect(r.x + r.w / 2 - 4, r.y + 4, 8, 28); ctx.fillRect(r.x + 10, r.y + 14, r.w - 20, 8);
         }
-      }
+      };
+      for (const prop of this.terrain.subwayProps || []) drawProp(prop);
       ctx.restore();
     }
 
@@ -9387,62 +9555,66 @@ drawUndergroundFeatures(ctx){
     drawUndergroundFeatures(ctx) {
       if (this.mapId !== 'underground') return;
       const subway = this.environment.subway || {};
-      if (!subway.waterDrained) {
+      const waterLevel = this.subwayWaterLevel();
+      if (waterLevel > .005) {
         for (const water of this.terrain.subwayWaterways || []) {
           if (!this.rectInView(water)) continue;
-          for (let x = water.x - 16; x < water.x + water.w + 16; x += 24) {
-            const drift = (this.elapsed * (water.flowX ? Math.abs(water.flowX) : Math.abs(water.flowY) || 48) * .35 + x) % 36;
-            ctx.fillStyle = 'rgba(190,242,248,.32)';
-            if (water.w > water.h) {
-              ctx.fillRect(x + drift - 18, water.y + 18, 16, 3);
-              ctx.fillRect(x - drift * .5, water.y + water.h - 24, 12, 2);
+          const horizontal = water.w >= water.h;
+          const fillRect = horizontal
+            ? { x: water.x, y: water.y + water.h * (1 - waterLevel) / 2, w: water.w, h: water.h * waterLevel }
+            : { x: water.x + water.w * (1 - waterLevel) / 2, y: water.y, w: water.w * waterLevel, h: water.h };
+          if (fillRect.w < 1 || fillRect.h < 1) continue;
+          ctx.save();
+          ctx.beginPath(); ctx.rect(fillRect.x, fillRect.y, fillRect.w, fillRect.h); ctx.clip();
+          ctx.globalAlpha = .42 + waterLevel * .58;
+          ctx.fillStyle = '#315c68'; ctx.fillRect(fillRect.x, fillRect.y, fillRect.w, fillRect.h);
+          for (let n = 0; n < 3; n++) {
+            const travel = (this.elapsed * (48 + waterLevel * 42) + n * 31) % 52;
+            ctx.fillStyle = `rgba(190,242,248,${(.16 + n * .05) * waterLevel})`;
+            if (horizontal) {
+              const lineY = fillRect.y + Math.min(fillRect.h - 2, Math.max(1, fillRect.h * ((n + 1) / 4)));
+              for (let x = water.x - 40 + travel; x < water.x + water.w; x += 52) ctx.fillRect(x, lineY, 22, 3);
             } else {
-              ctx.fillRect(water.x + 18, x + drift - 18, 3, 16);
-              ctx.fillRect(water.x + water.w - 22, x - drift * .5, 2, 12);
+              const lineX = fillRect.x + Math.min(fillRect.w - 2, Math.max(1, fillRect.w * ((n + 1) / 4)));
+              for (let y = water.y - 40 + travel; y < water.y + water.h; y += 52) ctx.fillRect(lineX, y, 3, 22);
             }
           }
+          ctx.restore();
         }
       }
       for (const sludge of this.terrain.subwaySludge || []) {
-        if (sludge.active === false || !this.inView(sludge.x, sludge.y, sludge.radius + 30)) continue;
-        const glow = ctx.createRadialGradient(sludge.x, sludge.y, 10, sludge.x, sludge.y, sludge.radius + 18);
-        glow.addColorStop(0, 'rgba(93,88,46,.74)'); glow.addColorStop(.68, 'rgba(74,62,33,.5)'); glow.addColorStop(1, 'rgba(40,34,18,0)');
-        ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(sludge.x, sludge.y, sludge.radius + 18, 0, TAU); ctx.fill();
-        ctx.fillStyle = '#594f28'; ctx.beginPath(); ctx.arc(sludge.x, sludge.y, sludge.radius, 0, TAU); ctx.fill();
-        ctx.fillStyle = 'rgba(162,144,84,.42)';
-        for (let i = 0; i < 6; i++) {
-          const a = i / 6 * TAU + this.elapsed * .55;
-          const r = sludge.radius * (.28 + (i % 3) * .14);
-          ctx.beginPath(); ctx.arc(sludge.x + Math.cos(a) * r, sludge.y + Math.sin(a) * r, 5 + (i % 3), 0, TAU); ctx.fill();
-        }
+        if (sludge.active === false || !this.inView(sludge.x, sludge.y, sludge.radius + 28)) continue;
+        const glow = ctx.createRadialGradient(sludge.x, sludge.y, 8, sludge.x, sludge.y, sludge.radius + 20);
+        glow.addColorStop(0, 'rgba(110,101,50,.78)'); glow.addColorStop(.68, 'rgba(70,62,31,.56)'); glow.addColorStop(1, 'rgba(40,34,18,0)');
+        ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(sludge.x, sludge.y, sludge.radius + 20, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#574d27'; ctx.beginPath(); ctx.arc(sludge.x, sludge.y, sludge.radius, 0, TAU); ctx.fill();
+        ctx.fillStyle = 'rgba(172,153,84,.44)';
+        for (let i = 0; i < 7; i++) { const a = i / 7 * TAU + this.elapsed * .48; const r = sludge.radius * (.25 + (i % 3) * .15); ctx.beginPath(); ctx.arc(sludge.x + Math.cos(a) * r, sludge.y + Math.sin(a) * r, 5 + i % 3, 0, TAU); ctx.fill(); }
       }
-      for (const sign of this.terrain.subwaySigns || []) {
-        if (!this.inView(sign.x, sign.y, 120)) continue;
-        ctx.fillStyle = '#1a2024'; ctx.fillRect(sign.x - 72, sign.y - 30, 144, 52);
-        ctx.fillStyle = '#2d3941'; ctx.fillRect(sign.x - 66, sign.y - 24, 132, 40);
-        ctx.fillStyle = '#73848c'; ctx.fillRect(sign.x - 60, sign.y - 18, 24, 8); ctx.fillRect(sign.x + 36, sign.y - 18, 24, 8);
-        const countdown = this.subwayTrainCountdown();
-        const digits = String(Math.max(0, Math.min(99, countdown))).padStart(2, '0');
-        const drawDigit = (digit, x, y) => {
-          const segments = { 0:[1,1,1,0,1,1,1], 1:[0,0,1,0,0,1,0], 2:[1,0,1,1,1,0,1], 3:[1,0,1,1,0,1,1], 4:[0,1,1,1,0,1,0], 5:[1,1,0,1,0,1,1], 6:[1,1,0,1,1,1,1], 7:[1,0,1,0,0,1,0], 8:[1,1,1,1,1,1,1], 9:[1,1,1,1,0,1,1] }[digit] || [0,0,0,0,0,0,0];
-          ctx.fillStyle = subway.trainActive || countdown < 4 ? '#ff6f61' : '#6bf4c8';
-          if (segments[0]) ctx.fillRect(x + 6, y, 24, 4); if (segments[1]) ctx.fillRect(x, y + 4, 4, 18); if (segments[2]) ctx.fillRect(x + 30, y + 4, 4, 18);
-          if (segments[3]) ctx.fillRect(x + 6, y + 20, 24, 4); if (segments[4]) ctx.fillRect(x, y + 24, 4, 18); if (segments[5]) ctx.fillRect(x + 30, y + 24, 4, 18); if (segments[6]) ctx.fillRect(x + 6, y + 40, 24, 4);
-        };
-        drawDigit(Number(digits[0]), sign.x - 46, sign.y - 18);
-        drawDigit(Number(digits[1]), sign.x + 6, sign.y - 18);
-      }
+
       const train = this.subwayTrainRect();
       if (train && this.rectInView(train)) {
-        ctx.fillStyle = 'rgba(0,0,0,.26)'; ctx.fillRect(train.x + 16, train.y + train.h - 10, train.w, 18);
+        ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.fillRect(train.x + 16, train.y + train.h - 10, train.w, 18);
         ctx.fillStyle = '#bcc8cf'; ctx.fillRect(train.x, train.y, train.w, train.h);
-        ctx.fillStyle = '#872530'; ctx.fillRect(train.x, train.y + 22, train.w, 38); ctx.fillRect(train.x, train.y + train.h - 62, train.w, 24);
-        for (let x = train.x + 28; x < train.x + train.w - 30; x += 84) {
-          ctx.fillStyle = '#6fa8c9'; ctx.fillRect(x, train.y + 78, 56, 52); ctx.fillStyle = 'rgba(255,255,255,.38)'; ctx.fillRect(x + 4, train.y + 82, 20, 4);
-        }
+        ctx.fillStyle = '#842530'; ctx.fillRect(train.x, train.y + 22, train.w, 38); ctx.fillRect(train.x, train.y + train.h - 62, train.w, 24);
+        for (let x = train.x + 28; x < train.x + train.w - 30; x += 84) { ctx.fillStyle = '#6fa8c9'; ctx.fillRect(x, train.y + 78, 56, 52); ctx.fillStyle = 'rgba(255,255,255,.36)'; ctx.fillRect(x + 4, train.y + 82, 20, 4); }
         for (let x = train.x + 76; x < train.x + train.w - 50; x += 168) { ctx.fillStyle = '#445057'; ctx.fillRect(x, train.y + 58, 16, train.h - 94); }
         ctx.fillStyle = '#273036'; ctx.fillRect(train.x + 8, train.y + 8, 36, train.h - 16); ctx.fillRect(train.x + train.w - 44, train.y + 8, 36, train.h - 16);
         ctx.fillStyle = '#f6e082'; ctx.fillRect(train.x + 16, train.y + 92, 12, 26); ctx.fillRect(train.x + train.w - 28, train.y + 92, 12, 26);
+      }
+
+      for (const sign of this.terrain.subwaySigns || []) {
+        if (!this.inView(sign.x, sign.y, 120)) continue;
+        ctx.fillStyle = '#171d21'; ctx.fillRect(sign.x - 72, sign.y - 30, 144, 52);
+        ctx.fillStyle = '#2b373e'; ctx.fillRect(sign.x - 66, sign.y - 24, 132, 40);
+        const countdown = this.subwayTrainCountdown();
+        const digits = String(Math.max(0, Math.min(99, countdown))).padStart(2, '0');
+        const drawDigit = (digit, x, y) => {
+          const seg = { 0:[1,1,1,0,1,1,1], 1:[0,0,1,0,0,1,0], 2:[1,0,1,1,1,0,1], 3:[1,0,1,1,0,1,1], 4:[0,1,1,1,0,1,0], 5:[1,1,0,1,0,1,1], 6:[1,1,0,1,1,1,1], 7:[1,0,1,0,0,1,0], 8:[1,1,1,1,1,1,1], 9:[1,1,1,1,0,1,1] }[digit] || [];
+          ctx.fillStyle = subway.trainActive || countdown < 4 ? '#ff6f61' : '#6bf4c8';
+          if (seg[0]) ctx.fillRect(x + 6, y, 24, 4); if (seg[1]) ctx.fillRect(x, y + 4, 4, 18); if (seg[2]) ctx.fillRect(x + 30, y + 4, 4, 18); if (seg[3]) ctx.fillRect(x + 6, y + 20, 24, 4); if (seg[4]) ctx.fillRect(x, y + 24, 4, 18); if (seg[5]) ctx.fillRect(x + 30, y + 24, 4, 18); if (seg[6]) ctx.fillRect(x + 6, y + 40, 24, 4);
+        };
+        drawDigit(Number(digits[0]), sign.x - 46, sign.y - 18); drawDigit(Number(digits[1]), sign.x + 6, sign.y - 18);
       }
     }
 
@@ -9451,7 +9623,7 @@ drawUndergroundFeatures(ctx){
         if(light.hp<=0||!this.inView(light.x,light.y,Math.max(55,(light.lightRadius||0)+30))) continue;
         if(light.kind==='platformSwitch' || light.kind==='waterGateSwitch' || light.kind==='breakerSwitch'){
           const subway=this.environment.subway||{};
-          const active = light.kind==='platformSwitch' ? subway.homeDoorsClosed : light.kind==='waterGateSwitch' ? subway.waterDrained : subway.breakerOff;
+          const active = light.kind==='platformSwitch' ? !subway.homeDoorsClosed : light.kind==='waterGateSwitch' ? subway.waterDrained : subway.breakerOff;
           ctx.fillStyle='#1f2529';ctx.fillRect(light.x-18,light.y-18,36,36);ctx.fillStyle=active?'#7be49a':'#d76868';ctx.fillRect(light.x-10,light.y-10,20,20);ctx.fillStyle='#dbe7ea';ctx.fillRect(light.x-3,light.y-14,6,28);ctx.fillRect(light.x-14,light.y-3,28,6);
           continue;
         }
@@ -10213,7 +10385,8 @@ drawUndergroundFeatures(ctx){
         ctx.save();
         if (e.type === 'slash') {
           ctx.globalAlpha = t;
-          ctx.strokeStyle = e.style === 'mantis' ? '#c7fff4' : e.style === 'kogetsuParry' ? '#fff3a8' : e.style.includes('scorpion') ? '#b59cff' : '#e2fbff';
+          const slashStyle = String(e.style || '');
+          ctx.strokeStyle = e.color || (slashStyle === 'mantis' ? '#c7fff4' : slashStyle === 'kogetsuParry' ? '#fff3a8' : slashStyle.includes('scorpion') ? '#b59cff' : '#e2fbff');
           ctx.lineWidth = e.style === 'mantis' ? 13 : e.style === 'kogetsuParry' ? 11 : 8;
           ctx.beginPath(); ctx.arc(e.x, e.y, e.range, e.angle - e.arc / 2, e.angle + e.arc / 2); ctx.stroke();
         } else if (e.type === 'senku') {
@@ -10389,7 +10562,7 @@ drawUndergroundFeatures(ctx){
       if(this.mapId==='underground'){
         ctx.fillStyle='rgba(90,101,110,.75)'; for(const zone of this.terrain.subwayPassengerZones||[]) ctx.fillRect(zone.x*sx,zone.y*sy,zone.w*sx,zone.h*sy);
         ctx.fillStyle='rgba(19,30,34,.85)'; for(const track of this.terrain.subwayTracks||[]) ctx.fillRect(track.x*sx,track.y*sy,track.w*sx,track.h*sy);
-        if(!(this.environment.subway||{}).waterDrained){ ctx.fillStyle='rgba(68,132,160,.65)'; for(const water of this.terrain.subwayWaterways||[]) ctx.fillRect(water.x*sx,water.y*sy,water.w*sx,water.h*sy); }
+        { const waterLevel=this.subwayWaterLevel(); if(waterLevel>.005){ ctx.fillStyle=`rgba(68,132,160,${.65*waterLevel})`; for(const water of this.terrain.subwayWaterways||[]){ if(water.w>=water.h){ const hh=water.h*waterLevel; ctx.fillRect(water.x*sx,(water.y+(water.h-hh)/2)*sy,water.w*sx,hh*sy); } else { const ww=water.w*waterLevel; ctx.fillRect((water.x+(water.w-ww)/2)*sx,water.y*sy,ww*sx,water.h*sy); } } } }
       }
       ctx.strokeStyle = 'rgba(101,232,255,.18)'; ctx.strokeRect(.5, .5, w - 1, h - 1);
       for (const wall of this.walls) {
