@@ -1,1 +1,7 @@
-scenario_id,scenario_label,matches,winner_a_rate,winner_b_rate,draw_rate,average_duration_seconds
+﻿scenario_id,scenario_label,mode,map,difficulty,matches,winner_a_rate,winner_b_rate,draw_rate,average_duration_seconds,critical_rate,just_guard_rate,failed_matches
+"defense-black-trigger-standard","防衛戦：ブラックトリガー標準隊","defense","city","strong","100","0","0","1","420","0.183","0.1524","0"
+"defense-hyakki-orochi-fixed","防衛戦：百鬼夜行＋大蛇固定侵入","defense","underground","strong","100","0","0","1","420","0.3341","0.4897","0"
+"extra-fujin-vs-organon","エキストラ：風刃 vs オルガノン","solo","snowShrine","strong","100","0.47","0.4","0.13","120","0.1367","0","0"
+"extra-yamagu-vs-nekomata","エキストラ：山狗 vs 猫又","solo","city","strong","100","0.54","0.39","0.07","120","0.1382","0","0"
+"solo-attacker-vs-shooter","個人戦：攻撃手 vs 射手","solo","city","strong","100","0.19","0.77","0.04","120","0.1958","0.1606","0"
+"team-balanced-3v3-underground","チーム戦：3対3・地下通路","team","underground","strong","100","0.6","0.4","0","150","0.1919","0.277","0"
