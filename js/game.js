@@ -91,7 +91,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 59;
+  const GAME_VERSION = 60;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
@@ -1462,6 +1462,7 @@
   class ArenaGame {
     constructor(config) {
       this.config = config;
+      this.simulationMode = Boolean(config.simulationMode);
       this.onlineSession = config.onlineSession || null;
       this.isOnlineMatch = Boolean(this.onlineSession?.roomId && window.trionOnline);
       this.isOnlineHost = Boolean(this.isOnlineMatch && this.onlineSession.isHost);
@@ -13036,6 +13037,204 @@ drawUndergroundFeatures(ctx){
       $('#resultOverlay').classList.remove('hidden');
     }
   }
+
+
+  function createSimulationRandom(seedText = 'trion-arena') {
+    let hash = 2166136261 >>> 0;
+    for (const char of String(seedText)) {
+      hash ^= char.charCodeAt(0);
+      hash = Math.imul(hash, 16777619);
+    }
+    let state = hash >>> 0;
+    return () => {
+      state += 0x6D2B79F5;
+      let value = state;
+      value = Math.imul(value ^ value >>> 15, value | 1);
+      value ^= value + Math.imul(value ^ value >>> 7, value | 61);
+      return ((value ^ value >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function buildSimulationOutcome(simulation, reason) {
+    if (simulation.isDefenseMode) {
+      const defenseSuccess = reason === 'defense_success';
+      const defenseFailed = reason === 'flag_destroyed';
+      return { defenseSuccess, draw: !defenseSuccess && !defenseFailed, winnerTeam: defenseSuccess ? 0 : defenseFailed ? 1 : null, winnerSlot: defenseSuccess ? 0 : null };
+    }
+    if (simulation.config.mode === 'team') {
+      const best = Math.max(...simulation.teamScores);
+      const winners = simulation.teamScores.map((score, team) => ({score, team})).filter((entry) => Math.abs(entry.score - best) < .001);
+      return { draw: winners.length !== 1, winnerTeam: winners.length === 1 ? winners[0].team : null, winnerSlot: null };
+    }
+    const ranked = simulation.players.map((player, slot) => ({slot, score:player.score, kills:player.kills})).sort((a,b) => b.score-a.score || b.kills-a.kills);
+    const draw = ranked.length > 1 && Math.abs(ranked[0].score-ranked[1].score) < .001 && ranked[0].kills === ranked[1].kills;
+    return { draw, winnerTeam: draw ? null : simulation.players[ranked[0].slot]?.team ?? null, winnerSlot: draw ? null : ranked[0].slot };
+  }
+
+  async function runSimulationMatch(request = {}) {
+    request = request && typeof request === 'object' ? request : {};
+    const originalRandom = Math.random;
+    const seededRandom = createSimulationRandom(request.seed || `${request.id || 'scenario'}:${request.matchIndex || 0}`);
+    Math.random = seededRandom;
+    let simulation = null;
+    try {
+      if (game) { game.destroy(); game = null; }
+      const config = {
+        ...request.config,
+        simulationMode: true,
+        soundEnabled: false,
+        guideEnabled: false,
+        onlineSession: null,
+      };
+      config.difficulty = AI_DIFFICULTIES[config.difficulty] ? config.difficulty : 'normal';
+      $('#gameScreen')?.classList.remove('hidden');
+      $('#titleScreen')?.classList.add('hidden');
+      $('#setupScreen')?.classList.add('hidden');
+      simulation = new ArenaGame(config);
+      game = simulation;
+      window.__TRION_GAME__ = simulation;
+      simulation.running = false;
+      simulation.paused = false;
+      simulation.simulationMode = true;
+      simulation.isPlayerCombatant = false;
+      simulation.spectating = false;
+      simulation.guideVisible = false;
+      simulation.sfx?.destroy?.();
+      simulation.sfx = { play(){}, setEnabled(){}, destroy(){} };
+      simulation.toast = () => {};
+      simulation.showCenterMessage = () => {};
+      simulation.addKillFeed = () => {};
+      simulation.updateDebugPanel = () => {};
+      simulation.players.forEach((player, slot) => {
+        player.human = false;
+        player.simulationSlot = slot;
+        const participant = request.participantLabels?.[slot];
+        if (participant?.label) player.name = participant.label;
+        if (participant?.archetype) player.archetype = participant.archetype;
+      });
+      simulation.finalizeLog = function(reason = 'simulation_end') {
+        if (this.logFinalized) return this.finalLog;
+        this.finalLog = this.buildLog(reason);
+        this.logFinalized = true;
+        return this.finalLog;
+      };
+      simulation.endMatch = function() {
+        if (this.ended) return;
+        this.ended = true;
+        if (!this.isUnlimited) this.matchTime = 0;
+        this.finalizeLog('time_end');
+      };
+      simulation.completeDefenseMatch = function() {
+        if (this.ended) return;
+        this.ended = true;
+        this.finalizeLog('defense_success');
+      };
+      simulation.endDefenseMatch = function() {
+        if (this.ended) return;
+        this.ended = true;
+        this.finalizeLog('flag_destroyed');
+      };
+
+      const tickRate = clamp(Number(request.tickRate || 25), 10, 60);
+      const dt = 1 / tickRate;
+      const maxSeconds = Math.max(10, Number(request.maxSeconds || 180));
+      const maxTicks = Math.ceil(maxSeconds * tickRate);
+      const maxRounds = Math.max(1, Number(request.maxRounds || 25));
+      let ticks = 0;
+      let forcedReason = null;
+      while (!simulation.ended && ticks < maxTicks) {
+        simulation.update(dt);
+        ticks += 1;
+        if (simulation.isDefenseMode && simulation.defenseRound >= maxRounds && !simulation.defenseWaveActive) {
+          forcedReason = 'simulation_max_rounds';
+          break;
+        }
+        if (ticks % 400 === 0) await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      if (!simulation.logFinalized) {
+        forcedReason ||= ticks >= maxTicks ? 'simulation_timeout' : 'simulation_complete';
+        simulation.ended = true;
+        simulation.finalizeLog(forcedReason);
+      }
+      const reason = simulation.finalLog?.reason || forcedReason || 'simulation_complete';
+      const outcome = buildSimulationOutcome(simulation, reason);
+      const result = {
+        schemaVersion: 1,
+        gameVersion: GAME_VERSION,
+        scenarioId: request.id || 'scenario',
+        scenarioLabel: request.label || request.id || 'scenario',
+        seed: String(request.seed || ''),
+        matchIndex: Number(request.matchIndex || 0),
+        mode: config.mode,
+        modeLabel: simulation.isExtraMode ? `エキストラ・${MODE_LABELS[config.mode] || config.mode}` : (MODE_LABELS[config.mode] || config.mode),
+        map: simulation.mapId,
+        mapLabel: MAP_LABELS[simulation.mapId] || simulation.mapId,
+        difficulty: config.difficulty,
+        durationSeconds: Number(simulation.elapsed.toFixed(3)),
+        reason,
+        outcome,
+        teamScores: simulation.teamScores.map((value) => Number(value.toFixed(3))),
+        defense: simulation.isDefenseMode ? {
+          round: simulation.defenseRound,
+          enemiesDefeated: simulation.defenseEnemiesDefeated,
+          bossesDefeated: simulation.defenseBossesDefeated,
+          flagHp: Number(simulation.defenseFlag?.hp || 0),
+          flagMaxHp: Number(simulation.defenseFlag?.maxHp || 0),
+        } : null,
+        players: simulation.players.map((player, slot) => ({
+          slot,
+          id: player.id,
+          name: player.name,
+          team: player.team,
+          archetype: player.archetype,
+          extraType: player.playableDefenseType || player.defenseType || 'agent',
+          score: Number(player.score.toFixed(3)),
+          kills: player.kills,
+          deaths: player.deaths,
+          masteryValue: Number((player.masteryValue || 0).toFixed(3)),
+          masteryRank: player.masteryRank || null,
+          aiTier: player.aiTier || null,
+          aiPersonality: player.aiPersonality ? {
+            calmness: Number(player.aiPersonality.calmness.toFixed(4)),
+            aggression: Number(player.aiPersonality.aggression.toFixed(4)),
+          } : null,
+          metrics: {
+            damageDealt: Number((player.metrics?.damageDealt || 0).toFixed(3)),
+            damageTaken: Number((player.metrics?.damageTaken || 0).toFixed(3)),
+            blockedDamage: Number((player.metrics?.blockedDamage || 0).toFixed(3)),
+            shieldBlocks: Number(player.metrics?.shieldBlocks || 0),
+            justGuards: Number(player.metrics?.justGuards || 0),
+            criticalHits: Number(player.metrics?.criticalHits || 0),
+            criticalDamage: Number((player.metrics?.criticalDamage || 0).toFixed(3)),
+            projectileHits: Number(player.metrics?.projectileHits || 0),
+            meleeHits: Number(player.metrics?.meleeHits || 0),
+            projectilesSpawned: Number(player.metrics?.projectilesSpawned || 0),
+            attackActivations: Number(player.metrics?.attackActivations || 0),
+            activationsWithHit: Number(player.metrics?.activationsWithHit || 0),
+            trionSpent: Number((player.metrics?.trionSpent || 0).toFixed(3)),
+            aiTargetChanges: Number(player.metrics?.aiTargetChanges || 0),
+            aiStuckEscapes: Number(player.metrics?.aiStuckEscapes || 0),
+          },
+        })),
+      };
+      simulation.destroy();
+      game = null;
+      window.__TRION_GAME__ = null;
+      return result;
+    } finally {
+      Math.random = originalRandom;
+      if (simulation && game === simulation) {
+        simulation.destroy();
+        game = null;
+        window.__TRION_GAME__ = null;
+      }
+    }
+  }
+
+  window.TRION_SIMULATION_API = {
+    version: GAME_VERSION,
+    runMatch: runSimulationMatch,
+  };
 
   loadSetup();
   bindSetupControls();

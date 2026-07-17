@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "defaults": {
+    "difficulty": "strong",
+    "map": "city",
+    "matchLength": 120,
+    "maxSeconds": 150,
+    "timeOfDay": "day",
+    "weather": "clear"
+  },
+  "scenarios": [
+    {
+      "id": "solo-attacker-vs-shooter",
+      "label": "個人戦：攻撃手 vs 射手",
+      "mode": "solo",
+      "map": "city",
+      "fighters": [
+        {
+          "name": "ATTACKER",
+          "archetype": "攻撃手",
+          "stats": { "trion": 5, "technique": 6, "combat": 7 },
+          "main": ["kogetsu", "senku", "shield", "grasshopper"],
+          "sub": ["scorpion", "bagworm", "shield", "empty"]
+        },
+        {
+          "name": "SHOOTER",
+          "archetype": "射手",
+          "stats": { "trion": 8, "technique": 7, "combat": 3 },
+          "main": ["shooter_asteroid", "shooter_hound", "shield", "shooter_meteor"],
+          "sub": ["shooter_viper", "bagworm", "shield", "grasshopper"]
+        }
+      ]
+    },
+    {
+      "id": "team-balanced-3v3-underground",
+      "label": "チーム戦：3対3・地下通路",
+      "mode": "team",
+      "map": "underground",
+      "matchLength": 150,
+      "teams": [
+        {
+          "label": "BLUE",
+          "members": [
+            { "name": "BLUE-A", "archetype": "万能手", "main": ["kogetsu", "senku", "shield", "gun_assault_asteroid"], "sub": ["gun_assault_hound", "bagworm", "shield", "grasshopper"] },
+            { "name": "BLUE-B", "archetype": "射手", "main": ["shooter_asteroid", "shooter_hound", "shield", "shooter_meteor"], "sub": ["shooter_viper", "bagworm", "shield", "grasshopper"] },
+            { "name": "BLUE-C", "archetype": "狙撃手", "main": ["egret", "lightning", "shield", "starmaker"], "sub": ["bagworm", "shield", "spider", "grasshopper"] }
+          ]
+        },
+        {
+          "label": "ORANGE",
+          "members": [
+            { "name": "ORANGE-A", "archetype": "重装手", "main": ["raygust", "thruster", "shield", "gun_shotgun_asteroid"], "sub": ["shooter_meteor", "escudo", "shield", "grasshopper"] },
+            { "name": "ORANGE-B", "archetype": "銃手", "main": ["gun_assault_asteroid", "gun_assault_hound", "shield", "starmaker"], "sub": ["gun_handgun_asteroid", "bagworm", "shield", "leadBullet"] },
+            { "name": "ORANGE-C", "archetype": "工作手", "main": ["switchbox", "spider", "shield", "shooter_meteor"], "sub": ["dummyBeacon", "bagworm", "shield", "grasshopper"] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "extra-fujin-vs-organon",
+      "label": "エキストラ：風刃 vs オルガノン",
+      "mode": "solo",
+      "map": "snowShrine",
+      "fighters": [
+        { "name": "FUJIN", "extraType": "fujin" },
+        { "name": "ORGANON", "extraType": "organon" }
+      ]
+    },
+    {
+      "id": "extra-yamagu-vs-nekomata",
+      "label": "エキストラ：山狗 vs 猫又",
+      "mode": "solo",
+      "map": "city",
+      "fighters": [
+        { "name": "YAMAGU", "extraType": "yamagu" },
+        { "name": "NEKOMATA", "extraType": "nekomata" }
+      ]
+    },
+    {
+      "id": "defense-black-trigger-standard",
+      "label": "防衛戦：ブラックトリガー標準隊",
+      "mode": "defense",
+      "map": "city",
+      "defenseScenario": "blackTrigger",
+      "maxSeconds": 420,
+      "defenders": [
+        { "name": "DEF-A", "archetype": "万能手", "main": ["kogetsu", "senku", "shield", "gun_assault_asteroid"], "sub": ["gun_assault_hound", "bagworm", "shield", "grasshopper"] },
+        { "name": "DEF-B", "archetype": "射手", "main": ["shooter_asteroid", "shooter_hound", "shield", "shooter_meteor"], "sub": ["shooter_viper", "bagworm", "shield", "grasshopper"] },
+        { "name": "DEF-C", "archetype": "狙撃手", "main": ["egret", "lightning", "shield", "starmaker"], "sub": ["bagworm", "shield", "spider", "grasshopper"] }
+      ]
+    },
+    {
+      "id": "defense-hyakki-orochi-fixed",
+      "label": "防衛戦：百鬼夜行＋大蛇固定侵入",
+      "mode": "defense",
+      "map": "underground",
+      "defenseScenario": "hyakki",
+      "fixedEnemy": "orochi",
+      "maxSeconds": 420,
+      "defenders": [
+        { "name": "DEF-R", "archetype": "重装手", "main": ["raygust", "thruster", "shield", "gun_shotgun_asteroid"], "sub": ["shooter_meteor", "escudo", "shield", "grasshopper"] },
+        { "name": "DEF-S", "archetype": "射手", "main": ["shooter_asteroid", "shooter_hound", "shield", "shooter_meteor"], "sub": ["shooter_viper", "bagworm", "shield", "grasshopper"] },
+        { "name": "DEF-W", "extraType": "whitefox" }
+      ]
+    }
+  ]
+}

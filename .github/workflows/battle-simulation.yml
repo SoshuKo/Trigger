@@ -1,0 +1,150 @@
+name: Battle Simulation
+
+on:
+  workflow_dispatch:
+    inputs:
+      matches:
+        description: '各シナリオの合計試合数'
+        required: true
+        default: '100'
+      shards:
+        description: '各シナリオの分割数（1～16）'
+        required: true
+        default: '4'
+      publish_pages:
+        description: '集計後にGitHub Pagesへ公開する'
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: battle-simulation
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  define-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.value }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - id: matrix
+        shell: bash
+        run: |
+          MATRIX=$(node simulation/matrix.mjs --shards '${{ inputs.shards }}')
+          echo "value=$MATRIX" >> "$GITHUB_OUTPUT"
+
+  simulate:
+    needs: define-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix: ${{ fromJSON(needs.define-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run simulation shard
+        run: |
+          node simulation/run-batch.mjs \
+            --scenario '${{ matrix.scenario }}' \
+            --matches '${{ inputs.matches }}' \
+            --shard '${{ matrix.shard }}' \
+            --shard-count '${{ inputs.shards }}' \
+            --output 'simulation-output/${{ matrix.scenario }}-${{ matrix.shard }}.json'
+      - name: Upload partial result
+        uses: actions/upload-artifact@v4
+        with:
+          name: simulation-${{ matrix.scenario }}-${{ matrix.shard }}
+          path: simulation-output/*.json
+          retention-days: 5
+          if-no-files-found: error
+
+  aggregate:
+    needs: simulate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      commit_sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Download all partial results
+        uses: actions/download-artifact@v5
+        with:
+          pattern: simulation-*
+          path: simulation-output
+          merge-multiple: true
+      - name: Merge JSON, CSV and site data
+        run: |
+          node simulation/merge-results.mjs \
+            --input simulation-output \
+            --json-output simulation-results/latest.json \
+            --csv-output simulation-results/latest.csv \
+            --js-output simulation-results/latest.js
+      - name: Commit published results
+        id: commit
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add simulation-results/latest.json simulation-results/latest.csv simulation-results/latest.js simulation-results/history
+          if git diff --cached --quiet; then
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m 'Update battle simulation results'
+          git pull --rebase origin main
+          git push origin HEAD:main
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Upload final reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: battle-simulation-results
+          path: |
+            simulation-results/latest.json
+            simulation-results/latest.csv
+            simulation-results/history/*.json
+          retention-days: 14
+      - name: Remove raw shard files before Pages upload
+        if: ${{ inputs.publish_pages }}
+        run: rm -rf simulation-output
+      - name: Configure Pages
+        if: ${{ inputs.publish_pages }}
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        if: ${{ inputs.publish_pages }}
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: .
+
+  deploy-pages:
+    if: ${{ inputs.publish_pages }}
+    needs: aggregate
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

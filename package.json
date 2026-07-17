@@ -1,0 +1,14 @@
+{
+  "name": "trion-arena-simulation",
+  "private": true,
+  "version": "60.0.0",
+  "type": "module",
+  "scripts": {
+    "simulate:batch": "node simulation/run-batch.mjs",
+    "simulate:merge": "node simulation/merge-results.mjs",
+    "simulate:local": "node simulation/run-local.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.61.1"
+  }
+}

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
   <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=59" />
+  <link rel="stylesheet" href="styles.css?v=60" />
 </head>
 <body>
   <main id="app">
@@ -16,12 +16,13 @@
         <p class="title-kicker">B-GRADE RANK WAR</p>
         <h1>TRION<br>ARENA</h1>
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
-        <div class="version-badge" aria-label="現在のバージョン">VERSION 59</div>
+        <div class="version-badge" aria-label="現在のバージョン">VERSION 60</div>
         <div class="title-actions">
           <button id="enterSetupButton" class="title-start" type="button">出撃準備へ</button>
           <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
           <button id="userOpenButton" class="title-sub" type="button">ユーザー</button>
           <button id="titleGuideButton" class="title-sub" type="button">操作案内</button>
+          <button id="simulationResultsButton" class="title-sub" type="button">シミュレーション結果</button>
         </div>
         <div class="online-title-status"><span id="onlineStatusBadge" data-status="disabled">未設定</span><small id="onlineStatusNote">Supabase設定後に利用できます。</small></div>
         <div class="title-rankings">
@@ -43,6 +44,35 @@
           <a href="https://twitter.com/PubRe26174" target="_blank" rel="noopener noreferrer">Twitter @PubRe26174</a>
           <small>非公式ファンゲームです。権利者様から問題のご指摘があった場合は、公開停止・削除など速やかに対応します。</small>
         </footer>
+      </div>
+    </section>
+
+
+    <section id="simulationResultsScreen" class="screen simulation-results-screen hidden">
+      <div class="cube-stream" aria-hidden="true"></div>
+      <div class="simulation-results-shell">
+        <header class="simulation-results-header">
+          <div><p class="eyebrow">AUTOMATED BATTLE ANALYSIS</p><h1>シミュレーション結果</h1><p id="simulationMeta">結果を読み込んでいます。</p></div>
+          <button id="simulationBackButton" type="button">タイトルへ戻る</button>
+        </header>
+        <div id="simulationSummary" class="simulation-summary"></div>
+        <section class="simulation-panel">
+          <div class="simulation-toolbar">
+            <label>表示条件<select id="simulationScenarioFilter"><option value="all">全条件</option></select></label>
+            <div class="simulation-downloads">
+              <a href="simulation-results/latest.json" download>JSON</a>
+              <a href="simulation-results/latest.csv" download>CSV</a>
+            </div>
+          </div>
+          <div class="simulation-table-wrap">
+            <table class="simulation-table">
+              <thead><tr><th>条件</th><th>試合数</th><th>A側勝率</th><th>B側勝率</th><th>引分</th><th>平均時間</th><th>CRIT</th><th>JUST</th></tr></thead>
+              <tbody id="simulationTableBody"><tr><td colspan="8" class="simulation-empty">読み込み中です。</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+        <section id="simulationDetail" class="simulation-detail"><p>条件を選択すると詳細が表示されます。</p></section>
+        <footer class="simulation-note">GitHub Actionsでゲーム本体のAI・攻撃・防御処理を描画なしで実行した集計です。各試合は固定乱数シードで再現できます。</footer>
       </div>
     </section>
 
@@ -635,6 +665,8 @@
   <script src="js/trigger-data.js?v=32"></script>
   <script src="js/online.js?v=32"></script>
   <script src="js/community.js?v=32"></script>
-  <script src="js/game.js?v=59"></script>
+  <script src="simulation-results/latest.js?v=60"></script>
+  <script src="js/simulation-results.js?v=60"></script>
+  <script src="js/game.js?v=60"></script>
 </body>
 </html>
