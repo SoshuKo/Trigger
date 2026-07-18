@@ -52,9 +52,9 @@
     whitefox: { label:'白狐', category:'百鬼夜行', hp:2230, speed:152, radius:55, damage:30, boss:true },
     nekomata: { label:'猫又', category:'百鬼夜行', hp:2360, speed:146, radius:58, damage:32, boss:true },
     orochi: { label:'大蛇', category:'百鬼夜行', hp:3560, speed:86, radius:86, damage:36, boss:true },
-    sogetsu: { label:'双月', category:'防衛助っ人', hp:228, speed:174, radius:18, damage:28, support:true },
-    fullarms: { label:'全武装', category:'防衛助っ人', hp:272, speed:151, radius:19, damage:27, support:true },
-    geist: { label:'ガイスト', category:'防衛助っ人', hp:238, speed:168, radius:18, damage:27, support:true },
+    sogetsu: { label:'双月', category:'防衛助っ人', hp:286, speed:182, radius:18, damage:34, support:true },
+    fullarms: { label:'全武装', category:'防衛助っ人', hp:336, speed:158, radius:19, damage:33, support:true },
+    geist: { label:'ガイスト', category:'防衛助っ人', hp:286, speed:174, radius:18, damage:32, support:true },
   };
   const EXTRA_PARRY_TYPES = new Set(['fujin','alektor','organon','yamagu','yagarasu','whitefox','nekomata']);
   const effectiveSetupMode = (source = setup) => source.mode === 'extra' ? (source.extraBaseMode || 'solo') : source.mode;
@@ -94,7 +94,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 63;
+  const GAME_VERSION = 64;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
@@ -2581,8 +2581,25 @@
         order.y = ally.y + Math.sin((p.id.charCodeAt(p.id.length - 1) || 1) * 1.7) * 90;
         return order;
       }
+      if (order.type === 'retreat') {
+        const hpRatio = p.hp / Math.max(1, p.maxHp);
+        const enemyNear = this.players.some((other) => this.canDamage(p, other) && Math.hypot(other.x - p.x, other.y - p.y) < 430);
+        const retreatExpired = this.elapsed >= Number(p.ai?.operatorRetreatUntil || 0);
+        if ((hpRatio > .48 && !enemyNear) || (retreatExpired && hpRatio > .32 && !enemyNear)) {
+          p.operatorOrder = null;
+          return null;
+        }
+      }
       if (['move', 'defend', 'retreat', 'flank', 'activate', 'subwayControl', 'suppress'].includes(order.type)) {
         if (order.type === 'flank' && target) { order.x = lerp(order.x, target.x, .012); order.y = lerp(order.y, target.y, .012); }
+        if (order.type === 'suppress' && target) {
+          const safeRadius = p.archetype === '工作手' ? 510 : p.archetype === '狙撃手' ? 690 : 390;
+          const dZone = Math.hypot(p.x - order.x, p.y - order.y);
+          if (dZone < Math.max(120, (order.radius || 330) * .7)) {
+            const away = Math.atan2(p.y - target.y, p.x - target.x);
+            return { ...order, x:clamp(target.x + Math.cos(away) * safeRadius, 55, this.world.w - 55), y:clamp(target.y + Math.sin(away) * safeRadius, 55, this.world.h - 55) };
+          }
+        }
         if (Math.hypot(p.x - order.x, p.y - order.y) < 65 && order.type === 'move') p.operatorOrder = null;
         return order;
       }
@@ -2675,47 +2692,110 @@
             operator.nextOrderAt=rand(5,8);continue;
           }
         }
-        const lowUnits = teamUnits.filter((p) => p.hp < p.maxHp * .34);
-        const target = this.findNearestEnemy(teamUnits.sort((a,b)=>(b.hp/b.maxHp)-(a.hp/a.maxHp))[0]);
-        let order = null;
-        if (lowUnits.length) {
-          const retreatPoint=this.isDefenseMode&&this.defenseFlag?{x:this.defenseFlag.x,y:this.defenseFlag.y}:this.getTeamHome(team);
-          order = { type: 'retreat', ...retreatPoint, label: '負傷者を遮蔽下へ退避' };
+        const criticalUnits = teamUnits.filter((p) => p.hp < p.maxHp * .25);
+        for (const unit of criticalUnits) {
+          const retreatPoint = this.isDefenseMode && this.defenseFlag ? {x:this.defenseFlag.x,y:this.defenseFlag.y} : this.getTeamHome(team);
+          unit.operatorOrder = { type:'retreat', ...retreatPoint, label:'重傷者のみ後方退避' };
+          unit.ai.operatorRetreatUntil = this.elapsed + rand(4.2, 6.8);
+          unit.metrics.aiOperatorOrderChanges += 1;
         }
-        else if (this.isDefenseMode && this.defenseFlag) {
-          const state=this.getDefenseFlagThreatState();
-          if(state?.underAttack) {
-            const ordered=[...teamUnits].sort((a,b)=>Math.hypot(a.x-this.defenseFlag.x,a.y-this.defenseFlag.y)-Math.hypot(b.x-this.defenseFlag.x,b.y-this.defenseFlag.y));
-            const defendersNeeded=clamp(2+Math.ceil(state.pressure/2.6),2,Math.min(6,ordered.length));
-            ordered.forEach((unit,index)=>{
-              if(index<defendersNeeded) unit.operatorOrder={type:'defend',x:this.defenseFlag.x+Math.cos(index*2.399)*145,y:this.defenseFlag.y+Math.sin(index*2.399)*145,label:'フラッグ緊急防衛'};
-              else if(state.flagFocused[0]) unit.operatorOrder={type:'focus',targetId:state.flagFocused[0].id,label:'旗を狙う敵を排除'};
-              unit.metrics.aiOperatorOrderChanges+=1;
+        const activeUnits = teamUnits.filter((unit) => !criticalUnits.includes(unit));
+        const anchor = [...activeUnits].sort((a,b)=>(b.hp/b.maxHp)-(a.hp/a.maxHp))[0] || teamUnits[0];
+        const target = this.findNearestEnemy(anchor);
+
+        if (this.isDefenseMode && this.defenseFlag) {
+          const state = this.getDefenseFlagThreatState();
+          if (state?.underAttack) {
+            const candidates = [...activeUnits].sort((a,b) => {
+              const guardA = this.getAIGuardOption(a) ? -150 : 0;
+              const guardB = this.getAIGuardOption(b) ? -150 : 0;
+              return Math.hypot(a.x-this.defenseFlag.x,a.y-this.defenseFlag.y)+guardA - (Math.hypot(b.x-this.defenseFlag.x,b.y-this.defenseFlag.y)+guardB);
             });
-            operator.orders+=1;this.operatorStats.ordersIssued+=1;operator.nextOrderAt=rand(4.5,7);continue;
+            const defendersNeeded = clamp(1 + Math.ceil(state.pressure / 4.2) + (state.severe ? 1 : 0), 1, Math.min(4, candidates.length));
+            const defenders = candidates.slice(0, defendersNeeded);
+            defenders.forEach((unit,index) => {
+              const angle = index * 2.3999632297;
+              unit.operatorOrder = {type:'defend',x:this.defenseFlag.x+Math.cos(angle)*145,y:this.defenseFlag.y+Math.sin(angle)*145,label:'必要人数でフラッグ防衛'};
+              unit.metrics.aiOperatorOrderChanges += 1;
+            });
+            const attackers = activeUnits.filter((unit) => !defenders.includes(unit));
+            const threats = [...state.flagFocused, ...state.close, ...state.near].filter((enemy,index,array)=>array.findIndex((item)=>item.id===enemy.id)===index);
+            attackers.forEach((unit,index) => {
+              const enemy = threats[index % Math.max(1, threats.length)] || target;
+              if (!enemy) return;
+              unit.ai.target = enemy.id; unit.ai.targetType='player'; unit.ai.targetLockTimer=rand(1.8,3.2);
+              if (unit.archetype === '工作手') {
+                const home=this.getTeamHome(team), a=Math.atan2(home.y-enemy.y,home.x-enemy.x);
+                unit.operatorOrder={type:'defend',x:clamp(enemy.x+Math.cos(a)*500,60,this.world.w-60),y:clamp(enemy.y+Math.sin(a)*500,60,this.world.h-60),label:'工作支援線を維持'};
+              } else if (unit.archetype === '狙撃手') {
+                const home=this.getTeamHome(team), a=Math.atan2(home.y-enemy.y,home.x-enemy.x);
+                unit.operatorOrder={type:'hold',x:clamp(enemy.x+Math.cos(a)*720,60,this.world.w-60),y:clamp(enemy.y+Math.sin(a)*720,60,this.world.h-60),label:'後方から脅威排除'};
+              } else {
+                unit.operatorOrder={type:'focus',targetId:enemy.id,label:'フラッグから敵を押し返す'};
+              }
+              unit.metrics.aiOperatorOrderChanges += 1;
+            });
+            operator.orders += 1; this.operatorStats.ordersIssued += 1;
+            operator.nextOrderAt = rand(5.5,8.5); continue;
           }
         }
-        else if (target && Math.random() < .12) {
-          const facility = this.findNearestInstallation(teamUnits[0], true);
-          if (facility && Math.hypot(teamUnits[0].x - facility.x, teamUnits[0].y - facility.y) < 520) order = { type: 'activate', installationId: facility.id, x: facility.x, y: facility.y, label: '近傍設備起動' };
+
+        if (this.config.mode === 'team' && target && activeUnits.length) {
+          const enemies = this.players.filter((unit)=>unit.team!==team&&!unit.dead&&!unit.isDefenseEnemy);
+          const home = this.getTeamHome(team);
+          activeUnits.forEach((unit,index) => {
+            const pool = [...enemies].sort((a,b)=>this.scoreAITargetCandidate(unit,a,'player')-this.scoreAITargetCandidate(unit,b,'player')).slice(0,Math.min(4,enemies.length));
+            const enemy = pool[index % Math.max(1,pool.length)] || target;
+            if (!enemy) return;
+            unit.ai.target=enemy.id; unit.ai.targetType='player'; unit.ai.targetLockTimer=rand(2.2,4.2);
+            const towardHome=Math.atan2(home.y-enemy.y,home.x-enemy.x);
+            const side=(index%2?1:-1)*Math.PI/2;
+            if (unit.archetype === '工作手') {
+              unit.operatorOrder={type:'hold',x:clamp(enemy.x+Math.cos(towardHome)*520+Math.cos(towardHome+side)*110,60,this.world.w-60),y:clamp(enemy.y+Math.sin(towardHome)*520+Math.sin(towardHome+side)*110,60,this.world.h-60),label:'工作・後方支援'};
+            } else if (unit.archetype === '狙撃手') {
+              unit.operatorOrder={type:'focus',targetId:enemy.id,label:'狙撃・独立射線'};
+              unit.ai.coordinationRole='independentSniper';
+            } else if (['射手','銃手'].includes(unit.archetype)) {
+              unit.operatorOrder={type:'focus',targetId:enemy.id,label:'射撃・制圧目標'};
+              unit.ai.coordinationRole='suppression';
+              unit.ai.suppressionWindow=Math.max(unit.ai.suppressionWindow||0,3.2);
+              unit.ai.attackTimer=Math.min(unit.ai.attackTimer||0,.08);
+            } else if (unit.archetype === '攻撃手') {
+              unit.operatorOrder={type:'flank',targetId:enemy.id,x:clamp(enemy.x+Math.cos(towardHome+side)*230,60,this.world.w-60),y:clamp(enemy.y+Math.sin(towardHome+side)*230,60,this.world.h-60),label:'攻撃手・個別側面攻撃'};
+            } else {
+              unit.operatorOrder={type:'focus',targetId:enemy.id,label:'個別目標を攻撃'};
+            }
+            unit.metrics.aiOperatorOrderChanges += 1;
+          });
+          operator.orders += 1; this.operatorStats.ordersIssued += 1;
+          operator.nextOrderAt=rand(7,11);
+          this.logCombatDetail('operator_ai_order',null,{team,operator:operator.name,order:'individual_coordination',targetId:target.id,losing:false});
+          continue;
+        }
+
+        let order = null;
+        if (target && Math.random() < .1) {
+          const facility = this.findNearestInstallation(anchor, true);
+          const engineer = activeUnits.find((unit)=>unit.archetype==='工作手');
+          if (facility && engineer && Math.hypot(engineer.x-facility.x,engineer.y-facility.y)<420) {
+            engineer.operatorOrder={type:'activate',installationId:facility.id,x:facility.x,y:facility.y,label:'近傍設備起動'};
+            engineer.metrics.aiOperatorOrderChanges += 1;
+            operator.orders += 1; this.operatorStats.ordersIssued += 1; operator.nextOrderAt=rand(7,11); continue;
+          }
         }
         if (!order && target) {
           const roll = Math.random();
-          if (roll < .24) order = { type: 'flank', targetId: target.id, x: target.x + rand(-340, 340), y: target.y + rand(-340, 340), label: '側面展開' };
-          else if (roll < (this.isDefenseMode ? .58 : .38)) order = { type: 'defend', ...this.getTeamHome(team), label: '本部防衛' };
-          else order = { type: 'focus', targetId: target.id, label: '集中攻撃' };
+          if (roll < .34) order = { type:'flank',targetId:target.id,x:target.x+rand(-300,300),y:target.y+rand(-300,300),label:'側面展開' };
+          else if (roll < .52) order = { type:'defend',...this.getTeamHome(team),label:'短時間の再編' };
+          else order = { type:'focus',targetId:target.id,label:'攻撃再開' };
         }
-        if (!order) { operator.nextOrderAt = rand(10, 18); continue; }
-        const signature = `${order.type}:${order.targetId || order.installationId || ''}:${Math.round(order.x || 0)}:${Math.round(order.y || 0)}`;
-        if (signature === operator.lastOrderSignature) { operator.nextOrderAt = rand(8, 14); continue; }
-        operator.lastOrderSignature = signature;
-        for (const p of teamUnits) { p.operatorOrder = { ...order }; p.metrics.aiOperatorOrderChanges += 1; }
+        if (!order) { operator.nextOrderAt = rand(8,14); continue; }
+        const recipients = activeUnits.filter((unit)=>unit.archetype!=='工作手' || order.type!=='focus');
+        for (const unit of recipients) { unit.operatorOrder={...order}; unit.metrics.aiOperatorOrderChanges += 1; }
         operator.orders += 1;
-        const teamScore = this.teamScores[team] || 0;
-        const bestScore = Math.max(...this.teamScores, 1);
-        const losing = teamScore < bestScore * .72;
-        operator.nextOrderAt = rand(losing ? 7 : 10, losing ? 12 : 18);
-        this.logCombatDetail('operator_ai_order', null, { team, operator: operator.name, order: order.type, targetId: order.targetId || null, losing });
+        const teamScore=this.teamScores[team]||0,bestScore=Math.max(...this.teamScores,1),losing=teamScore<bestScore*.72;
+        operator.nextOrderAt=rand(losing?6:9,losing?10:14);
+        this.logCombatDetail('operator_ai_order',null,{team,operator:operator.name,order:order.type,targetId:order.targetId||null,losing});
       }
     }
 
@@ -4409,7 +4489,7 @@
       player.fullArmsTimer = 0;
       player.geistActive = false;
       player.geistTimer = 0;
-      player.geistMaxTimer = 18;
+      player.geistMaxTimer = 25;
       player.geistLevels = { armor:1, slash:4, special:3, speed:5, shoot:4 };
       player.geistBaseSpeed = player.speed;
       player.defenseAI = {
@@ -4542,7 +4622,8 @@
       target ||= this.getPlayableDefenseTarget(p);
       if (!target) return false;
       const type = p.playableDefenseType || p.defenseType;
-      const damage = (p.extraDamage || 20) * (options.ai ? .92 : 1);
+      const supportAi = Boolean(options.ai && (EXTRA_UNIT_DEFS[p.playableDefenseType || p.defenseType]?.support));
+      const damage = (p.extraDamage || 20) * (options.ai ? (supportAi ? 1.08 : .92) : 1);
       const modifier = Boolean(options.modifier);
       const boost = type === 'seals' ? clamp(p.extraBoost || p.defenseAI?.sealBoost || 1,1,3) : 1;
       const requestedCost = this.getPlayableDefenseActionCost(type, hand, index, boost) + (type === 'seals' && modifier && hand === 'main' ? 2 * boost : 0);
@@ -4687,7 +4768,7 @@
         else if(hand==='main'&&index===2){used=true;for(let i=-1;i<=1;i++)this.fireDefenseProjectile(p,target,{sourceName:'ガイスト・バイパー突撃銃',sourceKey:'viper',speed:p.geistActive?930:760,damage:damage*(p.geistActive?.34:.3),radius:5,color:'#c88cff',curve:(i)*.75,curveFlip:.55,targetId:target.id});this.setPlayableDefenseAction(p,'geistViper',.52);cd=p.geistActive?.62:.9;cost=6;}
         else if(hand==='main'&&index===3){p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.18);p.defenseAI.shieldHand='main';used=this.activateShield(p,'main','shield');this.setPlayableDefenseAction(p,'geistGuard',.18);cd=.08;cost=.12;}
         else if(hand==='sub'&&index===0){const ex=p.x+Math.cos(angle)*110,ey=p.y+Math.sin(angle)*110;this.walls.push({id:`geist-escudo-${this.elapsed}-${Math.random()}`,x:ex-34,y:ey-70,w:68,h:140,type:'escudo',team:p.team,ownerId:p.id,hp:210,maxHp:210,ttl:18});used=true;this.setPlayableDefenseAction(p,'geistEscudo',.55);cd=2.5;cost=8;}
-        else if(hand==='sub'&&index===1){if(p.geistActive)return false;p.geistActive=true;p.geistTimer=p.geistMaxTimer||18;p.geistBaseSpeed=p.speed;p.speed*=1.32;used=true;this.setPlayableDefenseAction(p,'geistActivate',1.3);this.effects.push({type:'geistActivate',x:p.x,y:p.y,ttl:1.5,maxTtl:1.5});cd=99;cost=18;}
+        else if(hand==='sub'&&index===1){if(p.geistActive)return false;p.geistActive=true;p.geistTimer=p.geistMaxTimer||25;p.geistBaseSpeed=p.speed;p.speed*=1.32;used=true;this.setPlayableDefenseAction(p,'geistActivate',1.3);this.effects.push({type:'geistActivate',x:p.x,y:p.y,ttl:1.5,maxTtl:1.5});cd=99;cost=15;}
         else if(hand==='sub'&&index===2){used=projectile('ガイスト・メテオラ','meteor',p.geistActive?680:540,damage*(p.geistActive?1.18:.92),8,'#ff9a4f',{explosionRadius:p.geistActive?120:92});this.setPlayableDefenseAction(p,'geistMeteor',.48);cd=p.geistActive?.8:1.2;cost=10;}
         else if(hand==='sub'&&index===3){p.toggles.bagworm=!p.toggles.bagworm;used=true;this.setPlayableDefenseAction(p,'bagworm',.25);cd=.35;cost=1;}
       } else if (type === 'orochi') {
@@ -4754,32 +4835,34 @@
       const target=this.getPlayableDefenseTarget(p);
       if(!target)return;
       const d=Math.hypot(target.x-p.x,target.y-p.y);
-      this.moveDefenseEnemy(p,target,dt,d>430?.82:d<120?-.18:.18);
+      const supportUnit = Boolean(EXTRA_UNIT_DEFS[p.playableDefenseType]?.support);
+      const preferredSupportRange = p.playableDefenseType==='fullarms'?390:p.playableDefenseType==='geist'?310:165;
+      this.moveDefenseEnemy(p,target,dt,d>preferredSupportRange*1.18?(supportUnit?1.02:.82):d<preferredSupportRange*.58?-.28:.16);
       p.extraAiTimer=(p.extraAiTimer||0)-dt;
       const tier=AI_TIER_PROFILES[p.aiTier]||AI_TIER_PROFILES.middle,base=AI_DIFFICULTIES[this.config.difficulty]||AI_DIFFICULTIES.normal;
       const pers=p.aiPersonality||{calmness:.5,aggression:.5};
       const profile={...base,calmness:pers.calmness,aggression:pers.aggression,guardSkill:clamp((base.guardSkill||0)*(tier.defense||1),0,1),parrySkill:clamp((base.parrySkill||0)*(tier.defense||1),0,1),dodgeSkill:clamp((base.dodgeSkill||0)*(tier.defense||1),0,1)};
       const defended=this.aiTryDefensiveRead(p,this.getProjectileThreatInfo(p),profile,tier,dt);
-      if(defended&&Math.random()<(base.patience||0))return;
+      if(defended&&Math.random()<(base.patience||0)*(supportUnit?.42:1))return;
       if(p.extraAiTimer>0)return;
-      const attackBias=.42+pers.aggression*.46;
+      const attackBias=clamp(.42+pers.aggression*.46+(supportUnit?.16:0),0,1);
       let hand=Math.random()<attackBias?'main':'sub';
       let index=irand(0,3);
       if(p.playableDefenseType==='sogetsu'){if(d<135){hand=Math.random()<.68?'main':'sub';index=0;}else if(d<520){hand=Math.random()<.55?'main':'sub';index=1;}else{hand='main';index=1;}if(!p.sogetsuConnected&&d<190&&Math.random()<.2){hand='main';index=3;}}
-      else if(p.playableDefenseType==='fullarms'){if(d<145){hand='main';index=0;}else if(d>650){hand='main';index=3;}else if(Math.random()<.18){hand='sub';index=3;}else{hand=Math.random()<.48?'main':'sub';index=hand==='main'?1:irand(0,1);}}
-      else if(p.playableDefenseType==='geist'){if(!p.geistActive&&((p.hp/p.maxHp)<.68||this.isDefenseMode&&this.defenseFlag&&this.defenseFlag.hp/this.defenseFlag.maxHp<.55)&&Math.random()<.34){hand='sub';index=1;}else if(d<150){hand='main';index=0;}else{hand=Math.random()<.62?'main':'sub';index=hand==='main'?irand(1,2):2;}}
+      else if(p.playableDefenseType==='fullarms'){if(d<145){hand='main';index=0;}else if(d>650){hand='main';index=3;}else if(Math.random()<.3){hand='sub';index=3;}else{hand=Math.random()<.48?'main':'sub';index=hand==='main'?1:irand(0,1);}}
+      else if(p.playableDefenseType==='geist'){if(!p.geistActive&&((p.hp/p.maxHp)<.78||this.isDefenseMode&&this.defenseFlag&&this.defenseFlag.hp/this.defenseFlag.maxHp<.62)&&Math.random()<.48){hand='sub';index=1;}else if(d<150){hand='main';index=0;}else{hand=Math.random()<.62?'main':'sub';index=hand==='main'?irand(1,2):2;}}
       if(p.playableDefenseType==='seals'){p.extraBoost=pers.calmness>.66?irand(1,3):(Math.random()<.58?3:irand(1,2));if(hand==='sub'&&index===0){p.defenseAI.shieldTimer=1.2;p.defenseAI.shieldHand='sub';this.activateShield(p,'sub','seal',{boost:p.extraBoost});}}
       this.usePlayableDefenseAction(p,hand,index,target,{ai:true,modifier:(p.playableDefenseType==='seals'&&hand==='main'&&Math.random()<(.2+pers.calmness*.42))||(p.playableDefenseType==='fullarms'&&hand==='main'&&[1,3].includes(index)&&Math.random()<.16)});
       const skillPace=.75+tier.decision*.25;
-      p.extraAiTimer=rand(.5,1.3)/(skillPace*(.7+pers.aggression*.55));
+      p.extraAiTimer=rand(supportUnit?.32:.5,supportUnit?.86:1.3)/(skillPace*(.7+pers.aggression*.55));
     }
 
 
     getDefenseSupportDefinition(type) {
       const defs={
-        sogetsu:{name:'双月',stats:{trion:7,technique:7,combat:9},main:['kogetsu','shooter_meteor','shield','empty'],sub:['kogetsu','shooter_meteor','shield','bagworm'],color:'#2b98c9'},
-        fullarms:{name:'全武装',stats:{trion:9,technique:8,combat:9},main:['raygust','thruster','shield','egret'],sub:['assaultAsteroid','assaultHound','spider','empty'],color:'#516b7f'},
-        geist:{name:'ガイスト',stats:{trion:7,technique:8,combat:8},main:['kogetsu','assaultAsteroid','assaultViper','shield'],sub:['escudo','empty','shooter_meteor','bagworm'],color:'#3e7cb4'},
+        sogetsu:{name:'双月',stats:{trion:8,technique:8,combat:10},main:['kogetsu','shooter_meteor','shield','empty'],sub:['kogetsu','shooter_meteor','shield','bagworm'],color:'#2b98c9'},
+        fullarms:{name:'全武装',stats:{trion:10,technique:9,combat:9},main:['raygust','thruster','shield','egret'],sub:['assaultAsteroid','assaultHound','spider','empty'],color:'#516b7f'},
+        geist:{name:'ガイスト',stats:{trion:9,technique:9,combat:9},main:['kogetsu','assaultAsteroid','assaultViper','shield'],sub:['escudo','empty','shooter_meteor','bagworm'],color:'#3e7cb4'},
       };
       return defs[type]||null;
     }
@@ -4797,7 +4880,8 @@
       support.respawnTimer=Infinity;
       const flag=this.defenseFlag||this.getTeamHome(team),a=({sogetsu:-.7,fullarms:0,geist:.7}[type]||0);
       support.x=clamp(flag.x+Math.cos(a)*125,60,this.world.w-60);support.y=clamp(flag.y+Math.sin(a)*125,60,this.world.h-60);support.invulnTimer=2.4;
-      support.operatorOrder={type:'defend',x:flag.x,y:flag.y,label:'フラッグ防衛'};
+      support.operatorOrder=null;
+      support.ai.attackTimer=0; support.ai.utilityTimer=.3; support.ai.targetLockTimer=0;
       this.players.push(support);
       this.effects.push({type:'supportSummon',x:support.x,y:support.y,color:spec.color,ttl:1.45,maxTtl:1.45});
       this.showCenterMessage('SUPPORT ARRIVAL',`${spec.name}を召喚`,1.8);
@@ -6302,7 +6386,7 @@
           gunShots: 0, gunReloads: 0, gunEmptyAttempts: 0, reloadSeconds: 0,
           meleeChainHits: 0, meleeChainsCompleted: 0, raygustShieldSeconds: 0,
           trionSpent: 0, pickups: 0, pickupTrionGained: 0, pickupScore: 0,
-          aliveTime: 0, currentLife: 0, longestLife: 0, assists: 0, supportScore: 0,
+          aliveTime: 0, currentLife: 0, longestLife: 0, assists: 0, supportScore: 0, naturalHealing: 0,
           combatDeaths: 0, manualBailouts: 0, spectateTransitions: 0, effectApplications: 0, successfulEffectActivations: 0,
           spiderSlowSeconds: 0, switchboxTriggers: 0, switchboxDamage: 0,
           dummyBeaconTargetSeconds: 0, bagwormHiddenSeconds: 0, chameleonHiddenSeconds: 0,
@@ -7593,6 +7677,25 @@
       return projectile;
     }
 
+    updateNaturalHealing(p, dt, activeDrain = 0) {
+      if (!p || p.dead || p.isDefenseEnemy || p.hp >= p.maxHp - .001 || p.geistActive || activeDrain > 0 || (p.defensePoisonTimer || 0) > 0) return;
+      const trionRatio = p.trion / Math.max(1, p.maxTrion);
+      const contactAge = this.elapsed - Math.max(p.lastDamageAt || -999, p.ai?.lastHostileContactAt || -999);
+      if (trionRatio < .68 || contactAge < 5.8) return;
+      const healRate = clamp(.22 + Number(p.stats?.trion || 2) * .075, .35, .98);
+      const requested = Math.min(p.maxHp - p.hp, healRate * dt);
+      const trionCost = requested * .72;
+      if (p.trion - trionCost < p.maxTrion * .58) return;
+      p.hp += requested;
+      p.trion = Math.max(0, p.trion - trionCost);
+      p.metrics.naturalHealing = (p.metrics.naturalHealing || 0) + requested;
+      p.naturalHealFxTimer = Math.max(0, (p.naturalHealFxTimer || 0) - dt);
+      if (p.naturalHealFxTimer <= 0) {
+        p.naturalHealFxTimer = .85;
+        this.effects.push({type:'healSpark',x:p.x+rand(-10,10),y:p.y+rand(-18,14),ttl:.42,maxTtl:.42,color:'#8fffd4'});
+      }
+    }
+
     updatePlayer(p, dt) {
       if (p.dead) {
         if (p.isDefenseEnemy) return;
@@ -7618,7 +7721,7 @@
         if (p.defenseAI) { p.defenseAI.shieldTimer=Math.max(0,(p.defenseAI.shieldTimer||0)-dt); p.defenseAI.coreCooldown=Math.max(0,(p.defenseAI.coreCooldown||0)-dt); p.defenseAI.actionTimer=Math.max(0,(p.defenseAI.actionTimer||0)-dt); }
         p.sogetsuConnectTimer=Math.max(0,(p.sogetsuConnectTimer||0)-dt);if(p.sogetsuConnectTimer<=0)p.sogetsuConnected=false;
         p.fullArmsTimer=Math.max(0,(p.fullArmsTimer||0)-dt);
-        if(p.geistActive){p.geistTimer=Math.max(0,(p.geistTimer||0)-dt);p.trion=Math.max(0,p.trion-dt*2.3);p.geistLeakTimer=(p.geistLeakTimer||0)-dt;if(p.geistLeakTimer<=0){p.geistLeakTimer=.09;this.effects.push({type:'geistLeak',x:p.x+rand(-16,16),y:p.y+rand(-24,20),ttl:.5,maxTtl:.5});}if(p.geistTimer<=0||p.trion<=0){p.geistActive=false;p.speed=p.geistBaseSpeed||p.speed;this.bailout(p,null,'ガイスト強制緊急脱出',{kind:'other'});}}
+        if(p.geistActive){p.geistTimer=Math.max(0,(p.geistTimer||0)-dt);p.trion=Math.max(0,p.trion-dt*1.15);p.geistLeakTimer=(p.geistLeakTimer||0)-dt;if(p.geistLeakTimer<=0){p.geistLeakTimer=.09;this.effects.push({type:'geistLeak',x:p.x+rand(-16,16),y:p.y+rand(-24,20),ttl:.5,maxTtl:.5});}if(p.geistTimer<=0||p.trion<=0){p.geistActive=false;p.speed=p.geistBaseSpeed||p.speed;this.bailout(p,null,'ガイスト強制緊急脱出',{kind:'other'});}}
       }
       if ((p.playableDefenseType === 'seals' || p.defenseType === 'seals') && (p.defenseAI?.shieldTimer || 0) > 0) {
         this.activateShield(p, p.defenseAI?.shieldHand || 'sub', 'seal', { boost:clamp(p.extraBoost || p.defenseAI?.sealBoost || 1, 1, 3) });
@@ -7695,6 +7798,7 @@
       } else {
         p.trion = Math.min(p.maxTrion, p.trion + p.regen * dt);
       }
+      this.updateNaturalHealing(p, dt, drain);
 
       const weightSlow = Math.max(.22, 1 - p.leadWeights * .17);
       const operatorBoost = p.operatorBoostTimer > 0 ? 1.18 : 1;
@@ -8368,7 +8472,7 @@
       else if (aggression < .24 && distanceToTarget < preferred * 1.28) desired = calmness > .42 ? 'retreat' : 'strafe';
       else if (aggression > .8 && distanceToTarget > preferred * .72) desired = 'advance';
       else if (calmness < .2 && p.hp < p.maxHp * .38 && aggression > .48) desired = 'advance';
-      else if (role === '工作手' && distanceToTarget < 295) desired = 'retreat';
+      else if (role === '工作手' && distanceToTarget < 430) desired = 'retreat';
       else if (rangeBand && distanceToTarget < rangeBand.min * .92) desired = 'retreat';
       else if (rangeBand && distanceToTarget > rangeBand.max * 1.03) desired = 'advance';
       else if (rangeBand && distanceToTarget >= rangeBand.min && distanceToTarget <= rangeBand.max) desired = hasSniper ? 'hold' : 'strafe';
@@ -8801,9 +8905,10 @@
         return sa-sb;
       });
       const hostileNearRepair = state.close.some((enemy) => Math.hypot(enemy.x-state.flag.x,enemy.y-state.flag.y)<285);
-      if (state.ratio < .78 && !hostileNearRepair && repairers.slice(0,state.ratio<.4?2:1).includes(p)) {
+      const repairCount = state.ratio < .28 ? 2 : 1;
+      if (state.ratio < .55 && !state.underAttack && !hostileNearRepair && repairers.slice(0,repairCount).includes(p)) {
         const d = Math.hypot(p.x-state.flag.x,p.y-state.flag.y);
-        if (d > state.flag.radius + p.radius + 42) return this.moveAIToStrategicPoint(p, state.flag, dt, 1.15);
+        if (d > state.flag.radius + p.radius + 42) return this.moveAIToStrategicPoint(p, state.flag, dt, 1.08);
         p.vx *= Math.pow(.03,dt); p.vy *= Math.pow(.03,dt);
         return true;
       }
@@ -8822,26 +8927,26 @@
       }
 
       if (state.underAttack) {
-        const returnCount = clamp(2 + Math.ceil(state.pressure/2.8) + (state.ratio<.45?1:0), 2, Math.min(6,allies.length));
+        const returnCount = clamp(1 + Math.ceil(state.pressure/4.2) + (state.severe?1:0), 1, Math.min(4,allies.length));
         if (byFlag.slice(0,returnCount).includes(p)) {
           const angleSeed = (byFlag.indexOf(p)+1)*2.3999632297;
-          const ring = 125 + (byFlag.indexOf(p)%2)*62;
-          const post = { x:state.flag.x+Math.cos(angleSeed)*ring, y:state.flag.y+Math.sin(angleSeed)*ring };
-          const d = Math.hypot(p.x-state.flag.x,p.y-state.flag.y);
-          if (d > 430 || Math.hypot(p.x-post.x,p.y-post.y)>240) return this.moveAIToStrategicPoint(p, post, dt, 1.2);
+          const ring = 135 + (byFlag.indexOf(p)%2)*70;
+          p.operatorOrder = {type:'defend',x:state.flag.x+Math.cos(angleSeed)*ring,y:state.flag.y+Math.sin(angleSeed)*ring,label:'必要人数で旗を守る'};
           const threat = this.getProjectileThreatInfo(p,.8);
           if (threat && this.getAIGuardOption(p)) this.activateAIGuard(p,threat.sourceAngle,.5,{masteryAttempt:true});
         }
-        const baitCandidates = allies.filter((unit) => unit.archetype !== '狙撃手' && unit.hp > unit.maxHp*.58).sort((a,b) => (b.stats?.combat||0)-(a.stats?.combat||0));
+        const baitCandidates = allies.filter((unit) => unit.archetype !== '狙撃手' && unit.archetype !== '工作手' && unit.hp > unit.maxHp*.62).sort((a,b) => (b.stats?.combat||0)-(a.stats?.combat||0));
         const bait = baitCandidates[0];
         const enemy = [...state.flagFocused,...state.close,...state.near][0];
         if (bait === p && enemy && p.ai.flagBaitTimer <= 0) {
           const away = Math.atan2(enemy.y-state.flag.y,enemy.x-state.flag.x);
-          p.operatorOrder = { type:'suppress', x:clamp(enemy.x+Math.cos(away)*220,60,this.world.w-60), y:clamp(enemy.y+Math.sin(away)*220,60,this.world.h-60), radius:260, label:'囮・敵を旗から引き離す' };
-          p.ai.target = enemy.id; p.ai.targetType='player'; p.ai.targetLockTimer=2.4;
-          p.ai.flagBaitTimer = 5.5;
-          this.addThreat(enemy,p,26,'noise',5.5);
+          p.operatorOrder = { type:'suppress', x:clamp(enemy.x+Math.cos(away)*250,60,this.world.w-60), y:clamp(enemy.y+Math.sin(away)*250,60,this.world.h-60), radius:280, label:'囮・敵を旗から引き離す' };
+          p.ai.target = enemy.id; p.ai.targetType='player'; p.ai.targetLockTimer=2.8;
+          p.ai.flagBaitTimer = 5.2;
+          this.addThreat(enemy,p,30,'noise',5.5);
         }
+      } else if (p.operatorOrder?.label === '必要人数で旗を守る' || p.operatorOrder?.label === 'フラッグ緊急防衛') {
+        p.operatorOrder = null;
       }
       return false;
     }
@@ -8949,14 +9054,15 @@
       p.ai.relocateTimer -= dt;
       p.ai.utilityTimer -= dt;
       p.ai.attackTimer -= dt;
+      p.ai.suppressionWindow = Math.max(0, (p.ai.suppressionWindow || 0) - dt);
       p.ai.concealmentCooldown = Math.max(0, (p.ai.concealmentCooldown || 0) - dt);
       p.ai.desertRecoveryCooldown = Math.max(0, (p.ai.desertRecoveryCooldown || 0) - dt);
       const immediateThreat = this.projectileThreat(p);
       if (immediateThreat) p.ai.lastHostileContactAt = this.elapsed;
       if (this.tryAIVoluntaryBailout(p, immediateThreat, dt)) return;
-      if (this.isDefenseMode && this.defenseFlag && this.defenseFlag.hp < this.defenseFlag.maxHp * .55 && p.trion > p.maxTrion * .62 && !p.operatorOrder) {
-        const eligible = this.players.filter((unit) => !unit.isDefenseEnemy && !unit.dead && !unit.human && unit.trion > unit.maxTrion * .62).sort((a, b) => Math.hypot(a.x - this.defenseFlag.x, a.y - this.defenseFlag.y) - Math.hypot(b.x - this.defenseFlag.x, b.y - this.defenseFlag.y));
-        const hostileNearFlag = this.players.some((enemy) => enemy.isDefenseEnemy && !enemy.dead && Math.hypot(enemy.x - this.defenseFlag.x, enemy.y - this.defenseFlag.y) < 340);
+      if (this.isDefenseMode && this.defenseFlag && this.defenseFlag.hp < this.defenseFlag.maxHp * .42 && this.elapsed-this.defenseFlag.lastDamageAt>4.5 && p.trion > p.maxTrion * .66 && !p.operatorOrder) {
+        const eligible = this.players.filter((unit) => !unit.isDefenseEnemy && !unit.dead && !unit.human && unit.trion > unit.maxTrion * .66).sort((a, b) => Math.hypot(a.x - this.defenseFlag.x, a.y - this.defenseFlag.y) - Math.hypot(b.x - this.defenseFlag.x, b.y - this.defenseFlag.y));
+        const hostileNearFlag = this.players.some((enemy) => enemy.isDefenseEnemy && !enemy.dead && Math.hypot(enemy.x - this.defenseFlag.x, enemy.y - this.defenseFlag.y) < 420);
         if (eligible[0] === p && !hostileNearFlag) {
           const dFlag = Math.hypot(this.defenseFlag.x - p.x, this.defenseFlag.y - p.y) || 1;
           if (dFlag > 85) {
@@ -9050,12 +9156,14 @@
       const threatened = this.projectileThreat(p);
       const lowHeavyResources = role === '重装手' && (p.trion < p.maxTrion * .35 || p.hp < p.maxHp * .35);
       const rangeBand = this.getAIRangeBand(p);
-      let preferred = role === '重装手' ? 170 : role === '工作手' ? 420 : rangeBand?.preferred || (hasSniper ? 860 : hasMelee ? 128 : 360);
+      let preferred = role === '重装手' ? 170 : role === '工作手' ? 520 : rangeBand?.preferred || (hasSniper ? 860 : hasMelee ? 128 : 360);
       if (role === '攻撃手') preferred = Math.max(preferred, 145);
+      if (role === '工作手') preferred = Math.max(preferred, 500);
       if (hasSniper) preferred = Math.max(preferred, 690);
       const closeEnemies=this.players.filter((other)=>this.canDamage(p,other)&&Math.hypot(other.x-p.x,other.y-p.y)<340).length;
       const targetUsesRanged=target.isDefenseEnemy || target.archetype==='狙撃手' || target.archetype==='銃手' || target.archetype==='射手'
         || (!target.playableDefenseType && [...(target.loadout?.main||[]),...(target.loadout?.sub||[])].some((id)=>['gun','sniper','shooter'].includes(DATA.triggers[id]?.kind)));
+      const suppressionRole = ['射手','銃手'].includes(role) || (!p.playableDefenseType && [...p.loadout.main,...p.loadout.sub].some((id)=>['gun','shooter'].includes(DATA.triggers[id]?.kind)));
       if (rangeBand) {
         if (d >= rangeBand.min && d <= rangeBand.max) p.metrics.aiOptimalRangeSeconds += dt;
         else p.metrics.aiOutOfRangeSeconds += dt;
@@ -9116,6 +9224,10 @@
       const threatInfo = this.getProjectileThreatInfo(p);
       const defensiveRead = this.aiTryDefensiveRead(p, threatInfo, profile, tier, dt);
       const targetFacing=Math.abs(angleDiff(Math.atan2(p.y-target.y,p.x-target.x),target.aim||0))<.62;
+      const clearAttackLine = !this.findBlockingWall(p.x,p.y,target.x,target.y,Math.max(3,p.radius*.22));
+      const safeAttackOpportunity = clearAttackLine && !threatened && closeEnemies <= 1 && p.hp > p.maxHp*.36 && p.trion > p.maxTrion*.16
+        && d < (hasSniper ? 980 : suppressionRole ? 760 : hasMelee ? 430 : 690);
+      if (suppressionRole && clearAttackLine && d < 760 && closeEnemies <= 2) p.ai.suppressionWindow = Math.max(p.ai.suppressionWindow || 0, .65);
       const exposedToRanged=targetUsesRanged && targetFacing && d<920 && !this.findBlockingWall(target.x,target.y,p.x,p.y,4);
       const shouldHoldGuard=!defensiveRead && this.getAIGuardOption(p) && (threatInfo || (exposedToRanged && (profile.calmness>.42 || p.hp<p.maxHp*.62)))
         && p.trion>p.maxTrion*.14 && Math.random()<(.18+profile.guardSkill*.62);
@@ -9143,15 +9255,17 @@
         }
       }
       if (p.ai.wallBreakTarget && this.aiTryBreakNavigationWall(p)) return;
-      if (defensiveRead && p.ai.defenseCommitTimer > 0 && Math.random() < profile.patience) return;
+      if (defensiveRead && p.ai.defenseCommitTimer > 0 && !safeAttackOpportunity && Math.random() < profile.patience * .72) return;
       const targetGuarding = this.getActiveShieldEntries(target).length > 0;
-      if (targetGuarding && p.ai.attackTimer <= 0 && Math.random() < profile.patience * (.7 + profile.calmness * .3)) {
+      if (targetGuarding && !suppressionRole && !safeAttackOpportunity && p.ai.attackTimer <= 0 && Math.random() < profile.patience * (.58 + profile.calmness * .24)) {
         p.ai.strafe *= -1;
         p.ai.attackTimer = rand(.14, .38) * (1.22 - profile.aggression * .28);
         return;
       }
+      if (safeAttackOpportunity) p.ai.attackTimer = Math.min(p.ai.attackTimer, suppressionRole ? .035 : .09);
       if (p.ai.attackTimer > 0) return;
-      p.ai.attackTimer = rand(profile.attackInterval[0], profile.attackInterval[1]);
+      const attackPace = suppressionRole ? (safeAttackOpportunity ? .48 : .68) : safeAttackOpportunity ? .72 : 1;
+      p.ai.attackTimer = rand(profile.attackInterval[0], profile.attackInterval[1]) * attackPace;
       p.ai.lastAttackAt=this.elapsed;
       const attackBlocker = this.findBlockingWall(p.x, p.y, target.x, target.y, Math.max(3, p.radius * .22));
       const allowedWallBreak = attackBlocker && p.ai.wallBreakTarget === attackBlocker.id && p.ai.wallBreakTimer > 0;
@@ -9196,6 +9310,10 @@
         p.ai.lastWeaponId = key;
         p.ai.forcedRangedHand = null;
         const used = this.tryUseHand(p, ranged.hand);
+        if (used && suppressionRole && ['gun','shooter'].includes(ranged.trigger.kind)) {
+          p.ai.suppressionWindow = Math.max(p.ai.suppressionWindow || 0, 1.1);
+          p.ai.attackTimer = Math.min(p.ai.attackTimer, safeAttackOpportunity ? rand(.08,.2) : rand(.18,.34));
+        }
         if (used && ranged.trigger.kind === 'sniper') { p.ai.relocateTimer = rand(.55, .95); p.ai.utilityTimer = 0; }
       }
     }
@@ -9276,7 +9394,7 @@
       const axisDx=Math.abs(target.x-p.x), axisDy=Math.abs(target.y-p.y);
       if (axisDx < 92 && axisDy > 210) score *= 1.22;
       const alliedFocus=this.players.filter((ally)=>ally!==p&&!ally.dead&&ally.team===p.team&&ally.ai?.target===target.id).length;
-      score *= 1 + Math.min(.48, alliedFocus*.12);
+      score *= 1 + Math.min(.9, alliedFocus*.22);
       if (this.isAINearWorldCorner(target.x,target.y,105) && d>380) score *= 1.14;
       if (target.toggles.chameleon) score *= 1.7;
       if (this.config.difficulty === 'strong') score *= .68 + (target.hp / target.maxHp) * .45;
@@ -9302,7 +9420,7 @@
       const currentEntry = current ? { target: current, type: p.ai.targetType, score: this.scoreAITargetCandidate(p, current, p.ai.targetType) } : null;
       const attackedBy = this.elapsed - (p.lastDamageAt || -999) < 2.4 ? candidates.find((item) => item.type === 'player' && item.target.id === p.ai.lastAttackerId) : null;
       const immediateThreat = candidates.find((item) => item.type === 'player' && item.score < 118);
-      const choicePool = candidates.slice(0, this.config.difficulty === 'weak' ? 3 : 2);
+      const choicePool = candidates.slice(0, this.config.difficulty === 'weak' ? 4 : this.config.difficulty === 'strong' ? 3 : 4);
       let choice = attackedBy || immediateThreat || weightedChoice(choicePool, (item) => 1 / Math.max(1, item.score));
       let switchReason = force ? 'forced_or_missing' : attackedBy ? 'attacked_by' : immediateThreat ? 'immediate_threat' : 'score';
       if (!force && currentEntry && choice?.target.id !== currentEntry.target.id) {
@@ -9371,6 +9489,7 @@
       const targetAngle = Math.atan2(target.y - p.y, target.x - p.x);
       const lateralSpeed = Math.abs((target.vx || 0) * -Math.sin(targetAngle) + (target.vy || 0) * Math.cos(targetAngle));
       const cluster = this.countEnemiesNear(p, target, 145);
+      const suppressionRole = ['射手','銃手'].includes(p.archetype);
       const repeatPenalty = (id) => p.ai.lastWeaponId === id ? Math.max(.35, 1 - p.ai.repeatCount * .16) : 1;
 
       for (const hand of ['main', 'sub']) {
@@ -9414,6 +9533,10 @@
             score = (p.archetype === '重装手' ? 7.8 : 3.7) - Math.abs(d - 175) / 85;
           }
           if (!Number.isFinite(score)) return;
+          if (suppressionRole && ['gun','shooter'].includes(trigger.kind)) {
+            score += 1.15 + Math.min(1.2, cluster * .22);
+            if (p.ai?.suppressionWindow > 0) score += .8;
+          }
           const rangeProfile = this.getTriggerRangeProfile(trigger);
           if (rangeProfile) {
             const inRange = d >= rangeProfile.min && d <= rangeProfile.max;
@@ -13358,6 +13481,10 @@ drawUndergroundFeatures(ctx){
           ctx.globalAlpha = t;
           ctx.fillStyle = '#ffffff';
           ctx.beginPath(); ctx.arc(e.x + Math.cos(e.angle) * 28, e.y + Math.sin(e.angle) * 28, 18 * t, 0, TAU); ctx.fill();
+        } else if (e.type === 'healSpark') {
+          ctx.globalAlpha = t; ctx.fillStyle = e.color || '#8fffd4';
+          ctx.beginPath(); ctx.arc(e.x, e.y - (1 - t) * 16, 3 + t * 2, 0, TAU); ctx.fill();
+          ctx.strokeStyle = e.color || '#8fffd4'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(e.x - 7, e.y - (1 - t) * 16); ctx.lineTo(e.x + 7, e.y - (1 - t) * 16); ctx.moveTo(e.x, e.y - 7 - (1 - t) * 16); ctx.lineTo(e.x, e.y + 7 - (1 - t) * 16); ctx.stroke();
         } else if (e.type === 'flagHeal') {
           ctx.globalAlpha = t; ctx.fillStyle = '#65f1c0'; ctx.fillRect(e.x - 5, e.y - 18 * (1 - t), 10, 10);
         } else if (e.type === 'flagHit') {
@@ -13837,6 +13964,7 @@ drawUndergroundFeatures(ctx){
             attackActivations: Number(player.metrics?.attackActivations || 0),
             activationsWithHit: Number(player.metrics?.activationsWithHit || 0),
             trionSpent: Number((player.metrics?.trionSpent || 0).toFixed(3)),
+            naturalHealing: Number((player.metrics?.naturalHealing || 0).toFixed(3)),
             aiTargetChanges: Number(player.metrics?.aiTargetChanges || 0),
             aiStuckEscapes: Number(player.metrics?.aiStuckEscapes || 0),
           },
