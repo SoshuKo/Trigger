@@ -1,0 +1,24 @@
+{
+  "version": 66,
+  "changes": {
+    "geist": {
+      "maxSeconds": 38,
+      "summonedMaxSeconds": 44,
+      "drainPerSecond": 0.62,
+      "summonedDrainPerSecond": 0.42,
+      "activationCost": 10
+    },
+    "supportSummonBuff": {
+      "damage": 1.22,
+      "damageTaken": 0.78,
+      "trionCost": 0.72,
+      "cooldown": 0.86,
+      "hp": 1.18,
+      "trion": 1.22
+    },
+    "sniper": "rear-line hold, no flag guard assignment, preferred range >=760px",
+    "leadBailout": "starts considering bailout at 4 lead weights and high HP",
+    "trapper": "longer concealment and predicted traffic-lane trap placement",
+    "ui": "map, mode, time, weather and defense scenario labels converted to symbols"
+  }
+}
