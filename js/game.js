@@ -52,6 +52,9 @@
     whitefox: { label:'白狐', category:'百鬼夜行', hp:2230, speed:152, radius:55, damage:30, boss:true },
     nekomata: { label:'猫又', category:'百鬼夜行', hp:2360, speed:146, radius:58, damage:32, boss:true },
     orochi: { label:'大蛇', category:'百鬼夜行', hp:3560, speed:86, radius:86, damage:36, boss:true },
+    sogetsu: { label:'双月', category:'防衛助っ人', hp:228, speed:174, radius:18, damage:28, support:true },
+    fullarms: { label:'全武装', category:'防衛助っ人', hp:272, speed:151, radius:19, damage:27, support:true },
+    geist: { label:'ガイスト', category:'防衛助っ人', hp:238, speed:168, radius:18, damage:27, support:true },
   };
   const EXTRA_PARRY_TYPES = new Set(['fujin','alektor','organon','yamagu','yagarasu','whitefox','nekomata']);
   const effectiveSetupMode = (source = setup) => source.mode === 'extra' ? (source.extraBaseMode || 'solo') : source.mode;
@@ -91,7 +94,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 60;
+  const GAME_VERSION = 62;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
@@ -617,6 +620,13 @@
     const isTeam = effectiveMode === 'team';
     const isDefense = effectiveMode === 'defense';
     const isSquad = isTeam || isDefense;
+    const teamSizeInput = $('#teamSize');
+    if (teamSizeInput) {
+      teamSizeInput.max = isDefense ? '8' : '4';
+      setup.teamSize = clamp(Number(setup.teamSize || 3), 1, isDefense ? 8 : 4);
+      teamSizeInput.value = setup.teamSize;
+      if ($('#teamSizeValue')) $('#teamSizeValue').textContent = String(setup.teamSize);
+    }
     if (!isSquad && setup.playerRole === 'operator') setup.playerRole = 'spectator';
     $('#extraModeFields')?.classList.toggle('hidden', !isExtra);
     $('#soloCountFields')?.classList.toggle('hidden', isSquad);
@@ -1016,7 +1026,7 @@
       if (MAP_IDS.includes(saved.mapId)) setup.mapId = saved.mapId;
       if (PLAYER_ROLES.includes(saved.playerRole)) setup.playerRole = saved.playerRole;
       if (saved.teamCount) setup.teamCount = clamp(Number(saved.teamCount), 2, 4);
-      if (saved.teamSize) setup.teamSize = clamp(Number(saved.teamSize), 1, 4);
+      if (saved.teamSize) setup.teamSize = clamp(Number(saved.teamSize), 1, 8);
       if (DEFENSE_SCENARIO_LABELS[saved.defenseScenario]) setup.defenseScenario = saved.defenseScenario;
       if (TIME_PHASES.includes(saved.timeOfDay)) setup.timeOfDay = saved.timeOfDay;
       setup.timeProgression = Boolean(saved.timeProgression);
@@ -1172,7 +1182,7 @@
     }, []);
     base.teamCount = Math.min(4, Math.max(2, Number(base.teamCount || 2), maxRosterTeam + 1));
     if (base.mode === 'team') base.teamSize = Math.min(4, Math.max(1, Number(base.teamSize || 3), ...largestHumanTeam.filter(Number.isFinite)));
-    if (base.mode === 'defense') base.teamSize = Math.min(4, Math.max(1, Number(base.teamSize || 3), combatants.length));
+    if (base.mode === 'defense') base.teamSize = Math.min(8, Math.max(1, Number(base.teamSize || 3), combatants.length));
     if (base.mode === 'solo') base.cpuCount = Math.max(0, Number(base.cpuCount ?? 11));
     base.onlineSession = {
       roomId: session.roomId || descriptor.roomId,
@@ -1544,10 +1554,13 @@
       this.operatorAllyId = null;
       this.operatorAiTimer = 3;
       this.operatorCamera = { x: this.world.w * .25, y: this.world.h * .5, followId: null };
-      this.operatorSupportCooldowns = { scan: 0, supply: 0, flare: 0, barrier: 0, rally: 0, decoy: 0, flagRepair: 0 };
-      this.operatorSupportDurations = { scan: 24, supply: 32, flare: 26, barrier: 36, rally: 30, decoy: 28, flagRepair: 42 };
+      this.operatorSupportCooldowns = { scan: 0, supply: 0, flare: 0, barrier: 0, rally: 0, decoy: 0, flagRepair: 0, summonSogetsu:0, summonFullarms:0, summonGeist:0 };
+      this.operatorSupportDurations = { scan: 24, supply: 32, flare: 26, barrier: 36, rally: 30, decoy: 28, flagRepair: 32, summonSogetsu:9999, summonFullarms:9999, summonGeist:9999 };
       this.operatorSupportPending = null;
-      this.operatorStats = { ordersIssued: 0, supportsUsed: 0, scan: 0, supply: 0, flare: 0, barrier: 0, rally: 0, decoy: 0, flagRepair: 0 };
+      this.defenseSupportSummoned = { sogetsu:false, fullarms:false, geist:false };
+      this.defenseSupportSerial = 0;
+      this.defenseSupportLastSummonAt = -999;
+      this.operatorStats = { ordersIssued: 0, supportsUsed: 0, scan: 0, supply: 0, flare: 0, barrier: 0, rally: 0, decoy: 0, flagRepair: 0, summonSogetsu:0, summonFullarms:0, summonGeist:0 };
       const initialWeather = (this.mapId === 'desert' || this.mapId === 'underground') && config.weather === 'rain' ? 'clear' : (WEATHER_TYPES.includes(config.weather) ? config.weather : 'clear');
       this.environment = { timeOfDay: TIME_PHASES.includes(config.timeOfDay) ? config.timeOfDay : 'day', timeProgression: Boolean(config.timeProgression), timeTimer: 0, weather: initialWeather, weatherChange: Boolean(config.weatherChange), weatherTimer: rand(75, 115) };
       this.players = [];
@@ -2324,14 +2337,19 @@
       $('#operatorWorkLabel').textContent = working ? `${working.name} 接続作業 ${Math.min(100, Math.round((working.operatorOrderProgress || 0) / 3 * 100))}%` : '指揮回線 接続中';
       const cooldownRoot = $('#operatorCooldowns');
       if (cooldownRoot) {
-        const labels = { scan: '索敵', supply: '補給', flare: '照明', barrier: '障壁', rally: '機動', decoy: '囮', flagRepair: '旗修復' };
+        const labels = { scan:'索敵',supply:'補給',flare:'照明',barrier:'障壁',rally:'機動',decoy:'囮',flagRepair:'旗修復',summonSogetsu:'双月',summonFullarms:'全武装',summonGeist:'ガイスト' };
         cooldownRoot.innerHTML = Object.entries(this.operatorSupportCooldowns).map(([key, value]) => `<span class="${value > 0 ? 'cooling' : 'ready'}">${labels[key]} ${value > 0 ? `${Math.ceil(value)}s` : 'READY'}</span>`).join('');
       }
       $$('#operatorPanel [data-support]').forEach((button) => {
         const key = button.dataset.support;
         const remaining = this.operatorSupportCooldowns[key] || 0;
-        button.classList.toggle('hidden', key === 'flagRepair' && !this.isDefenseMode);
-        button.disabled = remaining > 0 || (key === 'flagRepair' && !this.isDefenseMode);
+        const summonType={summonSogetsu:'sogetsu',summonFullarms:'fullarms',summonGeist:'geist'}[key];
+        const defenseOnly=key==='flagRepair'||Boolean(summonType);
+        const already=Boolean(summonType&&this.defenseSupportSummoned?.[summonType]);
+        button.classList.toggle('hidden', defenseOnly && !this.isDefenseMode);
+        button.disabled = remaining > 0 || already || (defenseOnly && !this.isDefenseMode);
+        if(already)button.textContent=`${EXTRA_UNIT_DEFS[summonType]?.label||summonType} 召喚済`;
+        else if(summonType)button.textContent=`${EXTRA_UNIT_DEFS[summonType]?.label||summonType}を召喚`;
         button.classList.toggle('cooling', remaining > 0);
       });
     }
@@ -2436,6 +2454,12 @@
         }
         return;
       }
+      const summonMap={summonSogetsu:'sogetsu',summonFullarms:'fullarms',summonGeist:'geist'};
+      if(summonMap[support]){
+        const summoned=this.summonDefenseSupport(summonMap[support],this.playerTeam,false);
+        message.textContent=summoned?`${summoned.name}を防衛線へ召喚しました。`:'この助っ人は召喚できません。';
+        this.refreshOperatorUi();return;
+      }
       if (support === 'scan') {
         const enemies = this.players.filter((p) => p.team !== this.playerTeam && !p.dead);
         enemies.forEach((enemy) => { enemy.revealTimer = Math.max(enemy.revealTimer, 8); enemy.markedTimer = Math.max(enemy.markedTimer, 5); });
@@ -2451,7 +2475,7 @@
         message.textContent = `${units.map((unit) => unit.name).join('・')}へ機動支援を送信しました。`;
         this.logEvent('operator_support', message.textContent);
       } else if (support === 'flagRepair' && this.isDefenseMode && this.defenseFlag) {
-        const amount = this.defenseFlag.maxHp * .18;
+        const amount = this.defenseFlag.maxHp * .24;
         this.defenseFlag.hp = Math.min(this.defenseFlag.maxHp, this.defenseFlag.hp + amount);
         this.defenseFlag.repaired += amount;
         this.operatorSupportCooldowns.flagRepair = this.operatorSupportDurations.flagRepair;
@@ -2557,7 +2581,7 @@
         order.y = ally.y + Math.sin((p.id.charCodeAt(p.id.length - 1) || 1) * 1.7) * 90;
         return order;
       }
-      if (['move', 'defend', 'retreat', 'flank', 'activate', 'suppress'].includes(order.type)) {
+      if (['move', 'defend', 'retreat', 'flank', 'activate', 'subwayControl', 'suppress'].includes(order.type)) {
         if (order.type === 'flank' && target) { order.x = lerp(order.x, target.x, .012); order.y = lerp(order.y, target.y, .012); }
         if (Math.hypot(p.x - order.x, p.y - order.y) < 65 && order.type === 'move') p.operatorOrder = null;
         return order;
@@ -2604,6 +2628,18 @@
             p.vy *= .82;
             if (p.operatorOrderProgress >= 3) { this.activateInstallation(facility, p.team, p); p.operatorOrder = null; p.operatorOrderProgress = 0; }
           }
+        } else if (order.type === 'subwayControl') {
+          const control = this.lightSources.find((item) => item.id === order.controlId && item.hp > 0);
+          if (!control) { p.operatorOrder = null; continue; }
+          order.x = control.x; order.y = control.y;
+          if (Math.hypot(p.x-control.x,p.y-control.y) < 105) {
+            const subway=this.environment.subway||{};
+            const already = control.kind==='platformSwitch' ? (order.desired==='close' ? subway.homeDoorsClosed : !subway.homeDoorsClosed)
+              : control.kind==='waterGateSwitch' ? (order.desired==='drain' ? subway.waterDrained : !subway.waterDrained)
+              : control.kind==='breakerSwitch' ? (order.desired==='off' ? subway.breakerOff : !subway.breakerOff) : true;
+            if (!already) this.tryInteractSubwayControl(p);
+            p.operatorOrder=null; p.operatorOrderProgress=0;
+          }
         }
       }
       this.operatorAiTimer -= dt;
@@ -2615,20 +2651,58 @@
         if (!operator) continue;
         operator.nextOrderAt = Number(operator.nextOrderAt || 0) - 1;
         if (operator.nextOrderAt > 0) continue;
+        if(this.tryCpuDefenseSupport(operator)){operator.nextOrderAt=rand(5.5,8.5);continue;}
         const teamUnits = this.players.filter((p) => p.team === team && !p.dead && !p.isDefenseEnemy);
-        if (!teamUnits.length) { operator.nextOrderAt = rand(10, 18); continue; }
-        const lowUnits = teamUnits.filter((p) => p.hp < p.maxHp * .28);
-        const target = this.findNearestEnemy(teamUnits[0]);
+        if (!teamUnits.length) { operator.nextOrderAt = rand(8, 13); continue; }
+        if (this.isDefenseMode && team===0 && this.defenseFlag) {
+          const flagRatio=this.defenseFlag.hp/Math.max(1,this.defenseFlag.maxHp);
+          if (flagRatio<.62 && (this.operatorSupportCooldowns.flagRepair||0)<=0) {
+            const amount=this.defenseFlag.maxHp*(flagRatio<.3?.3:.24);
+            this.defenseFlag.hp=Math.min(this.defenseFlag.maxHp,this.defenseFlag.hp+amount);
+            this.defenseFlag.repaired+=amount;
+            this.operatorSupportCooldowns.flagRepair=this.operatorSupportDurations.flagRepair;
+            this.operatorStats.supportsUsed+=1;this.operatorStats.flagRepair+=1;
+            this.effects.push({type:'flagHeal',x:this.defenseFlag.x,y:this.defenseFlag.y,ttl:.8,maxTtl:.8});
+            this.logEvent('operator_support','CPUオペレーター：緊急フラッグ修復');
+            operator.nextOrderAt=rand(4.5,7);continue;
+          }
+          const subwayOrder=this.getCpuSubwayStrategicOrder(teamUnits);
+          if(subwayOrder){
+            subwayOrder.unit.operatorOrder={type:'subwayControl',controlId:subwayOrder.control.id,x:subwayOrder.control.x,y:subwayOrder.control.y,desired:subwayOrder.desired,label:'地下設備戦術操作'};
+            subwayOrder.unit.operatorOrderProgress=0;
+            operator.orders+=1;this.operatorStats.ordersIssued+=1;
+            this.logEvent('operator_ai_order',`地下設備：${subwayOrder.control.kind} ${subwayOrder.desired}`,false);
+            operator.nextOrderAt=rand(5,8);continue;
+          }
+        }
+        const lowUnits = teamUnits.filter((p) => p.hp < p.maxHp * .34);
+        const target = this.findNearestEnemy(teamUnits.sort((a,b)=>(b.hp/b.maxHp)-(a.hp/a.maxHp))[0]);
         let order = null;
-        if (lowUnits.length) order = { type: 'retreat', ...this.getTeamHome(team), label: 'オペレーター退避指示' };
-        else if (target && Math.random() < .18) {
+        if (lowUnits.length) {
+          const retreatPoint=this.isDefenseMode&&this.defenseFlag?{x:this.defenseFlag.x,y:this.defenseFlag.y}:this.getTeamHome(team);
+          order = { type: 'retreat', ...retreatPoint, label: '負傷者を遮蔽下へ退避' };
+        }
+        else if (this.isDefenseMode && this.defenseFlag) {
+          const state=this.getDefenseFlagThreatState();
+          if(state?.underAttack) {
+            const ordered=[...teamUnits].sort((a,b)=>Math.hypot(a.x-this.defenseFlag.x,a.y-this.defenseFlag.y)-Math.hypot(b.x-this.defenseFlag.x,b.y-this.defenseFlag.y));
+            const defendersNeeded=clamp(2+Math.ceil(state.pressure/2.6),2,Math.min(6,ordered.length));
+            ordered.forEach((unit,index)=>{
+              if(index<defendersNeeded) unit.operatorOrder={type:'defend',x:this.defenseFlag.x+Math.cos(index*2.399)*145,y:this.defenseFlag.y+Math.sin(index*2.399)*145,label:'フラッグ緊急防衛'};
+              else if(state.flagFocused[0]) unit.operatorOrder={type:'focus',targetId:state.flagFocused[0].id,label:'旗を狙う敵を排除'};
+              unit.metrics.aiOperatorOrderChanges+=1;
+            });
+            operator.orders+=1;this.operatorStats.ordersIssued+=1;operator.nextOrderAt=rand(4.5,7);continue;
+          }
+        }
+        else if (target && Math.random() < .12) {
           const facility = this.findNearestInstallation(teamUnits[0], true);
-          if (facility && Math.hypot(teamUnits[0].x - facility.x, teamUnits[0].y - facility.y) < 900) order = { type: 'activate', installationId: facility.id, x: facility.x, y: facility.y, label: '設備起動' };
+          if (facility && Math.hypot(teamUnits[0].x - facility.x, teamUnits[0].y - facility.y) < 520) order = { type: 'activate', installationId: facility.id, x: facility.x, y: facility.y, label: '近傍設備起動' };
         }
         if (!order && target) {
           const roll = Math.random();
-          if (roll < .2) order = { type: 'flank', targetId: target.id, x: target.x + rand(-340, 340), y: target.y + rand(-340, 340), label: '側面展開' };
-          else if (roll < .32) order = { type: 'defend', ...this.getTeamHome(team), label: '本部防衛' };
+          if (roll < .24) order = { type: 'flank', targetId: target.id, x: target.x + rand(-340, 340), y: target.y + rand(-340, 340), label: '側面展開' };
+          else if (roll < (this.isDefenseMode ? .58 : .38)) order = { type: 'defend', ...this.getTeamHome(team), label: '本部防衛' };
           else order = { type: 'focus', targetId: target.id, label: '集中攻撃' };
         }
         if (!order) { operator.nextOrderAt = rand(10, 18); continue; }
@@ -2769,10 +2843,16 @@
       let factor=1;
       const onRoad=this.terrain.roads.some(r=>this.isPointInRect(p.x,p.y,r));
       const onPlaza=this.terrain.plazas.some(r=>this.isPointInRect(p.x,p.y,r));
+      const floorZones = [
+        ...(this.terrain.buildings || []), ...(this.terrain.shrineRooms || []), ...(this.terrain.shrineCorridors || []),
+        ...(this.terrain.shrineCourts || []), ...(this.terrain.subwayPlatforms || []), ...(this.terrain.subwayPassengerZones || []),
+        ...(this.terrain.subwayServiceZones || [])
+      ];
+      const onConstructedFloor = floorZones.some((r) => this.isPointInRect(p.x, p.y, r));
       if(onRoad) factor*=this.mapId==='desert'?1.03:1.08;
-      if(this.terrain.forests.some(r=>this.isPointInRect(p.x,p.y,r))) factor*=.82;
-      if(this.isInRiver(p.x,p.y)){ const river=this.terrain.rivers[0]; factor*=.48; p.vx+=river.flowX*dt; p.vy+=river.flowY*dt; }
-      if(this.mapId==='desert'){
+      if(!onConstructedFloor && this.terrain.forests.some(r=>this.isPointInRect(p.x,p.y,r))) factor*=.82;
+      if(!onConstructedFloor && this.isInRiver(p.x,p.y)){ const river=this.terrain.rivers[0]; factor*=.48; p.vx+=river.flowX*dt; p.vy+=river.flowY*dt; }
+      if(this.mapId==='desert' && !onConstructedFloor){
         if(this.terrain.dunes.some(r=>this.isPointInRect(p.x,p.y,r))) factor*=.86;
         for(const oasis of this.terrain.oases) if(this.isInCircleZone(p.x,p.y,oasis)) factor*=.74;
         for(const zone of this.terrain.quicksand){
@@ -2790,14 +2870,14 @@
           factor*=.92;
         }
       }
-      if(this.mapId==='snowShrine'){
+      if(this.mapId==='snowShrine' && !onConstructedFloor){
         if(this.terrain.snowDrifts.some(r=>this.isPointInRect(p.x,p.y,r))) factor*=.84;
         if(this.terrain.frozenPonds.some(r=>this.isPointInRect(p.x,p.y,r))){
           factor*=1.08;
           p.vx*=1.006; p.vy*=1.006;
         }
       }
-      if(this.mapId==='underground'){
+      if(this.mapId==='underground' && !onConstructedFloor){
         const subway=this.environment.subway||{};
         const waterLevel=this.subwayWaterLevel();
         if(waterLevel>.02){
@@ -3776,6 +3856,7 @@
       const controls = this.lightSources.filter((light) => light.kind === 'platformSwitch' && light.subwayDoorSide === actorSide && light.hp > 0);
       if (!controls.length) return false;
       const control = controls.sort((a,b)=>Math.hypot(a.x-actor.x,a.y-actor.y)-Math.hypot(b.x-actor.x,b.y-actor.y))[0];
+      if (Math.hypot(control.x-actor.x,control.y-actor.y) > 620) { actor.autoDoorAccess = null; return false; }
       actor.autoDoorAccess = { side: actorSide, controlId: control.id };
       const dx=control.x-actor.x,dy=control.y-actor.y,d=Math.hypot(dx,dy)||1;
       actor.aim=Math.atan2(dy,dx);
@@ -3903,7 +3984,13 @@
       forestSpecs.forEach((f,i)=>{
         const zone={id:`forest-${i}`,x:f[0],y:f[1],w:f[2],h:f[3]}; this.terrain.forests.push(zone);
         const count=Math.floor(f[2]*f[3]/18500);
-        for(let j=0;j<count;j++){ const size=rand(22,42); this.walls.push({id:`tree-${i}-${j}`,x:rand(zone.x,zone.x+zone.w-size),y:rand(zone.y,zone.y+zone.h-size),w:size,h:size,type:'tree',hp:75,maxHp:75,ttl:Infinity}); }
+        let placed=0, attempts=0;
+        while(placed<count && attempts++<count*10){
+          const size=rand(22,42), x=rand(zone.x,zone.x+zone.w-size), y=rand(zone.y,zone.y+zone.h-size);
+          if(this.isInRiver(x+size/2,y+size/2)) continue;
+          this.walls.push({id:`tree-${i}-${placed}`,x,y,w:size,h:size,type:'tree',hp:75,maxHp:75,ttl:Infinity});
+          placed++;
+        }
       });
       const facilityTypes=['barricade','trap','turret'];
       for(let i=0;i<15;i++){
@@ -4188,7 +4275,7 @@
           for (let i = current; i < targetSize; i++) addCpu(team);
         }
       } else if (this.isDefenseMode) {
-        const targetSize = Math.max(1, Math.min(4, Number(this.config.teamSize || 3)));
+        const targetSize = Math.max(1, Math.min(8, Number(this.config.teamSize || 3)));
         this.config.teamSize = targetSize;
         const current = combatants.length;
         for (let i = current; i < targetSize; i++) addCpu(0);
@@ -4293,14 +4380,14 @@
 
 
 
-    applyPlayableDefenseForm(player, type = 'agent') {
-      if (!player || !this.isExtraMode || !EXTRA_UNIT_DEFS[type] || type === 'agent') return player;
+    applyPlayableDefenseForm(player, type = 'agent', force = false) {
+      if (!player || (!this.isExtraMode && !force) || !EXTRA_UNIT_DEFS[type] || type === 'agent') return player;
       const def = EXTRA_UNIT_DEFS[type];
       player.playableDefenseType = type;
       player.defenseType = type;
       player.isDefenseBoss = Boolean(def.boss);
-      player.defenseFaction = ['skeletonAttacker','skeletonShooter','skeletonSniper','yamagu','yagarasu','whitefox','nekomata','orochi'].includes(type) ? 'hyakki' : 'bt';
-      player.archetype = def.category === '百鬼夜行' ? `百鬼夜行・${def.label}` : def.category === 'ブラックトリガー' ? `黒トリガー・${def.label}` : def.label;
+      player.defenseFaction = def.support ? 'defenseSupport' : ['skeletonAttacker','skeletonShooter','skeletonSniper','yamagu','yagarasu','whitefox','nekomata','orochi'].includes(type) ? 'hyakki' : 'bt';
+      player.archetype = def.category === '百鬼夜行' ? `百鬼夜行・${def.label}` : def.category === 'ブラックトリガー' ? `黒トリガー・${def.label}` : def.category === '防衛助っ人' ? `防衛助っ人・${def.label}` : def.label;
       player.maxHp = Math.max(player.maxHp, Math.round(def.hp * (def.boss ? .68 : 1.25)));
       player.hp = player.maxHp;
       player.radius = def.radius;
@@ -4317,6 +4404,14 @@
       player.extraBoost = 1;
       player.extraSealPrimary = 'bullet';
       player.extraSealSecondary = 'shield';
+      player.sogetsuConnected = false;
+      player.sogetsuConnectTimer = 0;
+      player.fullArmsTimer = 0;
+      player.geistActive = false;
+      player.geistTimer = 0;
+      player.geistMaxTimer = 18;
+      player.geistLevels = { armor:1, slash:4, special:3, speed:5, shoot:4 };
+      player.geistBaseSpeed = player.speed;
       player.defenseAI = {
         attackCooldown: 0, specialCooldown: 0, phaseTimer: type === 'borboros' ? 4 : 0,
         phase: type === 'borboros' ? 'solid' : 'normal', shieldTimer: 0, sealCount: 0,
@@ -4347,6 +4442,9 @@
         whitefox:{main:['瞬歩斬り','転移斬り','時計輪剣','鈍足剣'],sub:['いなし','残像移動','三尾斬り','妖気解放']},
         nekomata:{main:['双尾突き','妖尾狙撃','妖光レーザー','尾薙ぎ'],sub:['いなし','跳躍','尾分身','妖力集中']},
         orochi:{main:['大蛇の牙','落星火','極炎ブレス','巨体薙ぎ'],sub:['炎纏い','火炎移動','終焉の炎','咆哮']},
+        sogetsu:{main:['双月・右斧','メテオラ','シールド','接続器'],sub:['双月・左斧','メテオラ散弾','シールド','バッグワーム']},
+        fullarms:{main:['レイガスト拳','機関砲／Shift:メテオラ','シールド','イーグレット／Shift:バッグワーム'],sub:['アステロイド突撃銃','ハウンド突撃銃','スパイダー','全武装']},
+        geist:{main:['弧月','アステロイド突撃銃','バイパー突撃銃','シールド'],sub:['エスクード','ガイスト','メテオラ','バッグワーム']},
       };
       return profiles[type] || { main:['攻撃1','攻撃2','攻撃3','攻撃4'], sub:['特殊1','特殊2','特殊3','特殊4'] };
     }
@@ -4422,6 +4520,9 @@
         whitefox:{main:[4,9,14,7],sub:[5,6,10,12]},
         nekomata:{main:[4,6,16,6],sub:[5,5,10,12]},
         orochi:{main:[5,18,20,10],sub:[12,8,36,12]},
+        sogetsu:{main:[3,7,.12,12],sub:[3,9,.12,1]},
+        fullarms:{main:[5,8,.12,7],sub:[6,7,5,32]},
+        geist:{main:[4,5,6,.12],sub:[8,18,10,1]},
       };
       if (type === 'seals') {
         const main = [4,4,4.5,6];
@@ -4561,6 +4662,34 @@
         else if(hand==='sub'&&index===1){p.vx+=Math.cos(angle)*380;p.vy+=Math.sin(angle)*380;p.vy-=260;used=true;this.setPlayableDefenseAction(p,'jump',.55);cd=1.3;cost=5;}
         else if(hand==='sub'&&index===2){used=true;for(let i=-1;i<=1;i++)this.fireDefenseProjectile(p,target,{sourceName:'猫又・尾分身',sourceKey:'asteroid',speed:760+i*60,damage:damage*.42,radius:5,color:'#b073ff',homing:1,targetId:target.id});this.setPlayableDefenseAction(p,'tails',.45);cd=1.8;cost=10;}
         else if(hand==='sub'&&index===3){p.extraBoost=2;used=true;this.effects.push({type:'composite',x:p.x,y:p.y,ttl:.65,maxTtl:.65});cd=4;cost=12;}
+      } else if (type === 'sogetsu') {
+        const connected = (p.sogetsuConnectTimer || 0) > 0 || p.sogetsuConnected;
+        if ((hand==='main'&&index===2)||(hand==='sub'&&index===2)) { p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.18);p.defenseAI.shieldHand=hand;used=this.activateShield(p,hand,'shield');cd=.08;cost=.12;this.setPlayableDefenseAction(p,'sogetsuGuard',.18); }
+        else if(hand==='main'&&index===0){used=melee(connected?'双月・連結大斧':'双月・右斧',connected?185:108,connected?68:38,damage*(connected?1.75:.88),connected?'#ffd36a':'#8de8ff');this.setPlayableDefenseAction(p,connected?'sogetsuHeavy':'sogetsuRight',connected?.72:.3);cd=connected?1.55:.55;cost=connected?7:3;if(connected)this.effects.push({type:'sogetsuConnector',x:p.x,y:p.y,angle:p.aim,ttl:.75,maxTtl:.75});}
+        else if(hand==='sub'&&index===0){used=melee(connected?'双月・連結薙ぎ':'双月・左斧',connected?170:108,connected?62:38,damage*(connected?1.45:.88),connected?'#ffd36a':'#8de8ff');this.setPlayableDefenseAction(p,connected?'sogetsuHeavy':'sogetsuLeft',connected?.66:.3);cd=connected?1.35:.55;cost=connected?6:3;}
+        else if(hand==='main'&&index===1){used=projectile('双月・メテオラ','meteor',560,damage*.9,8,'#ff9a4f',{explosionRadius:92});this.setPlayableDefenseAction(p,'sogetsuMeteor',.42);cd=1.1;cost=7;}
+        else if(hand==='sub'&&index===1){used=true;for(let i=-1;i<=1;i++)this.fireDefenseProjectile(p,target,{sourceName:'双月・メテオラ散弾',sourceKey:'meteor',speed:520,damage:damage*.48,radius:7,color:'#ff9a4f',explosionRadius:70,angleOffset:i*.16});this.setPlayableDefenseAction(p,'sogetsuMeteor',.5);cd=1.7;cost=9;}
+        else if(hand==='main'&&index===3){p.sogetsuConnected=true;p.sogetsuConnectTimer=8;used=true;this.setPlayableDefenseAction(p,'sogetsuConnect',.9);this.effects.push({type:'sogetsuConnector',x:p.x,y:p.y,angle:p.aim,ttl:1,maxTtl:1});cd=4.2;cost=12;}
+        else if(hand==='sub'&&index===3){p.toggles.bagworm=!p.toggles.bagworm;used=true;this.setPlayableDefenseAction(p,'bagworm',.25);cd=.35;cost=1;}
+      } else if (type === 'fullarms') {
+        if(hand==='main'&&index===0){p.vx+=Math.cos(angle)*430;p.vy+=Math.sin(angle)*430;used=melee('全武装・スラスター拳',125,48,damage*1.28,'#a8f6ff');this.setPlayableDefenseAction(p,'fullarmsPunch',.52);this.effects.push({type:'thruster',x:p.x-Math.cos(angle)*55,y:p.y-Math.sin(angle)*55,x2:p.x,y2:p.y,ttl:.35,maxTtl:.35});cd=1.05;cost=5;}
+        else if(hand==='main'&&index===1){if(modifier){used=projectile('全武装・メテオラ','meteor',560,damage,8,'#ff9a4f',{explosionRadius:105});this.setPlayableDefenseAction(p,'fullarmsMeteor',.48);cd=1.25;cost=9;}else{used=true;for(let i=0;i<8;i++)this.fireDefenseProjectile(p,target,{sourceName:'全武装・機関砲',sourceKey:'asteroid',speed:900,damage:damage*.19,radius:4,color:'#72e8ff',angleOffset:rand(-.07,.07)});this.setPlayableDefenseAction(p,'fullarmsGatling',.75);this.effects.push({type:'fullArmsVolley',x:p.x,y:p.y,angle:p.aim,ttl:.8,maxTtl:.8});cd=1.2;cost=8;}}
+        else if(hand==='main'&&index===2){p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.18);p.defenseAI.shieldHand='main';used=this.activateShield(p,'main','shield');this.setPlayableDefenseAction(p,'fullarmsGuard',.18);cd=.08;cost=.12;}
+        else if(hand==='main'&&index===3){if(modifier){p.toggles.bagworm=!p.toggles.bagworm;used=true;this.setPlayableDefenseAction(p,'bagworm',.25);cd=.35;cost=1;}else{used=projectile('全武装・イーグレット','egret',1320,damage*1.05,4,'#e8fbff',{trail:true});this.setPlayableDefenseAction(p,'fullarmsSnipe',.4);cd=1.25;cost=7;}}
+        else if(hand==='sub'&&index===0){used=true;for(let i=0;i<4;i++)this.fireDefenseProjectile(p,target,{sourceName:'全武装・突撃銃',sourceKey:'asteroid',speed:870,damage:damage*.28,radius:5,color:'#72e8ff',angleOffset:rand(-.045,.045)});this.setPlayableDefenseAction(p,'fullarmsRifle',.48);cd=.62;cost=6;}
+        else if(hand==='sub'&&index===1){used=true;for(let i=-1;i<=1;i++)this.fireDefenseProjectile(p,target,{sourceName:'全武装・ハウンド',sourceKey:'hound',speed:690,damage:damage*.32,radius:5,color:'#7dffb8',homing:1.7,targetId:target.id,angleOffset:i*.12});this.setPlayableDefenseAction(p,'fullarmsHound',.48);cd=.9;cost=7;}
+        else if(hand==='sub'&&index===2){const sx=target.x,sy=target.y;this.wires.push({id:`fullarms-wire-${this.elapsed}-${Math.random()}`,x1:sx-75,y1:sy-45,x2:sx+75,y2:sy+45,ownerId:p.id,team:p.team,ttl:22,color:'#9edfff',triggered:new Set()});this.wires.push({id:`fullarms-wire-${this.elapsed}-${Math.random()}-b`,x1:sx-75,y1:sy+45,x2:sx+75,y2:sy-45,ownerId:p.id,team:p.team,ttl:22,color:'#9edfff',triggered:new Set()});used=true;this.setPlayableDefenseAction(p,'fullarmsSpider',.5);cd=2.2;cost=5;}
+        else if(hand==='sub'&&index===3){used=true;p.fullArmsTimer=2.2;this.setPlayableDefenseAction(p,'fullarmsUltimate',1.7);this.effects.push({type:'fullArmsVolley',x:p.x,y:p.y,angle:p.aim,ttl:1.8,maxTtl:1.8,ultimate:true});for(let i=0;i<18;i++)this.fireDefenseProjectile(p,target,{sourceName:'全武装・一斉掃射',sourceKey:i%5===0?'meteor':i%3===0?'hound':'asteroid',speed:i%5===0?520:i%3===0?700:930,damage:damage*(i%5===0?.38:.16),radius:i%5===0?8:4,color:i%5===0?'#ff9a4f':i%3===0?'#7dffb8':'#72e8ff',explosionRadius:i%5===0?80:0,homing:i%3===0?1.2:0,targetId:target.id,angleOffset:rand(-.18,.18)});this.fireDefenseProjectile(p,target,{sourceName:'全武装・イーグレット斉射',sourceKey:'egret',speed:1350,damage:damage*.95,radius:4,color:'#f0ffff',trail:true});cd=7.5;cost=32;}
+      } else if (type === 'geist') {
+        const gm=p.geistActive?1.42:1;
+        if(hand==='main'&&index===0){used=melee(p.geistActive?'ガイスト・強化弧月':'弧月',p.geistActive?150:112,p.geistActive?52:34,damage*gm,'#d8fbff');this.setPlayableDefenseAction(p,p.geistActive?'geistSlash':'geistKogetsu',p.geistActive?.44:.3);cd=p.geistActive?.48:.7;cost=4;}
+        else if(hand==='main'&&index===1){used=true;for(let i=0;i<(p.geistActive?6:3);i++)this.fireDefenseProjectile(p,target,{sourceName:'ガイスト・アステロイド突撃銃',sourceKey:'asteroid',speed:p.geistActive?1020:850,damage:damage*(p.geistActive?.27:.31),radius:5,color:'#72e8ff',angleOffset:rand(-.06,.06)});this.setPlayableDefenseAction(p,'geistRifle',.48);cd=p.geistActive?.48:.68;cost=5;}
+        else if(hand==='main'&&index===2){used=true;for(let i=-1;i<=1;i++)this.fireDefenseProjectile(p,target,{sourceName:'ガイスト・バイパー突撃銃',sourceKey:'viper',speed:p.geistActive?930:760,damage:damage*(p.geistActive?.34:.3),radius:5,color:'#c88cff',curve:(i)*.75,curveFlip:.55,targetId:target.id});this.setPlayableDefenseAction(p,'geistViper',.52);cd=p.geistActive?.62:.9;cost=6;}
+        else if(hand==='main'&&index===3){p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.18);p.defenseAI.shieldHand='main';used=this.activateShield(p,'main','shield');this.setPlayableDefenseAction(p,'geistGuard',.18);cd=.08;cost=.12;}
+        else if(hand==='sub'&&index===0){const ex=p.x+Math.cos(angle)*110,ey=p.y+Math.sin(angle)*110;this.walls.push({id:`geist-escudo-${this.elapsed}-${Math.random()}`,x:ex-34,y:ey-70,w:68,h:140,type:'escudo',team:p.team,ownerId:p.id,hp:210,maxHp:210,ttl:18});used=true;this.setPlayableDefenseAction(p,'geistEscudo',.55);cd=2.5;cost=8;}
+        else if(hand==='sub'&&index===1){if(p.geistActive)return false;p.geistActive=true;p.geistTimer=p.geistMaxTimer||18;p.geistBaseSpeed=p.speed;p.speed*=1.32;used=true;this.setPlayableDefenseAction(p,'geistActivate',1.3);this.effects.push({type:'geistActivate',x:p.x,y:p.y,ttl:1.5,maxTtl:1.5});cd=99;cost=18;}
+        else if(hand==='sub'&&index===2){used=projectile('ガイスト・メテオラ','meteor',p.geistActive?680:540,damage*(p.geistActive?1.18:.92),8,'#ff9a4f',{explosionRadius:p.geistActive?120:92});this.setPlayableDefenseAction(p,'geistMeteor',.48);cd=p.geistActive?.8:1.2;cost=10;}
+        else if(hand==='sub'&&index===3){p.toggles.bagworm=!p.toggles.bagworm;used=true;this.setPlayableDefenseAction(p,'bagworm',.25);cd=.35;cost=1;}
       } else if (type === 'orochi') {
         if(hand==='main'&&index===0){used=melee('大蛇の牙',180,70,damage*1.2,'#ffc26b');this.setPlayableDefenseAction(p,'bite',.55);this.effects.push({type:'orochiBite',x:p.x,y:p.y,angle:p.aim,range:180,ttl:.65,maxTtl:.65});cd=1.1;cost=5;}
         else if(hand==='main'&&index===1){used=true;for(let i=0;i<5;i++){const ox=(i-2)*70,oy=(i%2)*50;this.effects.push({type:'orochiMeteor',x:target.x+ox,y:target.y+oy,radius:95,ttl:1.55,maxTtl:1.55});this.queueDefenseHazard({type:'circle',x:target.x+ox,y:target.y+oy,radius:92,delay:.5+i*.1,damage:damage*.82,owner:p,name:'落星火',color:'#ff954a'});}this.setPlayableDefenseAction(p,'meteor',1.25);cd=3.5;cost=18;}
@@ -4601,14 +4730,22 @@
       const mod=this.modifierDown();
       const mainHeld=this.input.mouse.left||this.input.virtualMain,subHeld=this.input.mouse.right||this.input.virtualSub;
       const mainJust=this.input.mouse.justLeft||this.input.virtualMainJust,subJust=this.input.mouse.justRight||this.input.virtualSubJust;
-      if(p.playableDefenseType==='seals'&&subHeld&&p.selected.sub===0)this.usePlayableDefenseAction(p,'sub',0,target,{modifier:mod,held:true});
+      const type=p.playableDefenseType;
+      const mainShieldHeld=mainHeld&&((type==='sogetsu'&&p.selected.main===2)||(type==='fullarms'&&p.selected.main===2)||(type==='geist'&&p.selected.main===3));
+      const subShieldHeld=subHeld&&(type==='sogetsu'&&p.selected.sub===2);
+      if(type==='seals'&&subHeld&&p.selected.sub===0)this.usePlayableDefenseAction(p,'sub',0,target,{modifier:mod,held:true});
+      else if(subShieldHeld)this.usePlayableDefenseAction(p,'sub',p.selected.sub,target,{modifier:mod,held:true});
       else if(subJust)this.usePlayableDefenseAction(p,'sub',p.selected.sub,target,{modifier:mod});
-      if(mainJust)this.usePlayableDefenseAction(p,'main',p.selected.main,target,{modifier:mod});
+      if(mainShieldHeld)this.usePlayableDefenseAction(p,'main',p.selected.main,target,{modifier:mod,held:true});
+      else if(mainJust)this.usePlayableDefenseAction(p,'main',p.selected.main,target,{modifier:mod});
       if(this.actionConsume('combo')){
         if(p.playableDefenseType==='seals'){p.extraBoost=p.extraBoost>=3?1:p.extraBoost+1;this.toast(`印 BOOST ×${p.extraBoost}`);}
         else if(p.playableDefenseType==='borboros')this.deployBorborosCores(p);
         else if(EXTRA_PARRY_TYPES.has(p.playableDefenseType))this.beginPlayableParry(p);
         else if(p.playableDefenseType==='orochi')this.usePlayableDefenseAction(p,'sub',2,target,{});
+        else if(p.playableDefenseType==='sogetsu')this.usePlayableDefenseAction(p,'main',3,target,{});
+        else if(p.playableDefenseType==='fullarms')this.usePlayableDefenseAction(p,'sub',3,target,{});
+        else if(p.playableDefenseType==='geist')this.usePlayableDefenseAction(p,'sub',1,target,{});
       }
     }
 
@@ -4626,14 +4763,60 @@
       if(defended&&Math.random()<(base.patience||0))return;
       if(p.extraAiTimer>0)return;
       const attackBias=.42+pers.aggression*.46;
-      const hand=Math.random()<attackBias?'main':'sub';
+      let hand=Math.random()<attackBias?'main':'sub';
       let index=irand(0,3);
+      if(p.playableDefenseType==='sogetsu'){if(d<135){hand=Math.random()<.68?'main':'sub';index=0;}else if(d<520){hand=Math.random()<.55?'main':'sub';index=1;}else{hand='main';index=1;}if(!p.sogetsuConnected&&d<190&&Math.random()<.2){hand='main';index=3;}}
+      else if(p.playableDefenseType==='fullarms'){if(d<145){hand='main';index=0;}else if(d>650){hand='main';index=3;}else if(Math.random()<.18){hand='sub';index=3;}else{hand=Math.random()<.48?'main':'sub';index=hand==='main'?1:irand(0,1);}}
+      else if(p.playableDefenseType==='geist'){if(!p.geistActive&&((p.hp/p.maxHp)<.68||this.isDefenseMode&&this.defenseFlag&&this.defenseFlag.hp/this.defenseFlag.maxHp<.55)&&Math.random()<.34){hand='sub';index=1;}else if(d<150){hand='main';index=0;}else{hand=Math.random()<.62?'main':'sub';index=hand==='main'?irand(1,2):2;}}
       if(p.playableDefenseType==='seals'){p.extraBoost=pers.calmness>.66?irand(1,3):(Math.random()<.58?3:irand(1,2));if(hand==='sub'&&index===0){p.defenseAI.shieldTimer=1.2;p.defenseAI.shieldHand='sub';this.activateShield(p,'sub','seal',{boost:p.extraBoost});}}
-      this.usePlayableDefenseAction(p,hand,index,target,{ai:true,modifier:p.playableDefenseType==='seals'&&hand==='main'&&Math.random()<(.2+pers.calmness*.42)});
+      this.usePlayableDefenseAction(p,hand,index,target,{ai:true,modifier:(p.playableDefenseType==='seals'&&hand==='main'&&Math.random()<(.2+pers.calmness*.42))||(p.playableDefenseType==='fullarms'&&hand==='main'&&[1,3].includes(index)&&Math.random()<.16)});
       const skillPace=.75+tier.decision*.25;
       p.extraAiTimer=rand(.5,1.3)/(skillPace*(.7+pers.aggression*.55));
     }
 
+
+    getDefenseSupportDefinition(type) {
+      const defs={
+        sogetsu:{name:'双月',stats:{trion:7,technique:7,combat:9},main:['kogetsu','shooter_meteor','shield','empty'],sub:['kogetsu','shooter_meteor','shield','bagworm'],color:'#2b98c9'},
+        fullarms:{name:'全武装',stats:{trion:9,technique:8,combat:9},main:['raygust','thruster','shield','egret'],sub:['assaultAsteroid','assaultHound','spider','empty'],color:'#516b7f'},
+        geist:{name:'ガイスト',stats:{trion:7,technique:8,combat:8},main:['kogetsu','assaultAsteroid','assaultViper','shield'],sub:['escudo','empty','shooter_meteor','bagworm'],color:'#3e7cb4'},
+      };
+      return defs[type]||null;
+    }
+
+    summonDefenseSupport(type, team=0, byCpu=false) {
+      if(!this.isDefenseMode||team!==0||this.defenseSupportSummoned?.[type])return null;
+      const spec=this.getDefenseSupportDefinition(type),def=EXTRA_UNIT_DEFS[type];
+      if(!spec||!def)return null;
+      this.defenseSupportSummoned[type]=true;
+      this.defenseSupportLastSummonAt=this.elapsed;
+      const support=this.createPlayer({id:`defense-support-${type}-${++this.defenseSupportSerial}`,name:spec.name,human:false,team,stats:spec.stats,loadout:{main:[...spec.main],sub:[...spec.sub]},archetype:`防衛助っ人・${spec.name}`,appearance:{bodyColor:spec.color,uniformColor:spec.color},squadName:this.teamMeta?.[team]?.name||'防衛隊',emblemPixels:this.teamMeta?.[team]?.emblemPixels||null});
+      this.applyPlayableDefenseForm(support,type,true);
+      support.defenseSupportType=type;
+      support.summonedByOperator=true;
+      support.respawnTimer=Infinity;
+      const flag=this.defenseFlag||this.getTeamHome(team),a=({sogetsu:-.7,fullarms:0,geist:.7}[type]||0);
+      support.x=clamp(flag.x+Math.cos(a)*125,60,this.world.w-60);support.y=clamp(flag.y+Math.sin(a)*125,60,this.world.h-60);support.invulnTimer=2.4;
+      support.operatorOrder={type:'defend',x:flag.x,y:flag.y,label:'フラッグ防衛'};
+      this.players.push(support);
+      this.effects.push({type:'supportSummon',x:support.x,y:support.y,color:spec.color,ttl:1.45,maxTtl:1.45});
+      this.showCenterMessage('SUPPORT ARRIVAL',`${spec.name}を召喚`,1.8);
+      this.logEvent('defense_support_summon',`${byCpu?'CPUオペレーター':'オペレーター'}：${spec.name}を召喚`);
+      const key=`summon${type.charAt(0).toUpperCase()}${type.slice(1)}`;
+      this.operatorSupportCooldowns[key]=9999;this.operatorStats.supportsUsed+=1;if(key in this.operatorStats)this.operatorStats[key]+=1;
+      this.refreshOperatorUi();
+      return support;
+    }
+
+    tryCpuDefenseSupport(operator) {
+      if(!this.isDefenseMode||this.isPlayerOperator||!this.defenseFlag||!operator||operator.team!==0)return false;
+      if(this.elapsed-this.defenseSupportLastSummonAt<7.5)return false;
+      const ratio=this.defenseFlag.hp/Math.max(1,this.defenseFlag.maxHp);
+      const plan=[['sogetsu',.58],['fullarms',.37],['geist',.2]];
+      const next=plan.find(([type,threshold])=>!this.defenseSupportSummoned[type]&&ratio<=threshold);
+      if(!next)return false;
+      return Boolean(this.summonDefenseSupport(next[0],0,true));
+    }
 
     getDefenseScenarioLabel() {
       return DEFENSE_SCENARIO_LABELS[this.defenseScenario] || DEFENSE_SCENARIO_LABELS.blackTrigger;
@@ -4743,7 +4926,9 @@
           }
           if (area.hitsFlag && this.defenseFlag && Math.hypot(this.defenseFlag.x - area.x, this.defenseFlag.y - area.y) <= area.radius + this.defenseFlag.radius
             && !this.findBlockingWall(area.x, area.y, this.defenseFlag.x, this.defenseFlag.y, 3)) {
-            this.damageDefenseFlag(area.damage * .42, area.owner, area.name);
+            const flagAmount=area.damage*.42;
+            const synthetic={type:'circle',x:area.x,y:area.y,radius:area.radius,width:area.radius,originX:area.x,originY:area.y,name:area.name};
+            if(!this.absorbFlagHazardWithShield(synthetic,flagAmount)) this.damageDefenseFlag(synthetic._flagGuardRemainder ?? flagAmount, area.owner, area.name, { guardChecked: true });
           }
           for (const decoy of this.beacons.filter((beacon) => beacon.defenseDecoy && beacon.hp > 0)) {
             if (Math.hypot(decoy.x - area.x, decoy.y - area.y) <= area.radius + decoy.radius
@@ -4760,7 +4945,7 @@
       if (!this.canDefenseEnemyAttackTarget(enemy, target, maxRange, 4)) return null;
       const tx = target.x + (target.vx || 0) * (options.leadTime || .18);
       const ty = target.y + (target.vy || 0) * (options.leadTime || .18);
-      const angle = Math.atan2(ty - enemy.y, tx - enemy.x);
+      const angle = Math.atan2(ty - enemy.y, tx - enemy.x) + Number(options.angleOffset || 0);
       enemy.aim = angle;
       const projectile = this.spawnProjectile(enemy, 'main', {
         angle,
@@ -4769,7 +4954,7 @@
         radius: options.radius || 5,
         life: options.life || 1.6,
         color: options.color || '#ffffff',
-        explosive: Boolean(options.explosive),
+        explosive: Boolean(options.explosive || options.explosionRadius || options.sourceKey === 'meteor'),
         explosionRadius: options.explosionRadius || 80,
         homing: options.homing || 0,
         targetId: options.targetId || target.id || null,
@@ -4979,10 +5164,10 @@
       if (this.defenseWaveActive && aliveEnemies.length === 0) {
         if (this.defenseRound >= 25) { this.completeDefenseMatch(); return; }
         this.defenseWaveActive = false;
-        this.defenseRoundTimer = 6;
+        this.defenseRoundTimer = 5.2;
         const defenders = this.players.filter((player) => !player.isDefenseEnemy && !player.dead);
         defenders.forEach((player) => { player.trion = Math.min(player.maxTrion, player.trion + player.maxTrion * .24); });
-        if (this.defenseFlag) this.defenseFlag.hp = Math.min(this.defenseFlag.maxHp, this.defenseFlag.hp + this.defenseFlag.maxHp * .12);
+        if (this.defenseFlag) this.defenseFlag.hp = Math.min(this.defenseFlag.maxHp, this.defenseFlag.hp + this.defenseFlag.maxHp * .16);
         this.defenseBuildPoints = Math.min(this.defenseBuildMaxPoints, this.defenseBuildPoints + 42 + (this.config.teamSize || 3) * 6);
         this.showCenterMessage('ROUND CLEAR', '次の侵攻に備えろ', 1.7);
         this.logEvent('defense_round_clear', `Round ${this.defenseRound}`);
@@ -4998,8 +5183,8 @@
       const flag = this.defenseFlag;
       if (!flag || flag.hp <= 0) return;
       flag.pulse += dt * 3;
-      if (this.elapsed - flag.lastDamageAt > 7 && flag.hp < flag.maxHp) {
-        const passive = 5.5 + flag.maxHp * .00115;
+      if (this.elapsed - flag.lastDamageAt > 5.8 && flag.hp < flag.maxHp) {
+        const passive = 6.5 + flag.maxHp * .00135;
         flag.hp = Math.min(flag.maxHp, flag.hp + passive * dt);
       }
       if (this.actionConsume('flagRepair')) this.flagChannelTimer = 1.15;
@@ -5010,10 +5195,14 @@
         const hostileNear = this.players.some((enemy) => enemy.isDefenseEnemy && !enemy.dead && Math.hypot(enemy.x - flag.x, enemy.y - flag.y) < 300);
         let channel = false;
         if (player.human) channel = near && (this.actionDown('flagRepair') || this.flagChannelTimer > 0);
-        else channel = near && !hostileNear && flag.hp < flag.maxHp * .68 && player.trion > player.maxTrion * .55;
+        else {
+          const nearbyAllies = defenders.filter((ally) => !ally.dead && Math.hypot(ally.x - flag.x, ally.y - flag.y) < 250).length;
+          const emergencyRepair = flag.hp < flag.maxHp * .35 && nearbyAllies >= 2;
+          channel = near && (!hostileNear || emergencyRepair) && flag.hp < flag.maxHp * .86 && player.trion > player.maxTrion * .34;
+        }
         if (!channel || player.trion <= 2 || flag.hp >= flag.maxHp) continue;
-        const cost = Math.min(player.trion, (player.human ? 17 : 10) * dt);
-        const healing = cost * (player.human ? 2.9 : 2.25);
+        const cost = Math.min(player.trion, (player.human ? 17 : 8.5) * dt);
+        const healing = cost * (player.human ? 2.9 : 3.05);
         player.trion -= cost;
         player.metrics.trionSpent += cost;
         flag.hp = Math.min(flag.maxHp, flag.hp + healing);
@@ -5022,13 +5211,22 @@
       }
     }
 
-    damageDefenseFlag(amount, source = null, name = '敵攻撃') {
+    damageDefenseFlag(amount, source = null, name = '敵攻撃', options = {}) {
       const flag = this.defenseFlag;
       if (!this.isDefenseMode || !flag || flag.hp <= 0 || amount <= 0) return;
+      if (!options.guardChecked && source && Number.isFinite(source.x) && Number.isFinite(source.y)) {
+        const directHazard = {
+          type: 'line', x: source.x, y: source.y, x2: flag.x, y2: flag.y,
+          originX: source.x, originY: source.y,
+          width: Math.max(22, (source.radius || 18) + 10), owner: source, name
+        };
+        if (this.absorbFlagHazardWithShield(directHazard, amount)) return;
+        amount = directHazard._flagGuardRemainder ?? amount;
+      }
       const mitigated = amount * (1 - clamp(flag.armor || 0, 0, .55));
       flag.hp = Math.max(0, flag.hp - mitigated);
       flag.lastDamageAt = this.elapsed;
-      if (source?.defenseAI) source.defenseAI.flagAttacks = (source.defenseAI.flagAttacks || 0) + 1;
+      if (source?.defenseAI) { source.defenseAI.flagAttacks = (source.defenseAI.flagAttacks || 0) + 1; source.defenseAI.assaultClock=0; }
       this.sfx?.play('explosion', { x: flag.x, y: flag.y, bucket: 'flag-hit', cooldown: .13, volume: .38, rate: 1.12 });
       this.effects.push({ type: 'flagHit', x: flag.x, y: flag.y, ttl: .35, maxTtl: .35 });
       this.logEvent('flag_damage', `${name} / ${Math.round(mitigated)} damage / ${Math.round(flag.hp)} HP`, false);
@@ -5041,7 +5239,7 @@
       $('#defenseRoundLabel').textContent = String(Math.max(1, this.defenseRound || 1));
       $('#defenseFlagLabel').textContent = flag ? `${Math.ceil(flag.hp / flag.maxHp * 100)}%` : '---';
       $('#modeLabel').textContent = `防衛戦 / ${this.getDefenseScenarioLabel()}`;
-      $('#timerLabel').textContent = this.defenseWaveActive ? `R${Math.max(1, this.defenseRound)}` : `NEXT ${Math.max(0, Math.ceil(this.defenseRoundTimer))}`;
+      $('#timerLabel').textContent = this.defenseWaveActive ? `R${Math.max(1, this.defenseRound)} ${formatTime(this.elapsed)}` : `NEXT ${Math.max(0, Math.ceil(this.defenseRoundTimer))} / ${formatTime(this.elapsed)}`;
       this.updateDefenseBuildUi();
     }
 
@@ -5141,11 +5339,13 @@
       if (this.defenseNpcBuildTimer > 0) return;
       this.defenseNpcBuildTimer = this.defenseWaveActive ? rand(7, 11) : rand(2.6, 4.4);
       if (this.defenseBuildPoints < 62) return;
-      const enemiesNear = this.players.some((enemy) => enemy.isDefenseEnemy && !enemy.dead && Math.hypot(enemy.x - this.defenseFlag.x, enemy.y - this.defenseFlag.y) < 520);
-      if (enemiesNear) return;
-      const desired = [
-        ['barrier', 4], ['trap', 2], ['turret', 2], ['decoy', 1],
-      ].find(([type, wanted]) => this.getDefenseBuildActiveCount(type) < wanted && (this.defenseBuildCooldowns[type] || 0) <= 0);
+      const enemiesNear = this.players.filter((enemy) => enemy.isDefenseEnemy && !enemy.dead && Math.hypot(enemy.x - this.defenseFlag.x, enemy.y - this.defenseFlag.y) < 520);
+      const flagRatio=this.defenseFlag.hp/Math.max(1,this.defenseFlag.maxHp);
+      if (enemiesNear.length && flagRatio>.62) return;
+      const priorities=flagRatio<.48 ? [['barrier',4],['turret',3],['decoy',2],['trap',3]]
+        : enemiesNear.length ? [['turret',3],['barrier',4],['trap',3],['decoy',1]]
+        : [['barrier',4],['trap',3],['turret',3],['decoy',2]];
+      const desired = priorities.find(([type, wanted]) => this.getDefenseBuildActiveCount(type) < wanted && (this.defenseBuildCooldowns[type] || 0) <= 0);
       if (!desired) return;
       const builder = this.players.filter((unit) => !unit.isDefenseEnemy && !unit.dead && !unit.human).sort((a, b) => Math.hypot(a.x - this.defenseFlag.x, a.y - this.defenseFlag.y) - Math.hypot(b.x - this.defenseFlag.x, b.y - this.defenseFlag.y))[0] || null;
       this.deployDefenseBuild(desired[0], builder, 0, { silent: true });
@@ -5155,7 +5355,7 @@
       const ai = enemy.defenseAI || (enemy.defenseAI = {});
       const nearest = defenders.length ? [...defenders].sort((a, b) => dist2(enemy, a) - dist2(enemy, b))[0] : null;
       const threatTarget = defenders.map((unit) => ({ unit, threat:this.getThreat(enemy, unit) })).sort((a,b) => b.threat - a.threat)[0];
-      if (threatTarget?.threat >= 6) { ai.objectiveMode='defender'; ai.objectiveTimer=Math.max(ai.objectiveTimer||0,2.2); return threatTarget.unit; }
+      if (threatTarget?.threat >= 12 && Math.hypot(threatTarget.unit.x-enemy.x,threatTarget.unit.y-enemy.y)<310) { ai.objectiveMode='defender'; ai.objectiveTimer=Math.max(ai.objectiveTimer||0,1.4); return threatTarget.unit; }
       const decoys = this.beacons.filter((beacon) => beacon.defenseDecoy && beacon.hp > 0 && beacon.ttl > 0);
       const nearestDecoy = decoys.length ? [...decoys].sort((a, b) => dist2(enemy, a) - dist2(enemy, b))[0] : null;
       if (!flag) return nearestDecoy || nearest;
@@ -5165,7 +5365,7 @@
       const dDecoy = nearestDecoy ? Math.hypot(nearestDecoy.x - enemy.x, nearestDecoy.y - enemy.y) : Infinity;
       const recentlyHit = this.elapsed - (enemy.lastDamageAt || -999) < 2.25;
       const threatRadius = enemy.defenseType === 'rabbit' ? 205 : enemy.defenseType === 'marmod' ? 170 : 225;
-      if (recentlyHit && dNearest < threatRadius) { ai.objectiveMode = 'defender'; ai.objectiveTimer = Math.max(ai.objectiveTimer || 0, 1.5); return nearest; }
+      if (recentlyHit && dNearest < threatRadius) { ai.objectiveMode = 'defender'; ai.objectiveTimer = Math.max(ai.objectiveTimer || 0, .9); return nearest; }
       if (nearestDecoy && dDecoy < 620 && (ai.objectiveMode === 'decoy' || ai.objectiveTimer <= 0) && Math.random() < (enemy.isDefenseBoss ? .35 : .68)) {
         ai.objectiveMode = 'decoy'; ai.objectiveTimer = rand(2.4, 4.8); ai.objectiveId = nearestDecoy.id;
       }
@@ -5176,13 +5376,13 @@
       }
       if (dFlag < 340 && !(dNearest < 120 && recentlyHit)) return flag;
       if (ai.objectiveTimer <= 0 || !['flag', 'defender', 'decoy'].includes(ai.objectiveMode)) {
-        const baseBias = enemy.defenseType === 'ilgar' ? .68
-          : enemy.defenseType === 'marmod' ? .60
-          : enemy.defenseType === 'rabbit' ? .38
-          : enemy.isDefenseBoss ? .52 : .5;
+        const baseBias = enemy.defenseType === 'ilgar' ? .82
+          : enemy.defenseType === 'marmod' ? .76
+          : enemy.defenseType === 'rabbit' ? .62
+          : enemy.isDefenseBoss ? .72 : .68;
         const damagedFlagBonus = flag.hp < flag.maxHp * .45 ? .1 : 0;
         ai.objectiveMode = Math.random() < Math.min(.82, baseBias + damagedFlagBonus) ? 'flag' : 'defender';
-        ai.objectiveTimer = rand(4.2, 7.2);
+        ai.objectiveTimer = rand(2.8, 5.1);
       }
       if (ai.objectiveMode === 'flag') return flag;
       if (!nearest || dNearest > dFlag * 1.3) return flag;
@@ -5236,6 +5436,8 @@
       const ai = enemy.defenseAI;
       ai.attackCooldown -= dt; ai.specialCooldown -= dt; ai.phaseTimer -= dt;
       ai.objectiveTimer = (ai.objectiveTimer || 0) - dt;
+      ai.assaultClock = (ai.assaultClock || 0) + dt;
+      if (ai.assaultClock > 6.5 && this.defenseFlag) { ai.objectiveMode='flag'; ai.objectiveTimer=Math.max(ai.objectiveTimer,6.2); ai.assaultClock=0; }
       ai.rearBurstCooldown = Math.max(0, ai.rearBurstCooldown - dt);
       ai.shieldTimer = Math.max(0, ai.shieldTimer - dt);
       ai.castTimer = Math.max(0, (ai.castTimer || 0) - dt);
@@ -5820,7 +6022,10 @@
         if (hitFlag) {
           const attackOriginX = Number.isFinite(hazard.originX) ? hazard.originX : hazard.x;
           const attackOriginY = Number.isFinite(hazard.originY) ? hazard.originY : hazard.y;
-          if (!this.findBlockingWall(attackOriginX, attackOriginY, flag.x, flag.y, 3)) this.damageDefenseFlag((hazard.damage || 0) * .62, hazard.owner, hazard.name);
+          if (!this.findBlockingWall(attackOriginX, attackOriginY, flag.x, flag.y, 3)) {
+            const flagAmount=(hazard.damage||0)*.62;
+            if(!this.absorbFlagHazardWithShield(hazard,flagAmount)) this.damageDefenseFlag(hazard._flagGuardRemainder ?? flagAmount,hazard.owner,hazard.name,{ guardChecked: true });
+          }
         }
       }
       this.effects.push({ type: 'defenseImpact', x: hazard.x2 ?? hazard.x, y: hazard.y2 ?? hazard.y, ttl: .35, maxTtl: .35, color: hazard.color });
@@ -5850,9 +6055,11 @@
       this.ended = true; this.paused = false;
       $('#pauseOverlay').classList.add('hidden');
       const defenders = this.players.filter((player) => !player.isDefenseEnemy).sort((a,b) => b.score-a.score || b.kills-a.kills);
-      $('#resultTitle').textContent = '防衛成功：オルガノン撃破';
+      const clearLabel = this.isHyakkiDefense() ? '百鬼夜行制圧' : 'オルガノン撃破';
+      $('#resultTitle').textContent = `防衛成功：${clearLabel}`;
       $('#resultSummary').innerHTML = `
         <div><span>RESULT</span><strong>SUCCESS</strong></div>
+        <div><span>CLEAR TIME</span><strong>${formatTime(this.elapsed)}</strong></div>
         <div><span>ENEMIES</span><strong>${this.defenseEnemiesDefeated}</strong></div>
         <div><span>BOSSES</span><strong>${this.defenseBossesDefeated}</strong></div>`;
       $('#rankingList').innerHTML = defenders.map((player,index) => `<div class="rank-row${player.human?' player':''}"><span class="rank">${index+1}</span><strong>${player.name}</strong><span class="meta">${player.kills}K / ${player.deaths}D</span><span>${Math.floor(player.score)}pt</span></div>`).join('');
@@ -6212,6 +6419,7 @@
       p.toggles.chameleon = false;
       p.shields.main = null; p.shields.sub = null;
       p.shieldDurability = { main:null, sub:null };
+      p.sogetsuConnected=false;p.sogetsuConnectTimer=0;p.fullArmsTimer=0;if(p.geistActive||p.playableDefenseType==='geist'){p.geistActive=false;p.geistTimer=0;p.speed=p.geistBaseSpeed||p.speed;}
       if (p.ai) {
         p.ai.concealmentTimer = 0;
         p.ai.concealmentCooldown = 0;
@@ -6353,8 +6561,10 @@
       else if (this.isPlayerCombatant && !this.spectating) this.updateHuman(dt);
       for (const player of [...this.players]) {
         if (!player.human) {
-          const seekingDoor = this.updateAutoPlatformDoorAccess(player, dt);
-          if (!seekingDoor) {
+          const escapingDanger = this.updateAIDangerAvoidance(player, dt);
+          const strategicDefense = !escapingDanger && this.updateDefenseStrategicAI(player, dt);
+          const seekingDoor = !escapingDanger && !strategicDefense && this.updateAutoPlatformDoorAccess(player, dt);
+          if (!escapingDanger && !strategicDefense && !seekingDoor) {
             if (player.remoteControlled) this.updateRemoteControlledPlayer(player, dt);
             else if (player.isDefenseEnemy) this.updateDefenseEnemyAI(player, dt);
             else if (player.playableDefenseType) this.updatePlayableDefenseAI(player, dt);
@@ -7406,6 +7616,9 @@
         if (parryWasActive && p.extraParryTimer <= 0 && p.masteryParryAttempt) { this.adjustMastery(p, -.12, 'いなし失敗'); p.masteryParryAttempt = false; }
         p.extraParryCooldown = Math.max(0, (p.extraParryCooldown || 0) - dt);
         if (p.defenseAI) { p.defenseAI.shieldTimer=Math.max(0,(p.defenseAI.shieldTimer||0)-dt); p.defenseAI.coreCooldown=Math.max(0,(p.defenseAI.coreCooldown||0)-dt); p.defenseAI.actionTimer=Math.max(0,(p.defenseAI.actionTimer||0)-dt); }
+        p.sogetsuConnectTimer=Math.max(0,(p.sogetsuConnectTimer||0)-dt);if(p.sogetsuConnectTimer<=0)p.sogetsuConnected=false;
+        p.fullArmsTimer=Math.max(0,(p.fullArmsTimer||0)-dt);
+        if(p.geistActive){p.geistTimer=Math.max(0,(p.geistTimer||0)-dt);p.trion=Math.max(0,p.trion-dt*2.3);p.geistLeakTimer=(p.geistLeakTimer||0)-dt;if(p.geistLeakTimer<=0){p.geistLeakTimer=.09;this.effects.push({type:'geistLeak',x:p.x+rand(-16,16),y:p.y+rand(-24,20),ttl:.5,maxTtl:.5});}if(p.geistTimer<=0||p.trion<=0){p.geistActive=false;p.speed=p.geistBaseSpeed||p.speed;this.bailout(p,null,'ガイスト強制緊急脱出',{kind:'other'});}}
       }
       if ((p.playableDefenseType === 'seals' || p.defenseType === 'seals') && (p.defenseAI?.shieldTimer || 0) > 0) {
         this.activateShield(p, p.defenseAI?.shieldHand || 'sub', 'seal', { boost:clamp(p.extraBoost || p.defenseAI?.sealBoost || 1, 1, 3) });
@@ -7861,14 +8074,25 @@
     }
 
 
-    isAIWallBreakable(wall) {
-      return Boolean(wall && wall.hp > 0 && !wall.nonBlocking && !wall.indestructible && Number.isFinite(wall.hp) && Number.isFinite(wall.maxHp || wall.hp));
+    isAIWallBreakable(wall, actor = null) {
+      if (!(wall && wall.hp > 0 && !wall.nonBlocking && !wall.indestructible && Number.isFinite(wall.hp) && Number.isFinite(wall.maxHp || wall.hp))) return false;
+      if (actor && !actor.isDefenseEnemy) {
+        const friendlyOwned = Number.isInteger(wall.team) && wall.team === actor.team;
+        const friendlyEscudo = wall.type === 'escudo' && (friendlyOwned || wall.ownerId === actor.id || this.players.some((unit) => unit.id === wall.ownerId && unit.team === actor.team));
+        const friendlyDefenseWall = Boolean(wall.defenseBuildType) && (friendlyOwned || actor.team === 0);
+        if (friendlyEscudo || friendlyDefenseWall) return false;
+        if (this.isDefenseMode && actor.team === 0 && this.defenseFlag && ['barricade','escudo'].includes(wall.type)) {
+          const cx = wall.x + wall.w / 2, cy = wall.y + wall.h / 2;
+          if (Math.hypot(cx - this.defenseFlag.x, cy - this.defenseFlag.y) < 390) return false;
+        }
+      }
+      return true;
     }
 
     findAIWallBreakTarget(p, goalX, goalY, preferred = null) {
-      if (this.isAIWallBreakable(preferred)) return preferred;
+      if (this.isAIWallBreakable(preferred, p)) return preferred;
       const candidates = this.walls.filter((wall) => {
-        if (!this.isAIWallBreakable(wall)) return false;
+        if (!this.isAIWallBreakable(wall, p)) return false;
         const centerX = wall.x + wall.w / 2;
         const centerY = wall.y + wall.h / 2;
         const nearby = Math.hypot(centerX - p.x, centerY - p.y) <= 390 + p.radius;
@@ -8253,7 +8477,7 @@
 
       if (p.ai.wallBreakTarget) {
         const wall = this.walls.find((candidate) => candidate.id === p.ai.wallBreakTarget && candidate.hp > 0);
-        if (wall && this.isAIWallBreakable(wall)) return Math.atan2(wall.y + wall.h / 2 - p.y, wall.x + wall.w / 2 - p.x);
+        if (wall && this.isAIWallBreakable(wall, p)) return Math.atan2(wall.y + wall.h / 2 - p.y, wall.x + wall.w / 2 - p.x);
         p.ai.wallBreakTarget = null; p.ai.wallBreakTimer = 0;
       }
       if (p.ai.avoidWaypoint) return Math.atan2(p.ai.avoidWaypoint.y - p.y, p.ai.avoidWaypoint.x - p.x);
@@ -8267,7 +8491,7 @@
 
     aiTryBreakNavigationWall(p) {
       const wall = this.walls.find((candidate) => candidate.id === p.ai.wallBreakTarget && candidate.hp > 0);
-      if (!this.isAIWallBreakable(wall)) {
+      if (!this.isAIWallBreakable(wall, p)) {
         p.ai.wallBreakTarget = null; p.ai.wallBreakTimer = 0;
         return false;
       }
@@ -8374,6 +8598,307 @@
       p.vy += Math.sin(angle) * p.speed * dt * 3.05;
       this.applyAISeparation(p, dt, false);
       p.aim += clamp(angleDiff(angle, p.aim), -3.2 * dt, 3.2 * dt);
+    }
+
+    getAICoverPoint(p, target, desiredDistance = 330) {
+      if (!p || !target) return null;
+      p.ai ||= {};
+      p.ai.coverPointTimer = Math.max(0, Number(p.ai.coverPointTimer || 0));
+      const cached = p.ai.coverPoint;
+      if (cached && p.ai.coverPointTimer > 0 && cached.targetId === target.id
+        && this.isAINavPointOpen(cached.x, cached.y, p.radius)
+        && this.findBlockingWall(target.x, target.y, cached.x, cached.y, 4)) return cached;
+      const candidates = [];
+      const margin = Math.max(42, p.radius + 22);
+      for (const wall of this.walls) {
+        if (wall.hp <= 0 || wall.nonBlocking) continue;
+        const wcx = wall.x + wall.w / 2, wcy = wall.y + wall.h / 2;
+        if (Math.hypot(wcx - p.x, wcy - p.y) > 760) continue;
+        const points = [
+          {x:wall.x-margin,y:wall.y-margin},{x:wall.x+wall.w+margin,y:wall.y-margin},
+          {x:wall.x-margin,y:wall.y+wall.h+margin},{x:wall.x+wall.w+margin,y:wall.y+wall.h+margin},
+          {x:wcx,y:wall.y-margin},{x:wcx,y:wall.y+wall.h+margin},
+          {x:wall.x-margin,y:wcy},{x:wall.x+wall.w+margin,y:wcy},
+        ];
+        for (const point of points) {
+          point.x = clamp(point.x, 55, this.world.w - 55); point.y = clamp(point.y, 55, this.world.h - 55);
+          if (!this.isAINavPointOpen(point.x, point.y, p.radius)) continue;
+          if (!this.findBlockingWall(target.x, target.y, point.x, point.y, 4)) continue;
+          const targetDistance = Math.hypot(point.x-target.x,point.y-target.y);
+          if (targetDistance < Math.max(150, desiredDistance*.48)) continue;
+          const travel = Math.hypot(point.x-p.x,point.y-p.y);
+          const rangePenalty = Math.abs(targetDistance-desiredDistance)*.34;
+          const cornerPenalty = this.isAINearWorldCorner(point.x,point.y,150) ? 280 : 0;
+          candidates.push({...point,targetId:target.id,score:travel+rangePenalty+cornerPenalty});
+        }
+      }
+      candidates.sort((a,b)=>a.score-b.score);
+      p.ai.coverPoint = candidates[0] || null;
+      p.ai.coverPointTimer = candidates[0] ? rand(1.1,2.1) : .45;
+      return p.ai.coverPoint;
+    }
+
+    isAINearWorldCorner(x, y, margin = 135) {
+      return (x < margin || x > this.world.w-margin) && (y < margin || y > this.world.h-margin);
+    }
+
+    getAICenterEscapePoint(p) {
+      const cx=this.world.w/2, cy=this.world.h/2;
+      const a=Math.atan2(cy-p.y,cx-p.x)+rand(-.28,.28);
+      return {x:clamp(p.x+Math.cos(a)*320,90,this.world.w-90),y:clamp(p.y+Math.sin(a)*320,90,this.world.h-90)};
+    }
+
+    getDefenseFlagThreatState() {
+      const flag = this.defenseFlag;
+      if (!this.isDefenseMode || !flag) return null;
+      const enemies = this.players.filter((unit) => unit.isDefenseEnemy && !unit.dead);
+      const near = enemies.filter((unit) => Math.hypot(unit.x - flag.x, unit.y - flag.y) < 720);
+      const close = near.filter((unit) => Math.hypot(unit.x - flag.x, unit.y - flag.y) < 360);
+      const flagFocused = near.filter((unit) => unit.defenseAI?.objectiveMode === 'flag' || unit.defenseAI?.objectiveId === 'defense-flag');
+      const incoming = this.defenseHazards.filter((hazard) => hazard.hitsFlag && hazard.delay > 0 && hazard.delay < 1.35);
+      const hostileArea = this.defenseAreas.filter((area) => area.hitsFlag && area.owner?.isDefenseEnemy && Math.hypot(area.x - flag.x, area.y - flag.y) < area.radius + flag.radius + 90);
+      const ratio = flag.hp / Math.max(1, flag.maxHp);
+      const pressure = close.length * 2 + near.length * .45 + flagFocused.length * .8 + incoming.length * 1.7 + hostileArea.length * 1.4;
+      return {
+        flag, enemies, near, close, flagFocused, incoming, hostileArea, ratio, pressure,
+        underAttack: pressure >= 1.5 || this.elapsed - flag.lastDamageAt < 4.5,
+        critical: ratio < .42 || pressure >= 5,
+        severe: ratio < .24 || pressure >= 8,
+      };
+    }
+
+    getAIGuardOption(p) {
+      if (!p || p.dead) return null;
+      const type = p.playableDefenseType || p.defenseType;
+      if (type === 'seals') return { hand:'sub', index:0, type:'seal', boost:clamp(p.extraBoost || p.defenseAI?.sealBoost || 1, 1, 3) };
+      const support = { sogetsu:{hand:'main',index:2,type:'shield'}, fullarms:{hand:'main',index:2,type:'shield'}, geist:{hand:'main',index:3,type:'shield'} }[type];
+      if (support) return support;
+      const raygust = !type ? this.findTriggerHand(p, (trigger) => trigger.id === 'raygust') : null;
+      const shield = !type ? this.findTriggerHand(p, (trigger) => trigger.kind === 'shield') : null;
+      const selected = raygust && (p.archetype === '重装手' || !shield) ? raygust : (shield || raygust);
+      if (!selected) return null;
+      return { hand:selected.hand, index:selected.index, type:selected.trigger.id === 'raygust' ? 'raygust' : 'shield' };
+    }
+
+    activateAIGuard(p, facingAngle, duration = .42, options = {}) {
+      const guard = this.getAIGuardOption(p);
+      if (!guard) return false;
+      p.aim = facingAngle;
+      p.selected[guard.hand] = guard.index;
+      p.ai ||= {};
+      p.ai.defenseCommitTimer = Math.max(p.ai.defenseCommitTimer || 0, duration);
+      p.ai.sustainedGuardUntil = Math.max(p.ai.sustainedGuardUntil || 0, this.elapsed + duration);
+      p.defenseAI ||= {};
+      p.defenseAI.shieldTimer = Math.max(p.defenseAI.shieldTimer || 0, duration);
+      p.defenseAI.shieldHand = guard.hand;
+      if (guard.type === 'seal') p.defenseAI.sealBoost = guard.boost;
+      return this.activateShield(p, guard.hand, guard.type, { boost:guard.boost || 1, masteryAttempt:Boolean(options.masteryAttempt) });
+    }
+
+    moveAIToStrategicPoint(p, point, dt, speedScale = 1.1) {
+      if (!p?.ai || !point) return false;
+      let angle = Math.atan2(point.y - p.y, point.x - p.x);
+      angle = this.getAINavigationAngle(p, point.x, point.y, angle, dt, speedScale);
+      angle = this.stabilizeAIMovementAngle(p, angle, point.x, point.y, dt, speedScale);
+      p.vx += Math.cos(angle) * p.speed * dt * 4.55 * speedScale;
+      p.vy += Math.sin(angle) * p.speed * dt * 4.55 * speedScale;
+      this.applyAISeparation(p, dt, Boolean(p.isDefenseEnemy));
+      p.aim += clamp(angleDiff(angle, p.aim), -5.5 * dt, 5.5 * dt);
+      return true;
+    }
+
+    getSubwayEscapePoint(p) {
+      if (this.mapId !== 'underground') return null;
+      const candidates = [
+        ...(this.terrain.subwayPlatforms || []), ...(this.terrain.subwayPassengerZones || []), ...(this.terrain.subwayServiceZones || [])
+      ].map((rect) => ({
+        x: clamp(p.x, rect.x + 42, rect.x + rect.w - 42),
+        y: clamp(p.y, rect.y + 42, rect.y + rect.h - 42),
+      })).filter((point) => this.isUndergroundSafePoint(point.x, point.y, 24));
+      candidates.sort((a,b) => Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y));
+      if (candidates[0]) return candidates[0];
+      const track = this.terrain.subwayTracks?.[0];
+      if (!track) return null;
+      const above = { x:clamp(p.x, 70, this.world.w-70), y:track.y - 92 };
+      const below = { x:clamp(p.x, 70, this.world.w-70), y:track.y + track.h + 92 };
+      return Math.abs(p.y-above.y) < Math.abs(p.y-below.y) ? above : below;
+    }
+
+    updateAIDangerAvoidance(p, dt) {
+      if (!p || p.dead || p.human || !p.ai) return false;
+      p.ai.dangerEscapeTimer = Math.max(0, (p.ai.dangerEscapeTimer || 0) - dt);
+      let escape = null;
+      let urgency = 0;
+      if (this.mapId === 'underground') {
+        const subway = this.environment.subway || {};
+        const onTrack = this.isOnSubwayTrack(p.x, p.y, p.radius + 8);
+        const nearTrack = this.isOnSubwayTrack(p.x, p.y, p.radius + 90);
+        const trainSoon = Boolean(subway.trainActive) || Number(subway.trainTimer || 99) < 5.5;
+        if (onTrack || (nearTrack && trainSoon)) {
+          escape = this.getSubwayEscapePoint(p);
+          urgency = onTrack ? 2 : 1.3;
+        }
+      }
+      let awayX = 0, awayY = 0, dangerCount = 0;
+      const consider = (x, y, radius, weight = 1) => {
+        const dx = p.x - x, dy = p.y - y, d = Math.hypot(dx,dy) || 1;
+        if (d > radius) return;
+        awayX += dx / d * weight * (1 - d / Math.max(1,radius));
+        awayY += dy / d * weight * (1 - d / Math.max(1,radius));
+        dangerCount++;
+      };
+      for (const hazard of this.defenseHazards || []) {
+        if (!hazard.owner || !this.canDamage(hazard.owner, p) || hazard.delay < 0 || hazard.delay > 1.1) continue;
+        if (hazard.type === 'circle') consider(hazard.x,hazard.y,(hazard.radius||90)+p.radius+75,1.5);
+        else if (hazard.type === 'ring') {
+          const d = Math.hypot(p.x-hazard.x,p.y-hazard.y);
+          if (Math.abs(d-(hazard.radius||0)) < (hazard.width||24)+p.radius+55) consider(hazard.x,hazard.y,d+1,1.25);
+        } else if (hazard.type === 'line') {
+          const info = segmentPointDistance(hazard.x,hazard.y,hazard.x2,hazard.y2,p.x,p.y);
+          if (info.distance < (hazard.width||24)+p.radius+65) consider(info.x,info.y,(hazard.width||24)+p.radius+90,1.7);
+        }
+      }
+      for (const area of this.defenseAreas || []) {
+        if (!area.owner || !this.canDamage(area.owner,p)) continue;
+        consider(area.x,area.y,(area.radius||90)+p.radius+65,1.15);
+      }
+      for (const facility of this.installations || []) {
+        if (!facility.active || facility.hp <= 0 || facility.type !== 'trap') continue;
+        if (facility.team === p.team && (this.config.mode === 'team' || this.isDefenseMode)) continue;
+        consider(facility.x,facility.y,(facility.radius||24)+165,1.1);
+      }
+      if (!escape && dangerCount && Math.hypot(awayX,awayY) > .05) {
+        const a = Math.atan2(awayY,awayX);
+        escape = { x:clamp(p.x+Math.cos(a)*220,55,this.world.w-55), y:clamp(p.y+Math.sin(a)*220,55,this.world.h-55) };
+        urgency = 1.25;
+      }
+      if (!escape) return false;
+      p.ai.dangerEscapeTimer = Math.max(p.ai.dangerEscapeTimer || 0, .65);
+      p.ai.navPath = []; p.ai.navPathIndex = 0;
+      return this.moveAIToStrategicPoint(p, escape, dt, urgency || 1.15);
+    }
+
+    updateDefenseStrategicAI(p, dt) {
+      if (!this.isDefenseMode || !this.defenseFlag || !p || p.dead || p.human || p.isDefenseEnemy || !p.ai) return false;
+      const state = this.getDefenseFlagThreatState();
+      if (!state) return false;
+      p.ai.flagDutyTimer = Math.max(0, (p.ai.flagDutyTimer || 0) - dt);
+      p.ai.flagBaitTimer = Math.max(0, (p.ai.flagBaitTimer || 0) - dt);
+      const allies = this.players.filter((unit) => !unit.isDefenseEnemy && !unit.dead && !unit.human);
+      const byFlag = [...allies].sort((a,b) => Math.hypot(a.x-state.flag.x,a.y-state.flag.y)-Math.hypot(b.x-state.flag.x,b.y-state.flag.y));
+      const repairers = [...allies].filter((unit) => unit.trion > unit.maxTrion * .38).sort((a,b) => {
+        const sa = Math.hypot(a.x-state.flag.x,a.y-state.flag.y) - a.trion/a.maxTrion*180;
+        const sb = Math.hypot(b.x-state.flag.x,b.y-state.flag.y) - b.trion/b.maxTrion*180;
+        return sa-sb;
+      });
+      const hostileNearRepair = state.close.some((enemy) => Math.hypot(enemy.x-state.flag.x,enemy.y-state.flag.y)<285);
+      if (state.ratio < .78 && !hostileNearRepair && repairers.slice(0,state.ratio<.4?2:1).includes(p)) {
+        const d = Math.hypot(p.x-state.flag.x,p.y-state.flag.y);
+        if (d > state.flag.radius + p.radius + 42) return this.moveAIToStrategicPoint(p, state.flag, dt, 1.15);
+        p.vx *= Math.pow(.03,dt); p.vy *= Math.pow(.03,dt);
+        return true;
+      }
+
+      const incomingLine = state.incoming.filter((hazard) => hazard.type === 'line').sort((a,b)=>a.delay-b.delay)[0];
+      const guardUnits = allies.filter((unit) => this.getAIGuardOption(unit)).sort((a,b) => Math.hypot(a.x-state.flag.x,a.y-state.flag.y)-Math.hypot(b.x-state.flag.x,b.y-state.flag.y));
+      if (incomingLine && guardUnits.slice(0,state.severe?3:2).includes(p)) {
+        const ox = Number.isFinite(incomingLine.originX) ? incomingLine.originX : incomingLine.x;
+        const oy = Number.isFinite(incomingLine.originY) ? incomingLine.originY : incomingLine.y;
+        const a = Math.atan2(state.flag.y-oy,state.flag.x-ox);
+        const intercept = { x:state.flag.x-Math.cos(a)*(state.flag.radius+p.radius+34), y:state.flag.y-Math.sin(a)*(state.flag.radius+p.radius+34) };
+        const d = Math.hypot(p.x-intercept.x,p.y-intercept.y);
+        if (d > 42) this.moveAIToStrategicPoint(p, intercept, dt, 1.35);
+        this.activateAIGuard(p, Math.atan2(oy-p.y,ox-p.x), Math.max(.34,incomingLine.delay+.2), {masteryAttempt:true});
+        return true;
+      }
+
+      if (state.underAttack) {
+        const returnCount = clamp(2 + Math.ceil(state.pressure/2.8) + (state.ratio<.45?1:0), 2, Math.min(6,allies.length));
+        if (byFlag.slice(0,returnCount).includes(p)) {
+          const angleSeed = (byFlag.indexOf(p)+1)*2.3999632297;
+          const ring = 125 + (byFlag.indexOf(p)%2)*62;
+          const post = { x:state.flag.x+Math.cos(angleSeed)*ring, y:state.flag.y+Math.sin(angleSeed)*ring };
+          const d = Math.hypot(p.x-state.flag.x,p.y-state.flag.y);
+          if (d > 430 || Math.hypot(p.x-post.x,p.y-post.y)>240) return this.moveAIToStrategicPoint(p, post, dt, 1.2);
+          const threat = this.getProjectileThreatInfo(p,.8);
+          if (threat && this.getAIGuardOption(p)) this.activateAIGuard(p,threat.sourceAngle,.5,{masteryAttempt:true});
+        }
+        const baitCandidates = allies.filter((unit) => unit.archetype !== '狙撃手' && unit.hp > unit.maxHp*.58).sort((a,b) => (b.stats?.combat||0)-(a.stats?.combat||0));
+        const bait = baitCandidates[0];
+        const enemy = [...state.flagFocused,...state.close,...state.near][0];
+        if (bait === p && enemy && p.ai.flagBaitTimer <= 0) {
+          const away = Math.atan2(enemy.y-state.flag.y,enemy.x-state.flag.x);
+          p.operatorOrder = { type:'suppress', x:clamp(enemy.x+Math.cos(away)*220,60,this.world.w-60), y:clamp(enemy.y+Math.sin(away)*220,60,this.world.h-60), radius:260, label:'囮・敵を旗から引き離す' };
+          p.ai.target = enemy.id; p.ai.targetType='player'; p.ai.targetLockTimer=2.4;
+          p.ai.flagBaitTimer = 5.5;
+          this.addThreat(enemy,p,26,'noise',5.5);
+        }
+      }
+      return false;
+    }
+
+    getCpuSubwayStrategicOrder(teamUnits) {
+      if (this.mapId !== 'underground' || !teamUnits?.length) return null;
+      const subway = this.environment.subway || {};
+      const state = this.getDefenseFlagThreatState();
+      const enemies = this.players.filter((unit) => unit.isDefenseEnemy && !unit.dead);
+      const alliesInWater = teamUnits.filter((unit) => (this.terrain.subwayWaterways||[]).some((water)=>this.isPointInRect(unit.x,unit.y,water))).length;
+      const enemiesInWater = enemies.filter((unit) => (this.terrain.subwayWaterways||[]).some((water)=>this.isPointInRect(unit.x,unit.y,water))).length;
+      let kind = null, desired = null;
+      const trainSoon = subway.trainActive || Number(subway.trainTimer||99)<4.5;
+      if (trainSoon && !subway.homeDoorsClosed) { kind='platformSwitch'; desired='close'; }
+      else if (!subway.waterDrained && (alliesInWater>0 || state?.underAttack)) { kind='waterGateSwitch'; desired='drain'; }
+      else if (subway.waterDrained && enemiesInWater>=2 && alliesInWater===0 && !state?.critical) { kind='waterGateSwitch'; desired='fill'; }
+      else if (subway.breakerOff && state?.underAttack) { kind='breakerSwitch'; desired='on'; }
+      else {
+        const rangedEnemies = enemies.filter((unit)=>['skeletonShooter','skeletonSniper','fujin','seals','alektor','organon'].includes(unit.defenseType)).length;
+        if (!subway.breakerOff && rangedEnemies>=3 && !state?.critical) { kind='breakerSwitch'; desired='off'; }
+      }
+      if (!kind) return null;
+      const controls = this.lightSources.filter((light)=>light.kind===kind && light.hp>0);
+      let best = null;
+      for (const control of controls) for (const unit of teamUnits) {
+        const d=Math.hypot(unit.x-control.x,unit.y-control.y);
+        if (d>560) continue;
+        if (!best || d<best.distance) best={unit,control,distance:d,desired};
+      }
+      return best;
+    }
+
+    absorbFlagHazardWithShield(hazard, amount) {
+      if (!this.isDefenseMode || !this.defenseFlag || !hazard || amount<=0) return false;
+      const flag=this.defenseFlag;
+      const ox=Number.isFinite(hazard.originX)?hazard.originX:hazard.x;
+      const oy=Number.isFinite(hazard.originY)?hazard.originY:hazard.y;
+      const defenders=this.players.filter((unit)=>!unit.isDefenseEnemy&&!unit.dead&&this.getActiveShieldEntries(unit).length);
+      const eligible=defenders.filter((unit)=>{
+        if (Math.hypot(unit.x-flag.x,unit.y-flag.y)>230) return false;
+        if (hazard.type==='line') return segmentPointDistance(ox,oy,flag.x,flag.y,unit.x,unit.y).distance <= (hazard.width||24)+unit.radius+32;
+        return Math.hypot(unit.x-flag.x,unit.y-flag.y)<=flag.radius+unit.radius+90;
+      }).sort((a,b)=>Math.hypot(a.x-flag.x,a.y-flag.y)-Math.hypot(b.x-flag.x,b.y-flag.y));
+      const guard=eligible[0];
+      if (!guard) return false;
+      const entries=this.getActiveShieldEntries(guard).sort((a,b)=>(b.state.current*b.shield.strength)-(a.state.current*a.shield.strength));
+      let remaining=amount;
+      for (const entry of entries) {
+        const capacity=entry.state.current*entry.shield.strength;
+        const absorbed=Math.min(remaining,capacity);
+        entry.state.current=Math.max(0,entry.state.current-absorbed/Math.max(.4,entry.shield.strength));
+        entry.state.lastHitAt=this.elapsed; entry.state.justGuardAvailable=false;
+        remaining-=absorbed;
+        guard.metrics.blockedDamage += absorbed;
+        guard.metrics.shieldDamagePrevented += absorbed;
+        guard.metrics.shieldBlocks += 1;
+        if(entry.state.current<=.001)this.breakShield(guard,entry.hand,entry.state);
+        if(remaining<=.001)break;
+      }
+      this.effects.push({type:'shieldHit',x:guard.x,y:guard.y,angle:Math.atan2(oy-guard.y,ox-guard.x),ttl:.24,maxTtl:.24});
+      if (remaining<=.001) {
+        this.logEvent('flag_guard',`${guard.name}が${hazard.name||'攻撃'}を遮断`,false);
+        return true;
+      }
+      hazard._flagGuardRemainder=remaining;
+      return false;
     }
 
     updateAI(p, dt) {
@@ -8516,7 +9041,12 @@
       const threatened = this.projectileThreat(p);
       const lowHeavyResources = role === '重装手' && (p.trion < p.maxTrion * .35 || p.hp < p.maxHp * .35);
       const rangeBand = this.getAIRangeBand(p);
-      const preferred = role === '重装手' ? 145 : role === '工作手' ? 390 : rangeBand?.preferred || (hasSniper ? 860 : hasMelee ? 105 : 330);
+      let preferred = role === '重装手' ? 170 : role === '工作手' ? 420 : rangeBand?.preferred || (hasSniper ? 860 : hasMelee ? 128 : 360);
+      if (role === '攻撃手') preferred = Math.max(preferred, 145);
+      if (hasSniper) preferred = Math.max(preferred, 690);
+      const closeEnemies=this.players.filter((other)=>this.canDamage(p,other)&&Math.hypot(other.x-p.x,other.y-p.y)<340).length;
+      const targetUsesRanged=target.isDefenseEnemy || target.archetype==='狙撃手' || target.archetype==='銃手' || target.archetype==='射手'
+        || (!target.playableDefenseType && [...(target.loadout?.main||[]),...(target.loadout?.sub||[])].some((id)=>['gun','sniper','shooter'].includes(DATA.triggers[id]?.kind)));
       if (rangeBand) {
         if (d >= rangeBand.min && d <= rangeBand.max) p.metrics.aiOptimalRangeSeconds += dt;
         else p.metrics.aiOutOfRangeSeconds += dt;
@@ -8530,12 +9060,26 @@
       else if (movementMode === 'strafe') moveAngle += p.ai.strafe * Math.PI / 2;
       else if (movementMode === 'hold') movementScale = .16;
       if (hasSniper) {
-        if (rangeBand && d >= rangeBand.min * .92 && d <= rangeBand.max * 1.05) movementScale = Math.min(movementScale, p.ai.targetAge < .55 ? .12 : .22);
-        if (rangeBand && d < rangeBand.min * 1.04) { moveAngle = targetAngle + Math.PI; movementScale = Math.max(movementScale, 1.1); }
+        if (rangeBand && d >= rangeBand.min * .96 && d <= rangeBand.max * 1.05) movementScale = Math.min(movementScale, p.ai.targetAge < .55 ? .1 : .18);
+        if (d < Math.max(560,(rangeBand?.min||500)*1.12)) { moveAngle = targetAngle + Math.PI; movementScale = Math.max(movementScale, 1.3); }
         if (rangeBand && d > rangeBand.max * 1.2) movementScale = Math.min(movementScale, .62);
       }
+      if (role==='攻撃手' && this.elapsed-(p.ai.lastAttackAt||-999)<.72 && d<105 && closeEnemies>0) { moveAngle=targetAngle+Math.PI; movementScale=Math.max(movementScale,.78); }
       if (hasSniper && p.ai.relocateTimer > 0) { moveAngle = targetAngle + p.ai.strafe * Math.PI * .68; movementScale = 1.2; }
-      const directive = this.getOperatorMoveDirective(p, target);
+      let directive = this.getOperatorMoveDirective(p, target);
+      const overEngaged=closeEnemies>=2 || (closeEnemies>=1 && p.hp<p.maxHp*.43) || (hasSniper && d<560);
+      if (!directive && (overEngaged || (targetUsesRanged && (threatened || p.hp<p.maxHp*.76 || role==='攻撃手' || hasSniper)))) {
+        const cover=this.getAICoverPoint(p,target,hasSniper?720:role==='攻撃手'?260:rangeBand?.preferred||390);
+        if (cover) directive={type:'cover',x:cover.x,y:cover.y,label:'遮蔽へ退避'};
+      }
+      if (!directive && this.isAINearWorldCorner(p.x,p.y,145) && d>220) {
+        const center=this.getAICenterEscapePoint(p);
+        directive={type:'antiCorner',x:center.x,y:center.y,label:'角から離脱'};
+      }
+      if (overEngaged && !directive) {
+        const away=Math.atan2(p.y-target.y,p.x-target.x);
+        directive={type:'disengage',x:clamp(p.x+Math.cos(away)*300,70,this.world.w-70),y:clamp(p.y+Math.sin(away)*300,70,this.world.h-70),label:'過剰接敵を回避'};
+      }
       if (directive) {
         moveAngle = Math.atan2(directive.y - p.y, directive.x - p.x); movementScale = directive.hold ? 0 : 1.15;
       } else {
@@ -8562,6 +9106,14 @@
       p.ai.defenseCommitTimer = Math.max(0, (p.ai.defenseCommitTimer || 0) - dt);
       const threatInfo = this.getProjectileThreatInfo(p);
       const defensiveRead = this.aiTryDefensiveRead(p, threatInfo, profile, tier, dt);
+      const targetFacing=Math.abs(angleDiff(Math.atan2(p.y-target.y,p.x-target.x),target.aim||0))<.62;
+      const exposedToRanged=targetUsesRanged && targetFacing && d<920 && !this.findBlockingWall(target.x,target.y,p.x,p.y,4);
+      const shouldHoldGuard=!defensiveRead && this.getAIGuardOption(p) && (threatInfo || (exposedToRanged && (profile.calmness>.42 || p.hp<p.maxHp*.62)))
+        && p.trion>p.maxTrion*.14 && Math.random()<(.18+profile.guardSkill*.62);
+      if (shouldHoldGuard) {
+        this.activateAIGuard(p,Math.atan2(target.y-p.y,target.x-p.x),threatInfo?Math.max(.35,threatInfo.time+.3):rand(.5,.95),{masteryAttempt:Boolean(threatInfo)});
+        if (!threatInfo) movementScale=Math.min(movementScale,.52);
+      }
 
       if (p.ai.utilityTimer <= 0) {
         if (Math.random() < profile.utilityChance || role === '工作手') this.aiUseUtility(p, d, target, profile);
@@ -8591,6 +9143,7 @@
       }
       if (p.ai.attackTimer > 0) return;
       p.ai.attackTimer = rand(profile.attackInterval[0], profile.attackInterval[1]);
+      p.ai.lastAttackAt=this.elapsed;
       const attackBlocker = this.findBlockingWall(p.x, p.y, target.x, target.y, Math.max(3, p.radius * .22));
       const allowedWallBreak = attackBlocker && p.ai.wallBreakTarget === attackBlocker.id && p.ai.wallBreakTimer > 0;
       if (attackBlocker && !allowedWallBreak) { p.ai.attackTimer = Math.max(p.ai.attackTimer, .12); return; }
@@ -8711,6 +9264,11 @@
       if (target.toggles.chameleon && !['attacked','majorHit'].includes(threatEntry?.reason)) return Infinity;
       if (threat <= 0 && !this.hasEffectiveSight(p, target)) return Infinity;
       let score = d / (1 + threat * .115);
+      const axisDx=Math.abs(target.x-p.x), axisDy=Math.abs(target.y-p.y);
+      if (axisDx < 92 && axisDy > 210) score *= 1.22;
+      const alliedFocus=this.players.filter((ally)=>ally!==p&&!ally.dead&&ally.team===p.team&&ally.ai?.target===target.id).length;
+      score *= 1 + Math.min(.48, alliedFocus*.12);
+      if (this.isAINearWorldCorner(target.x,target.y,105) && d>380) score *= 1.14;
       if (target.toggles.chameleon) score *= 1.7;
       if (this.config.difficulty === 'strong') score *= .68 + (target.hp / target.maxHp) * .45;
       if (this.config.difficulty === 'weak') score *= rand(.88, 1.18);
@@ -9027,9 +9585,10 @@
       const raygust = !type ? this.findTriggerHand(p, (trigger) => trigger.id === 'raygust') : null;
       const shield = !type ? this.findTriggerHand(p, (trigger) => trigger.kind === 'shield') : null;
       const canSealGuard = type === 'seals';
+      const supportGuard={sogetsu:{hand:'main',index:2},fullarms:{hand:'main',index:2},geist:{hand:'main',index:3}}[type]||null;
       const urgent = threat.time <= .15 || threat.count > 1;
       const parryWeight = (canExtraParry || kogetsu) ? parrySkill * (.72 + aggression * .4) * (urgent ? 1.15 : .82) : 0;
-      const guardWeight = (raygust || shield || canSealGuard) ? guardSkill * (1.28 - aggression * .48) * (threat.count > 1 ? 1.35 : 1) : 0;
+      const guardWeight = (raygust || shield || canSealGuard || supportGuard) ? guardSkill * (1.28 - aggression * .48) * (threat.count > 1 ? 1.35 : 1) : 0;
       const dodgeWeight = dodgeSkill * (.72 + calmness * .46) * (threat.count > 1 ? .55 : 1.1);
       const choice = weightedChoice([
         {id:'parry',weight:parryWeight}, {id:'guard',weight:guardWeight}, {id:'dodge',weight:dodgeWeight}
@@ -9054,6 +9613,9 @@
           const boost = clamp(p.extraBoost || p.defenseAI?.sealBoost || 1, 1, 3);
           p.defenseAI ||= {}; p.defenseAI.shieldTimer = Math.max(p.defenseAI.shieldTimer || 0, .2); p.defenseAI.shieldHand='sub';
           if (!this.activateShield(p, 'sub', 'seal', {boost})) return false;
+        } else if(supportGuard){
+          p.selected[supportGuard.hand]=supportGuard.index;p.defenseAI ||= {};p.defenseAI.shieldTimer=Math.max(p.defenseAI.shieldTimer||0,.22);p.defenseAI.shieldHand=supportGuard.hand;
+          if(!this.activateShield(p,supportGuard.hand,'shield'))return false;
         } else {
           const selected = raygust && (p.archetype === '重装手' || !shield || Math.random() < .58) ? raygust : shield;
           if (!selected) return false;
@@ -9534,7 +10096,8 @@
       target.metrics.longestLife = Math.max(target.metrics.longestLife, target.metrics.currentLife);
       target.hp = 0;
       target.dead = true;
-      target.respawnTimer = 4.2;
+      target.respawnTimer = target.defenseSupportType ? Infinity : 4.2;
+      if(target.geistActive){target.geistActive=false;target.geistTimer=0;target.speed=target.geistBaseSpeed||target.speed;}
       const kind = context.kind || (attacker ? 'combat' : 'other');
       if (kind === 'combat') { target.deaths += 1; target.metrics.combatDeaths += 1; }
       if (kind === 'manual') target.metrics.manualBailouts += 1;
@@ -10655,7 +11218,7 @@ renderUndergroundTerrainChunk(chunk) {
       for (let x = Math.max(0, x0 - 180); x <= Math.min(this.world.w, x1 + 180); x += 56) { const y = this.riverCenterAt(x); if (first) { ctx.moveTo(x, y); first = false; } else ctx.lineTo(x, y); } ctx.stroke();
       for (const r of this.terrain.forests) {
         if (r.x > x1 || r.x + r.w < x0 || r.y > y1 || r.y + r.h < y0) continue;
-        ctx.fillStyle = 'rgba(42,94,57,.22)'; ctx.fillRect(r.x, r.y, r.w, r.h);
+        ctx.fillStyle = 'rgba(78,92,58,.16)'; ctx.fillRect(r.x, r.y, r.w, r.h);
         const sx = r.x + 10 + Math.max(0, Math.floor((x0 - r.x - 10) / 30)) * 30;
         const sy = r.y + 10 + Math.max(0, Math.floor((y0 - r.y - 10) / 30)) * 30;
         for (let y = sy; y < Math.min(r.y + r.h, y1); y += 30) for (let x = sx; x < Math.min(r.x + r.w, x1); x += 30) {
@@ -11456,6 +12019,24 @@ drawUndergroundFeatures(ctx){
       }
     }
 
+    drawDefenseSupportHumanoid(ctx,p){
+      const type=p.playableDefenseType||p.defenseType,ai=p.defenseAI||{},action=String(ai.action||p.extraAction||'');
+      const colors={sogetsu:'#2b98c9',fullarms:'#516b7f',geist:'#3e7cb4'};const old=p.appearance?.bodyColor;p.appearance||={};p.appearance.bodyColor=colors[type]||old||'#6a91a8';this.drawHumanoid(ctx,p,1);p.appearance.bodyColor=old;
+      ctx.save();ctx.translate(p.x,p.y);const facing=Math.cos(p.aim||0)<0?-1:1;ctx.scale(facing,1);ctx.imageSmoothingEnabled=false;const max=Math.max(.001,ai.actionMax||p.extraActionTimer||1),at=(ai.actionTimer||p.extraActionTimer||0)>0?1-clamp((ai.actionTimer||p.extraActionTimer)/max,0,1):0;const swing=Math.sin(at*Math.PI)*12;
+      if(type==='sogetsu'){
+        const linked=(p.sogetsuConnectTimer||0)>0;ctx.fillStyle='#183745';ctx.fillRect(-18,-18,6,34);ctx.fillStyle='#83eaff';
+        if(linked){ctx.save();ctx.translate(17,-2);ctx.rotate(-.7+swing*.05);ctx.fillRect(-4,-6,10,54);ctx.fillStyle='#d7f7ff';ctx.beginPath();ctx.moveTo(-22,-8);ctx.lineTo(25,-8);ctx.lineTo(34,13);ctx.lineTo(-30,13);ctx.closePath();ctx.fill();ctx.restore();}
+        else{for(const side of[-1,1]){ctx.save();ctx.translate(side*18,-1);ctx.rotate(side*(.35+swing*.025));ctx.fillRect(-3,-2,6,30);ctx.fillStyle='#d7f7ff';ctx.beginPath();ctx.moveTo(-12,-6);ctx.lineTo(13,-6);ctx.lineTo(16,8);ctx.lineTo(-16,8);ctx.closePath();ctx.fill();ctx.restore();}}
+        if(action.includes('Meteor')){ctx.fillStyle='#ffad5b';for(let i=0;i<4;i++){const a=i/4*TAU+this.elapsed*3;ctx.fillRect(Math.cos(a)*28-3,Math.sin(a)*28-3,7,7);}}
+      }else if(type==='fullarms'){
+        ctx.fillStyle='#263744';ctx.fillRect(-22,-19,8,36);ctx.fillRect(14,-19,8,36);ctx.fillStyle='#9eeaff';ctx.fillRect(17,-2+swing*.15,46,6);ctx.fillStyle='#dffcff';ctx.fillRect(54,-5+swing*.15,14,3);ctx.fillStyle='#687b87';ctx.fillRect(-50,-11,40,12);ctx.fillStyle='#d1e4ea';ctx.fillRect(-57,-7,12,4);
+        if(action.includes('Ultimate')||p.fullArmsTimer>0){ctx.strokeStyle='#ffd36a';ctx.lineWidth=3;for(let i=0;i<6;i++){const a=i/6*TAU+this.elapsed*4;ctx.beginPath();ctx.arc(0,0,34+i*4,a,a+.75);ctx.stroke();}}
+      }else if(type==='geist'){
+        ctx.fillStyle='#24394b';ctx.fillRect(-19,-19,7,34);ctx.fillStyle='#d8fbff';ctx.fillRect(17,-2+swing*.15,46,5);ctx.fillStyle='#72e8ff';ctx.fillRect(-54,-8,42,9);if(p.geistActive){ctx.strokeStyle='#ff7bce';ctx.lineWidth=4;ctx.globalAlpha=.75;ctx.beginPath();ctx.arc(0,0,34+Math.sin(this.elapsed*8)*4,0,TAU);ctx.stroke();const lv=p.geistLevels||{armor:1,slash:4,special:3,speed:5,shoot:4},vals=[lv.armor,lv.slash,lv.special,lv.speed,lv.shoot],radarLabels=['甲','斬','特','速','射'];ctx.translate(25,-18);ctx.strokeStyle='#e9fbff';ctx.lineWidth=1.5;ctx.beginPath();vals.forEach((v,i)=>{const a=-Math.PI/2+i*TAU/5,r=2+v*2.45;const x=Math.cos(a)*r,y=Math.sin(a)*r;i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.closePath();ctx.stroke();ctx.fillStyle='#e9fbff';ctx.font='700 5px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';radarLabels.forEach((label,i)=>{const a=-Math.PI/2+i*TAU/5,x=Math.cos(a)*20,y=Math.sin(a)*20;ctx.save();ctx.translate(x,y);ctx.scale(facing,1);ctx.fillText(label,0,0);ctx.restore();});ctx.fillStyle='#ff8bd4';ctx.font='700 7px sans-serif';ctx.textAlign='center';ctx.fillText(`${Math.ceil(p.geistTimer||0)}`,0,3);}
+      }
+      ctx.restore();
+    }
+
     drawBlackTriggerHumanoid(ctx, p) {
       const type = p.defenseType;
       const ai = p.defenseAI || {};
@@ -12155,7 +12736,9 @@ drawUndergroundFeatures(ctx){
       const type = p.defenseType;
       const defenseChameleonHidden = (p.toggles?.chameleon || (p.defenseAI?.chameleonTimer || 0) > 0) && (p.markedTimer || 0) <= 0;
       const hyakkiTypes = ['skeletonAttacker', 'skeletonShooter', 'skeletonSniper', 'yamagu', 'yagarasu', 'whitefox', 'nekomata', 'orochi'];
-      if (hyakkiTypes.includes(type)) {
+      const supportTypes=['sogetsu','fullarms','geist'];
+      if(supportTypes.includes(type)){this.drawDefenseSupportHumanoid(ctx,p);}
+      else if (hyakkiTypes.includes(type)) {
         this.drawHyakkiEnemySprite(ctx, p);
       } else if (p.isDefenseBoss) {
         this.drawBlackTriggerHumanoid(ctx, p);
@@ -12203,7 +12786,7 @@ drawUndergroundFeatures(ctx){
       const width = p.defenseType === 'orochi' ? 220 : p.isDefenseBoss ? 160 : 90;
       const title = p.playableDefenseType ? `${p.name}：${EXTRA_UNIT_DEFS[type]?.label || type}` : hyakkiTypes.includes(type) && p.isDefenseBoss ? `百鬼夜行：${p.name}` : p.isDefenseBoss ? `BLACK TRIGGER：${p.name}` : p.name;
       ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(p.x - width / 2, p.y - p.radius - 34, width, 7);
-      ctx.fillStyle = p.isDefenseBoss ? '#ff5f73' : '#ffd369'; ctx.fillRect(p.x - width / 2, p.y - p.radius - 34, width * hp, 7);
+      ctx.fillStyle = p.defenseSupportType ? '#55eaff' : p.isDefenseBoss ? '#ff5f73' : '#ffd369'; ctx.fillRect(p.x - width / 2, p.y - p.radius - 34, width * hp, 7);
       ctx.fillStyle = '#fff'; ctx.font = p.isDefenseBoss ? '900 12px sans-serif' : '800 10px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(title, p.x, p.y - p.radius - 42);
     }
 
@@ -12672,6 +13255,16 @@ drawUndergroundFeatures(ctx){
           ctx.restore();
         } else if(e.type==='shrineBlessing'){
           ctx.globalAlpha=t;ctx.strokeStyle=e.color||'#dffcff';ctx.lineWidth=4;ctx.setLineDash([8,6]);ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x2,e.y2);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=e.color||'#dffcff';ctx.beginPath();ctx.arc(e.x2,e.y2,18+(1-t)*35,0,TAU);ctx.fill();
+        } else if(e.type==='supportSummon'){
+          const progress=1-t;ctx.globalAlpha=t;ctx.strokeStyle=e.color||'#55eaff';ctx.lineWidth=4;for(let i=0;i<3;i++){ctx.beginPath();ctx.arc(e.x,e.y,22+progress*(48+i*22),0,TAU);ctx.stroke();}ctx.fillStyle='#eaffff';for(let i=0;i<8;i++){const a=i/8*TAU+progress*2;ctx.fillRect(e.x+Math.cos(a)*(28+progress*70)-3,e.y+Math.sin(a)*(28+progress*70)-3,6,6);}
+        } else if(e.type==='sogetsuConnector'){
+          const progress=1-t;ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.angle||0);ctx.globalAlpha=t;ctx.strokeStyle='#ffd36a';ctx.lineWidth=8;ctx.beginPath();ctx.arc(0,0,45+progress*90,-1.1,1.1);ctx.stroke();ctx.strokeStyle='#dffcff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,60+progress*110,-.9,.9);ctx.stroke();ctx.restore();
+        } else if(e.type==='fullArmsVolley'){
+          const progress=1-t;ctx.save();ctx.translate(e.x,e.y);ctx.rotate(e.angle||0);ctx.globalAlpha=t*.85;for(let i=-4;i<=4;i++){ctx.strokeStyle=i%2?'#7dffb8':'#72e8ff';ctx.lineWidth=e.ultimate?5:3;ctx.beginPath();ctx.moveTo(20,i*8);ctx.lineTo(90+progress*(e.ultimate?320:160),i*18);ctx.stroke();}if(e.ultimate){ctx.strokeStyle='#ffb15e';ctx.lineWidth=8;ctx.beginPath();ctx.arc(0,0,55+progress*160,-.8,.8);ctx.stroke();}ctx.restore();
+        } else if(e.type==='geistActivate'){
+          const progress=1-t;ctx.globalAlpha=t*.9;ctx.strokeStyle='#ff7bce';ctx.lineWidth=6;for(let i=0;i<5;i++){const a=i/5*TAU+progress*3;ctx.beginPath();ctx.moveTo(e.x+Math.cos(a)*20,e.y+Math.sin(a)*20);ctx.lineTo(e.x+Math.cos(a)*(80+progress*80),e.y+Math.sin(a)*(80+progress*80));ctx.stroke();}ctx.strokeStyle='#dffcff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(e.x,e.y,25+progress*95,0,TAU);ctx.stroke();
+        } else if(e.type==='geistLeak'){
+          const progress=1-t;ctx.globalAlpha=t*.7;ctx.fillStyle='#ff7bce';ctx.beginPath();ctx.arc(e.x,e.y-progress*30,4+progress*7,0,TAU);ctx.fill();ctx.strokeStyle='#8feaff';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(e.x+Math.sin(progress*8)*10,e.y-progress*40);ctx.stroke();
         } else if (e.type === 'explosion' || e.type === 'gasBurst' || e.type === 'sakeBurst') {
           const progress = 1 - t;
           ctx.globalAlpha = t * (e.type === 'gasBurst' ? .84 : e.type === 'sakeBurst' ? .9 : .72);

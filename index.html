@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
   <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=60" />
+  <link rel="stylesheet" href="styles.css?v=62" />
 </head>
 <body>
   <main id="app">
@@ -16,7 +16,7 @@
         <p class="title-kicker">B-GRADE RANK WAR</p>
         <h1>TRION<br>ARENA</h1>
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
-        <div class="version-badge" aria-label="現在のバージョン">VERSION 60</div>
+        <div class="version-badge" aria-label="現在のバージョン">VERSION 62</div>
         <div class="title-actions">
           <button id="enterSetupButton" class="title-start" type="button">出撃準備へ</button>
           <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
@@ -141,7 +141,7 @@
                 <input id="teamCount" type="range" min="2" max="4" value="2" />
               </div>
               <label class="field-label" for="teamSize">1隊の戦闘員 <strong id="teamSizeValue">3</strong>人</label>
-              <input id="teamSize" type="range" min="1" max="4" value="3" />
+              <input id="teamSize" type="range" min="1" max="8" value="3" />
               <small id="teamRosterHelp" class="field-help">戦闘員を選んだ場合のみ、自チームの人数にプレイヤーを含みます。各チームにオペレーターが1人付きます。</small>
             </div>
             <div id="defenseScenarioField" class="hidden">
@@ -583,6 +583,12 @@
           <button type="button" data-support="decoy">囮ビーコン投下</button>
           <button type="button" data-support="flagRepair">フラッグ緊急修復</button>
         </div>
+        <div class="operator-section-title defense-support-title">防衛助っ人召喚</div>
+        <div class="operator-support-grid defense-support-grid">
+          <button type="button" data-support="summonSogetsu">双月を召喚</button>
+          <button type="button" data-support="summonFullarms">全武装を召喚</button>
+          <button type="button" data-support="summonGeist">ガイストを召喚</button>
+        </div>
         <div id="operatorCooldowns" class="operator-cooldowns"></div>
         <div id="operatorMessage" class="operator-message">味方を選び、指示または支援を選択してください。</div>
         <small>位置指定型の指示と支援は、ボタンを押した後に戦場をタップします。WASDまたは左パッドで作戦画面を移動できます。</small>
@@ -665,8 +671,8 @@
   <script src="js/trigger-data.js?v=32"></script>
   <script src="js/online.js?v=32"></script>
   <script src="js/community.js?v=32"></script>
-  <script src="simulation-results/latest.js?v=60"></script>
-  <script src="js/simulation-results.js?v=60"></script>
-  <script src="js/game.js?v=60"></script>
+  <script src="simulation-results/latest.js?v=62"></script>
+  <script src="js/simulation-results.js?v=62"></script>
+  <script src="js/game.js?v=62"></script>
 </body>
 </html>
