@@ -26,6 +26,8 @@ if (!scenarioId) throw new Error('--scenario は必須です。');
 const shard = Math.max(0, Number(args.shard || 0));
 const shardCount = Math.max(1, Number(args['shard-count'] || 1));
 const matches = Math.max(1, Number(args.matches || 20));
+const retries = Math.max(0, Math.min(4, Number(args.retries ?? 2)));
+const maxFailureRate = Math.max(0, Math.min(1, Number(args['max-failure-rate'] ?? 0.12)));
 const output = path.resolve(args.output || path.join(projectRoot, 'simulation-output', `${scenarioId}-${shard}.json`));
 const source = await loadScenarioFile(args.file);
 const scenario = findScenario(source, scenarioId);
@@ -40,40 +42,74 @@ page.on('console', (message) => { if (message.type() === 'error') browserErrors.
 
 const results = [];
 const failures = [];
+const retryEvents = [];
 const startedAt = new Date().toISOString();
+
+async function runOne(index) {
+  const seed = `${scenario.id}:${index}`;
+  let lastError = null;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const result = await page.evaluate(async ({ scenario: runScenario, seed: runSeed, index: runIndex }) => {
+        return await window.TRION_SIMULATION_API.runMatch({ ...runScenario, seed: runSeed, matchIndex: runIndex });
+      }, { scenario, seed, index });
+      if (attempt > 0) retryEvents.push({ matchIndex: index, seed, recoveredOnAttempt: attempt + 1 });
+      return { ok: true, result, seed, attempts: attempt + 1 };
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      if (attempt < retries) {
+        retryEvents.push({ matchIndex: index, seed, retryAttempt: attempt + 2, error: lastError });
+        await page.waitForTimeout(25);
+      }
+    }
+  }
+  return { ok: false, seed, error: lastError || 'unknown simulation error', attempts: retries + 1 };
+}
+
 try {
   await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 0 });
   await page.waitForFunction(() => Boolean(window.TRION_SIMULATION_API?.runMatch), null, { timeout: 0 });
   for (let index = shard; index < matches; index += shardCount) {
-    const seed = `${scenario.id}:${index}`;
-    try {
-      const result = await page.evaluate(async ({ scenario, seed, index }) => {
-        return await window.TRION_SIMULATION_API.runMatch({ ...scenario, seed, matchIndex: index });
-      }, { scenario, seed, index });
-      results.push(result);
-      process.stdout.write(`[${scenario.id}] shard ${shard}/${shardCount} match ${index + 1}/${matches}\n`);
-    } catch (error) {
-      failures.push({ matchIndex: index, seed, error: error instanceof Error ? error.message : String(error) });
+    const outcome = await runOne(index);
+    if (outcome.ok) {
+      results.push(outcome.result);
+      process.stdout.write(`[${scenario.id}] shard ${shard}/${shardCount} match ${index + 1}/${matches} ok (${outcome.attempts} attempt${outcome.attempts === 1 ? '' : 's'})\n`);
+    } else {
+      failures.push({ matchIndex: index, seed: outcome.seed, error: outcome.error, attempts: outcome.attempts });
+      process.stderr.write(`[${scenario.id}] shard ${shard}/${shardCount} match ${index + 1}/${matches} failed after ${outcome.attempts} attempts: ${outcome.error}\n`);
     }
   }
 } finally {
   await browser.close();
 }
 
-await fs.mkdir(path.dirname(output), { recursive: true });
-await fs.writeFile(output, JSON.stringify({
-  schemaVersion: 1,
+const assignedMatches = Array.from({ length: matches }, (_, index) => index).filter((index) => index % shardCount === shard).length;
+const failureRate = assignedMatches > 0 ? failures.length / assignedMatches : 1;
+const status = results.length === 0 ? 'fatal' : failureRate > maxFailureRate ? 'degraded' : failures.length ? 'partial' : 'ok';
+const report = {
+  schemaVersion: 2,
+  status,
   scenarioId: scenario.id,
   scenarioLabel: scenario.label,
   shard,
   shardCount,
   matchesRequested: matches,
+  matchesAssigned: assignedMatches,
   matchesCompleted: results.length,
+  failureRate,
+  maxFailureRate,
+  retryLimit: retries,
   startedAt,
   endedAt: new Date().toISOString(),
   browserErrors: [...new Set(browserErrors)],
+  retryEvents,
   failures,
   results,
-}, null, 2));
+};
 
-if (failures.length) process.exitCode = 2;
+await fs.mkdir(path.dirname(output), { recursive: true });
+await fs.writeFile(output, JSON.stringify(report, null, 2));
+const stat = await fs.stat(output);
+process.stdout.write(`WROTE ${output} (${stat.size} bytes) status=${status} completed=${results.length}/${assignedMatches} failures=${failures.length}\n`);
+
+if (status === 'fatal' || status === 'degraded') process.exitCode = 2;

@@ -60,20 +60,53 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Run simulation shard
+        id: run-shard
+        continue-on-error: true
         run: |
           node simulation/run-batch.mjs \
             --scenario '${{ matrix.scenario }}' \
             --matches '${{ inputs.matches }}' \
             --shard '${{ matrix.shard }}' \
             --shard-count '${{ inputs.shards }}' \
+            --retries 2 \
+            --max-failure-rate 0.12 \
             --output 'simulation-output/${{ matrix.scenario }}-${{ matrix.shard }}.json'
+      - name: Inspect shard output
+        if: always()
+        shell: bash
+        run: |
+          echo "run outcome: ${{ steps.run-shard.outcome }}"
+          find simulation-output -maxdepth 1 -type f -name '*.json' -print -exec ls -lh {} \; || true
       - name: Upload partial result
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: simulation-${{ matrix.scenario }}-${{ matrix.shard }}
-          path: simulation-output/*.json
+          path: simulation-output/${{ matrix.scenario }}-${{ matrix.shard }}.json
           retention-days: 5
           if-no-files-found: error
+      - name: Validate shard report
+        if: always()
+        shell: bash
+        run: |
+          node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const file = 'simulation-output/${{ matrix.scenario }}-${{ matrix.shard }}.json';
+          if (!fs.existsSync(file)) {
+            console.error(`missing shard report: ${file}`);
+            process.exit(2);
+          }
+          const report = JSON.parse(fs.readFileSync(file, 'utf8'));
+          console.log(JSON.stringify({
+            status: report.status,
+            completed: report.matchesCompleted,
+            assigned: report.matchesAssigned,
+            failures: report.failures?.length || 0,
+            failureRate: report.failureRate,
+            browserErrors: report.browserErrors?.length || 0,
+          }, null, 2));
+          if (!report.matchesCompleted || report.status === 'fatal' || report.status === 'degraded') process.exit(2);
+          NODE
 
   aggregate:
     needs: simulate

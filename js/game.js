@@ -94,7 +94,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 64;
+  const GAME_VERSION = 65;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
@@ -6741,15 +6741,28 @@
       if (!state || state.type !== type || state.boost !== boost) {
         const previous = state;
         const ratio = previous && previous.max > 0 ? clamp(previous.current / previous.max, 0, 1) : 1;
-        state = { type, boost, max, current:max * ratio, lastActiveAt:previous?.lastActiveAt ?? -999, lastHitAt:previous?.lastHitAt ?? -999, brokenUntil:previous?.brokenUntil || 0, justGuardUntil:0, justGuardAvailable:false };
+        state = {
+          type, boost, max, current:max * ratio,
+          lastActiveAt:previous?.lastActiveAt ?? -999,
+          lastHitAt:previous?.lastHitAt ?? -999,
+          brokenUntil:previous?.brokenUntil || 0,
+          redeployCooldownUntil:previous?.redeployCooldownUntil || 0,
+          tacticalReleaseUntil:previous?.tacticalReleaseUntil || 0,
+          lastJustGuardAt:previous?.lastJustGuardAt ?? -999,
+          justGuardUntil:0, justGuardAvailable:false, active:false,
+        };
         p.shieldDurability[hand] = state;
       } else if (state.max !== max) {
         const ratio = state.max > 0 ? clamp(state.current / state.max, 0, 1) : 1;
         state.max = max; state.current = max * ratio;
       }
       if (state.current <= 0 && this.elapsed >= (state.brokenUntil || 0)) state.current = state.max * .42;
-      if (this.elapsed < (state.brokenUntil || 0) || state.current <= 0) { p.shields[hand] = null; return false; }
-      const newlyRaised = this.elapsed - (state.lastActiveAt ?? -999) > .12;
+      const newlyRaised = this.elapsed - (state.lastActiveAt ?? -999) > .055;
+      const ignoreRedeployCooldown = Boolean(options.ignoreRedeployCooldown);
+      if (this.elapsed < (state.brokenUntil || 0) || state.current <= 0 || (newlyRaised && !ignoreRedeployCooldown && this.elapsed < (state.redeployCooldownUntil || 0))) {
+        p.shields[hand] = null;
+        return false;
+      }
       state.lastActiveAt = this.elapsed;
       state.active = true;
       if (newlyRaised) {
@@ -6775,8 +6788,17 @@
           if (state.masteryAttempt) this.adjustMastery(p, -.09, 'ジャストガード失敗');
           state.masteryAttempt = false;
         }
-        const active = this.elapsed - (state.lastActiveAt ?? -999) <= .12 && state.current > 0 && this.elapsed >= (state.brokenUntil || 0);
+        const wasActive = Boolean(state.active);
+        const active = this.elapsed - (state.lastActiveAt ?? -999) <= .06 && state.current > 0 && this.elapsed >= (state.brokenUntil || 0);
         state.active = active;
+        if (wasActive && !active) {
+          const justGuardRelease = this.elapsed - (state.lastJustGuardAt ?? -999) <= .34;
+          const tacticalRelease = this.elapsed <= (state.tacticalReleaseUntil || 0);
+          if (!justGuardRelease) {
+            const normalCooldown = state.type === 'raygust' ? .42 : state.type === 'seal' ? .68 : .62;
+            state.redeployCooldownUntil = Math.max(state.redeployCooldownUntil || 0, this.elapsed + (tacticalRelease ? .18 : normalCooldown));
+          }
+        }
         if (!active) {
           p.shields[hand] = null;
           if (state.current <= 0 && this.elapsed >= (state.brokenUntil || 0)) state.current = state.max * .42;
@@ -6795,6 +6817,7 @@
       state.current = 0;
       state.justGuardAvailable = false;
       state.brokenUntil = this.elapsed + (state.type === 'raygust' ? 2.8 : state.type === 'seal' ? 3 : 2.4);
+      state.redeployCooldownUntil = state.brokenUntil;
       if (p?.shields) p.shields[hand] = null;
       this.effects.push({ type:'shieldBreak', x:p.x, y:p.y, angle:p.aim, color:state.type === 'raygust' ? '#b8ffff' : state.type === 'seal' ? '#f4f1ff' : '#74d8ff', ttl:.42, maxTtl:.42 });
       if (p?.human) this.toast(state.type === 'raygust' ? 'レイガスト盾が破損' : state.type === 'seal' ? '盾印が破損' : 'シールドが破損');
@@ -6802,7 +6825,7 @@
 
     getActiveShieldEntries(p) {
       if (!p?.shields) return [];
-      return ['main','sub'].map((hand) => ({ hand, shield:p.shields[hand], state:p.shields[hand]?.state || p.shieldDurability?.[hand] })).filter(({shield,state}) => shield && state && state.current > 0 && this.elapsed - (state.lastActiveAt ?? -999) <= .14 && this.elapsed >= (state.brokenUntil || 0));
+      return ['main','sub'].map((hand) => ({ hand, shield:p.shields[hand], state:p.shields[hand]?.state || p.shieldDurability?.[hand] })).filter(({shield,state}) => shield && state && state.current > 0 && this.elapsed - (state.lastActiveAt ?? -999) <= .07 && this.elapsed >= (state.brokenUntil || 0));
     }
 
     handleHeldHand(p, hand, held, justPressed, dt, shiftOverride = null) {
@@ -7020,6 +7043,7 @@
         if (p.human) this.toast('カメレオン中は他トリガーを使用できません');
         return false;
       }
+      if (p.ai && trigger.kind !== 'shield' && !(trigger.id === 'raygust' && options.shift)) this.markRaygustTacticalRelease(p, hand, trigger);
       if (trigger.kind === 'shooter') {
         const charge = p.shooterCharges[hand];
         if (!charge) return this.beginShooterCharge(p, hand, trigger);
@@ -8791,12 +8815,46 @@
       p.selected[guard.hand] = guard.index;
       p.ai ||= {};
       p.ai.defenseCommitTimer = Math.max(p.ai.defenseCommitTimer || 0, duration);
-      p.ai.sustainedGuardUntil = Math.max(p.ai.sustainedGuardUntil || 0, this.elapsed + duration);
+      if (options.extend !== false) p.ai.sustainedGuardUntil = Math.max(p.ai.sustainedGuardUntil || 0, this.elapsed + duration);
       p.defenseAI ||= {};
       p.defenseAI.shieldTimer = Math.max(p.defenseAI.shieldTimer || 0, duration);
       p.defenseAI.shieldHand = guard.hand;
       if (guard.type === 'seal') p.defenseAI.sealBoost = guard.boost;
       return this.activateShield(p, guard.hand, guard.type, { boost:guard.boost || 1, masteryAttempt:Boolean(options.masteryAttempt) });
+    }
+
+    maintainAIGuardPosture(p, target, threatInfo = null) {
+      if (!p?.ai || p.dead) return false;
+      const guard = this.getAIGuardOption(p);
+      if (!guard) return false;
+      const targetDistance = target ? Math.hypot(target.x - p.x, target.y - p.y) : Infinity;
+      const raygustPreferred = guard.type === 'raygust'
+        && p.trion > p.maxTrion * .12
+        && targetDistance < 1120
+        && this.elapsed >= (p.ai.raygustTacticalReleaseUntil || 0);
+      const sustained = (p.ai.sustainedGuardUntil || 0) > this.elapsed;
+      if (!raygustPreferred && !sustained) return false;
+      const facing = target ? Math.atan2(target.y - p.y, target.x - p.x) : p.aim;
+      p.selected[guard.hand] = guard.index;
+      p.defenseAI ||= {};
+      p.defenseAI.shieldTimer = Math.max(p.defenseAI.shieldTimer || 0, .2);
+      p.defenseAI.shieldHand = guard.hand;
+      if (guard.type === 'seal') p.defenseAI.sealBoost = guard.boost;
+      return this.activateShield(p, guard.hand, guard.type, {
+        boost:guard.boost || 1,
+        masteryAttempt:Boolean(threatInfo),
+        extend:false,
+      });
+    }
+
+    markRaygustTacticalRelease(p, hand, trigger) {
+      if (!p?.ai || !hand || trigger?.id === 'raygust') return;
+      const guard = this.getAIGuardOption(p);
+      if (!guard || guard.type !== 'raygust' || guard.hand !== hand) return;
+      const state = p.shieldDurability?.[hand];
+      if (state?.type === 'raygust') state.tacticalReleaseUntil = Math.max(state.tacticalReleaseUntil || 0, this.elapsed + .34);
+      p.ai.raygustTacticalReleaseUntil = Math.max(p.ai.raygustTacticalReleaseUntil || 0, this.elapsed + .3);
+      p.ai.sustainedGuardUntil = Math.max(p.ai.sustainedGuardUntil || 0, this.elapsed + .72);
     }
 
     moveAIToStrategicPoint(p, point, dt, speedScale = 1.1) {
@@ -9185,7 +9243,7 @@
       if (hasSniper && p.ai.relocateTimer > 0) { moveAngle = targetAngle + p.ai.strafe * Math.PI * .68; movementScale = 1.2; }
       let directive = this.getOperatorMoveDirective(p, target);
       const overEngaged=closeEnemies>=2 || (closeEnemies>=1 && p.hp<p.maxHp*.43) || (hasSniper && d<560);
-      if (!directive && (overEngaged || (targetUsesRanged && (threatened || p.hp<p.maxHp*.76 || role==='攻撃手' || hasSniper)))) {
+      if (!directive && (overEngaged || (targetUsesRanged && (threatened || p.hp<p.maxHp*.64 || (role==='攻撃手' && d>360) || hasSniper)))) {
         const cover=this.getAICoverPoint(p,target,hasSniper?720:role==='攻撃手'?260:rangeBand?.preferred||390);
         if (cover) directive={type:'cover',x:cover.x,y:cover.y,label:'遮蔽へ退避'};
       }
@@ -9222,6 +9280,7 @@
       p.ai.threatTime = threatened ? p.ai.threatTime + dt : 0;
       p.ai.defenseCommitTimer = Math.max(0, (p.ai.defenseCommitTimer || 0) - dt);
       const threatInfo = this.getProjectileThreatInfo(p);
+      const maintainedGuard = this.maintainAIGuardPosture(p, target, threatInfo);
       const defensiveRead = this.aiTryDefensiveRead(p, threatInfo, profile, tier, dt);
       const targetFacing=Math.abs(angleDiff(Math.atan2(p.y-target.y,p.x-target.x),target.aim||0))<.62;
       const clearAttackLine = !this.findBlockingWall(p.x,p.y,target.x,target.y,Math.max(3,p.radius*.22));
@@ -9229,10 +9288,12 @@
         && d < (hasSniper ? 980 : suppressionRole ? 760 : hasMelee ? 430 : 690);
       if (suppressionRole && clearAttackLine && d < 760 && closeEnemies <= 2) p.ai.suppressionWindow = Math.max(p.ai.suppressionWindow || 0, .65);
       const exposedToRanged=targetUsesRanged && targetFacing && d<920 && !this.findBlockingWall(target.x,target.y,p.x,p.y,4);
-      const shouldHoldGuard=!defensiveRead && this.getAIGuardOption(p) && (threatInfo || (exposedToRanged && (profile.calmness>.42 || p.hp<p.maxHp*.62)))
-        && p.trion>p.maxTrion*.14 && Math.random()<(.18+profile.guardSkill*.62);
+      const guardOption = this.getAIGuardOption(p);
+      const shouldHoldGuard=!defensiveRead && !maintainedGuard && guardOption && (threatInfo || (exposedToRanged && (profile.calmness>.36 || p.hp<p.maxHp*.68)))
+        && p.trion>p.maxTrion*.14 && Math.random()<(.28+profile.guardSkill*.58);
       if (shouldHoldGuard) {
-        this.activateAIGuard(p,Math.atan2(target.y-p.y,target.x-p.x),threatInfo?Math.max(.35,threatInfo.time+.3):rand(.5,.95),{masteryAttempt:Boolean(threatInfo)});
+        const normalGuardDuration = threatInfo ? Math.max(.58, threatInfo.time + .5) : rand(.95,1.65);
+        this.activateAIGuard(p,Math.atan2(target.y-p.y,target.x-p.x),normalGuardDuration,{masteryAttempt:Boolean(threatInfo)});
         if (!threatInfo) movementScale=Math.min(movementScale,.52);
       }
 
@@ -9365,7 +9426,9 @@
       observer.ai.visionTimer = observer.isDefenseEnemy ? .14 : .18;
       for (const target of this.players) {
         if (!this.canDamage(observer, target) || this.stealthBlocksAggro(target, 'sight')) continue;
-        if (this.hasEffectiveSight(observer, target)) this.addThreat(observer, target, 2.4, 'sight', 2.2);
+        const d = Math.hypot(target.x - observer.x, target.y - observer.y);
+        if (d <= 285) this.addThreat(observer, target, 7.5, 'proximity', 3.2);
+        else if (this.hasEffectiveSight(observer, target)) this.addThreat(observer, target, 2.4, 'sight', 2.2);
       }
     }
 
@@ -9389,8 +9452,10 @@
       const threat = Number(threatEntry?.value || 0);
       if ((target.toggles.bagworm || target.toggles.bagwormTag) && threatEntry?.reason !== 'attacked') return Infinity;
       if (target.toggles.chameleon && !['attacked','majorHit'].includes(threatEntry?.reason)) return Infinity;
-      if (threat <= 0 && !this.hasEffectiveSight(p, target)) return Infinity;
+      const proximityAware = d <= 285 && !target.toggles.chameleon && !target.toggles.bagworm && !target.toggles.bagwormTag;
+      if (threat <= 0 && !proximityAware && !this.hasEffectiveSight(p, target)) return Infinity;
       let score = d / (1 + threat * .115);
+      if (proximityAware) score *= .38;
       const axisDx=Math.abs(target.x-p.x), axisDy=Math.abs(target.y-p.y);
       if (axisDx < 92 && axisDy > 210) score *= 1.22;
       const alliedFocus=this.players.filter((ally)=>ally!==p&&!ally.dead&&ally.team===p.team&&ally.ai?.target===target.id).length;
@@ -9419,10 +9484,13 @@
       const current = this.resolveAITarget(p);
       const currentEntry = current ? { target: current, type: p.ai.targetType, score: this.scoreAITargetCandidate(p, current, p.ai.targetType) } : null;
       const attackedBy = this.elapsed - (p.lastDamageAt || -999) < 2.4 ? candidates.find((item) => item.type === 'player' && item.target.id === p.ai.lastAttackerId) : null;
+      const immediateClose = candidates
+        .filter((item) => item.type === 'player' && Math.hypot(item.target.x - p.x, item.target.y - p.y) <= 265)
+        .sort((a,b) => Math.hypot(a.target.x-p.x,a.target.y-p.y) - Math.hypot(b.target.x-p.x,b.target.y-p.y))[0] || null;
       const immediateThreat = candidates.find((item) => item.type === 'player' && item.score < 118);
       const choicePool = candidates.slice(0, this.config.difficulty === 'weak' ? 4 : this.config.difficulty === 'strong' ? 3 : 4);
-      let choice = attackedBy || immediateThreat || weightedChoice(choicePool, (item) => 1 / Math.max(1, item.score));
-      let switchReason = force ? 'forced_or_missing' : attackedBy ? 'attacked_by' : immediateThreat ? 'immediate_threat' : 'score';
+      let choice = attackedBy || immediateClose || immediateThreat || weightedChoice(choicePool, (item) => 1 / Math.max(1, item.score));
+      let switchReason = force ? 'forced_or_missing' : attackedBy ? 'attacked_by' : immediateClose ? 'nearby_enemy' : immediateThreat ? 'immediate_threat' : 'score';
       if (!force && currentEntry && choice?.target.id !== currentEntry.target.id) {
         const currentLost = !Number.isFinite(currentEntry.score);
         const meaningfullyBetter = choice.score < currentEntry.score * .55;
@@ -9754,7 +9822,8 @@
           p.selected[selected.hand] = selected.index;
           if (!this.activateShield(p, selected.hand, selected.trigger.id === 'raygust' ? 'raygust' : 'shield')) return false;
         }
-        p.ai.defenseCommitTimer = urgent ? .22 : .32;
+        p.ai.defenseCommitTimer = urgent ? .32 : .46;
+        p.ai.sustainedGuardUntil = Math.max(p.ai.sustainedGuardUntil || 0, this.elapsed + (urgent ? .62 : .88));
         return true;
       }
 
@@ -10154,6 +10223,8 @@
           const justEntry = shieldEntries.find(({state}) => state.justGuardAvailable && this.elapsed <= (state.justGuardUntil || 0));
           if (justEntry) {
             justEntry.state.justGuardAvailable = false;
+            justEntry.state.lastJustGuardAt = this.elapsed;
+            justEntry.state.redeployCooldownUntil = this.elapsed;
             target.metrics.blockedDamage += amount;
             target.metrics.shieldDamagePrevented += amount;
             target.metrics.shieldBlocks += 1;
@@ -11757,7 +11828,34 @@ drawUndergroundFeatures(ctx){
         if(!f.active){ctx.strokeStyle='#ffdf67';ctx.strokeRect(f.x-23,f.y-23,46,46)}
       }
     }
-    drawOperatorOrders(ctx){if(this.config.mode!=='team'&&!this.isDefenseMode)return;ctx.save();ctx.setLineDash([8,6]);for(const p of this.players){const o=p.operatorOrder;if(!o||p.dead)continue;const target=o.targetId?this.players.find(x=>x.id===o.targetId):o;const x=target?.x??o.x,y=target?.y??o.y;if(!Number.isFinite(x)||!Number.isFinite(y))continue;ctx.strokeStyle=`${this.teamColors[p.team] || '#ffffff'}88`;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(x,y);ctx.stroke();ctx.strokeRect(x-18,y-18,36,36)}ctx.restore()}
+    drawOperatorOrders(ctx) {
+      if (this.config.mode !== 'team' && !this.isDefenseMode) return;
+      ctx.save();
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 9]);
+      for (const p of this.players) {
+        const order = p.operatorOrder;
+        if (!order || p.dead) continue;
+        const target = order.targetId ? this.players.find((unit) => unit.id === order.targetId) : order;
+        const x = target?.x ?? order.x;
+        const y = target?.y ?? order.y;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy) || 1;
+        const shortLength = Math.min(92, Math.max(28, d * .18));
+        ctx.strokeStyle = `${this.teamColors[p.team] || '#ffffff'}26`;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + dx / d * shortLength, p.y + dy / d * shortLength);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = `${this.teamColors[p.team] || '#ffffff'}2e`;
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, TAU);
+        ctx.fill();
+        ctx.setLineDash([3, 9]);
+      }
+      ctx.restore();
+    }
     drawEnvironmentOverlay(ctx){
       const overlay=this.environmentCtx;
       overlay.clearRect(0,0,this.viewW,this.viewH);

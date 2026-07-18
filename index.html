@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
   <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=64" />
+  <link rel="stylesheet" href="styles.css?v=65" />
 </head>
 <body>
   <main id="app">
@@ -16,7 +16,7 @@
         <p class="title-kicker">B-GRADE RANK WAR</p>
         <h1>TRION<br>ARENA</h1>
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
-        <div class="version-badge" aria-label="現在のバージョン">VERSION 64</div>
+        <div class="version-badge" aria-label="現在のバージョン">VERSION 65</div>
         <div class="title-actions">
           <button id="enterSetupButton" class="title-start" type="button">出撃準備へ</button>
           <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
@@ -562,16 +562,13 @@
         <div class="operator-status"><span id="environmentLabel">昼・晴</span><span id="operatorWorkLabel">待機中</span></div>
         <label class="operator-field">指示対象<select id="operatorUnitSelect"></select></label>
         <label class="operator-field">攻撃対象<select id="operatorEnemySelect"></select></label>
-        <label class="operator-field">護衛対象<select id="operatorAllySelect"></select></label>
+        <label class="operator-field hidden">護衛対象<select id="operatorAllySelect"></select></label>
         <div class="operator-section-title">戦術指示</div>
         <div class="operator-command-grid">
-          <button type="button" data-command="focus">指定敵を集中攻撃</button><button type="button" data-command="move">指定位置へ移動</button>
-          <button type="button" data-command="hold">現在位置で待機</button><button type="button" data-command="regroup">隊本部へ集合</button>
-          <button type="button" data-command="defend">指定地点を防衛</button><button type="button" data-command="flankLeft">左側面へ回り込む</button>
-          <button type="button" data-command="flankRight">右側面へ回り込む</button><button type="button" data-command="retreat">後方へ退避</button>
-          <button type="button" data-command="spread">指定地点へ分散展開</button><button type="button" data-command="suppress">指定地域を制圧</button>
-          <button type="button" data-command="huntWeak">消耗した敵を追撃</button><button type="button" data-command="escort">指定隊員を護衛</button>
-          <button type="button" data-command="activate">設備を起動</button><button type="button" data-command="clear" class="secondary">指示を解除</button>
+          <button type="button" data-command="focus">指定敵を攻撃</button><button type="button" data-command="move">指定位置へ移動</button>
+          <button type="button" data-command="defend">指定地点を防衛</button><button type="button" data-command="suppress">指定地域を制圧</button>
+          <button type="button" data-command="spread">分散展開</button><button type="button" data-command="retreat">負傷者を退避</button>
+          <button type="button" data-command="activate">近くの設備を起動</button><button type="button" data-command="clear" class="secondary">指示を解除</button>
         </div>
         <div class="operator-section-title">オペレーター支援</div>
         <div class="operator-support-grid">
@@ -671,8 +668,8 @@
   <script src="js/trigger-data.js?v=32"></script>
   <script src="js/online.js?v=32"></script>
   <script src="js/community.js?v=32"></script>
-  <script src="simulation-results/latest.js?v=64"></script>
-  <script src="js/simulation-results.js?v=64"></script>
-  <script src="js/game.js?v=64"></script>
+  <script src="simulation-results/latest.js?v=65"></script>
+  <script src="js/simulation-results.js?v=65"></script>
+  <script src="js/game.js?v=65"></script>
 </body>
 </html>
