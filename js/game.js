@@ -94,7 +94,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 62;
+  const GAME_VERSION = 63;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
@@ -8733,8 +8733,17 @@
         const subway = this.environment.subway || {};
         const onTrack = this.isOnSubwayTrack(p.x, p.y, p.radius + 8);
         const nearTrack = this.isOnSubwayTrack(p.x, p.y, p.radius + 90);
-        const trainSoon = Boolean(subway.trainActive) || Number(subway.trainTimer || 99) < 5.5;
-        if (onTrack || (nearTrack && trainSoon)) {
+        const trainActive = Boolean(subway.trainActive);
+        const countdown = Number(subway.trainTimer || 99);
+        const track = this.terrain.subwayTracks?.[0];
+        const crossingSeconds = track
+          ? clamp(track.h / Math.max(110, (p.speed || 150) * 1.12) + 1.1, 3.2, 5.2)
+          : 4.2;
+        // The track is a valid route while no train is approaching. Evacuate only when
+        // the current crossing cannot be completed before the next train arrives.
+        const unsafeToCross = trainActive || countdown <= crossingSeconds;
+        const platformWarning = trainActive || countdown <= Math.min(2.8, crossingSeconds * .62);
+        if ((onTrack && unsafeToCross) || (nearTrack && platformWarning)) {
           escape = this.getSubwayEscapePoint(p);
           urgency = onTrack ? 2 : 1.3;
         }
@@ -12024,9 +12033,32 @@ drawUndergroundFeatures(ctx){
       const colors={sogetsu:'#2b98c9',fullarms:'#516b7f',geist:'#3e7cb4'};const old=p.appearance?.bodyColor;p.appearance||={};p.appearance.bodyColor=colors[type]||old||'#6a91a8';this.drawHumanoid(ctx,p,1);p.appearance.bodyColor=old;
       ctx.save();ctx.translate(p.x,p.y);const facing=Math.cos(p.aim||0)<0?-1:1;ctx.scale(facing,1);ctx.imageSmoothingEnabled=false;const max=Math.max(.001,ai.actionMax||p.extraActionTimer||1),at=(ai.actionTimer||p.extraActionTimer||0)>0?1-clamp((ai.actionTimer||p.extraActionTimer)/max,0,1):0;const swing=Math.sin(at*Math.PI)*12;
       if(type==='sogetsu'){
-        const linked=(p.sogetsuConnectTimer||0)>0;ctx.fillStyle='#183745';ctx.fillRect(-18,-18,6,34);ctx.fillStyle='#83eaff';
-        if(linked){ctx.save();ctx.translate(17,-2);ctx.rotate(-.7+swing*.05);ctx.fillRect(-4,-6,10,54);ctx.fillStyle='#d7f7ff';ctx.beginPath();ctx.moveTo(-22,-8);ctx.lineTo(25,-8);ctx.lineTo(34,13);ctx.lineTo(-30,13);ctx.closePath();ctx.fill();ctx.restore();}
-        else{for(const side of[-1,1]){ctx.save();ctx.translate(side*18,-1);ctx.rotate(side*(.35+swing*.025));ctx.fillRect(-3,-2,6,30);ctx.fillStyle='#d7f7ff';ctx.beginPath();ctx.moveTo(-12,-6);ctx.lineTo(13,-6);ctx.lineTo(16,8);ctx.lineTo(-16,8);ctx.closePath();ctx.fill();ctx.restore();}}
+        const linked=(p.sogetsuConnectTimer||0)>0;
+        const walkPhase=(p.isMoving?p.walkFrame:0)%4;
+        const walkArm=walkPhase===1?-2:walkPhase===3?2:0;
+        const rightHand={x:11,y:-1+walkArm};
+        const leftHand={x:-11,y:-1-walkArm};
+        const drawAxe=(hand,rotation,scale=1)=>{
+          ctx.save();ctx.translate(hand.x,hand.y);ctx.rotate(rotation);ctx.scale(scale,scale);
+          // The grip begins exactly at the humanoid hand. The handle extends away
+          // from the palm so the weapon never floats beside the arm.
+          ctx.fillStyle='#183745';ctx.fillRect(-2,-2,5,31);
+          ctx.fillStyle='#83eaff';ctx.fillRect(-3,-3,7,6);
+          ctx.fillStyle='#d7f7ff';ctx.beginPath();ctx.moveTo(-12,20);ctx.lineTo(13,20);ctx.lineTo(16,32);ctx.lineTo(-16,32);ctx.closePath();ctx.fill();
+          ctx.fillStyle='#72d9f4';ctx.fillRect(-10,22,20,3);
+          ctx.restore();
+        };
+        if(linked){
+          const hand={x:(rightHand.x+leftHand.x)/2+9,y:(rightHand.y+leftHand.y)/2};
+          ctx.save();ctx.translate(hand.x,hand.y);ctx.rotate(-.72+swing*.05);
+          ctx.fillStyle='#183745';ctx.fillRect(-4,-3,9,58);
+          ctx.fillStyle='#ffd36a';ctx.fillRect(-6,-4,13,8);
+          ctx.fillStyle='#fff0a8';ctx.beginPath();ctx.moveTo(-25,42);ctx.lineTo(27,42);ctx.lineTo(36,60);ctx.lineTo(-34,60);ctx.closePath();ctx.fill();
+          ctx.fillStyle='#ffc44f';ctx.fillRect(-23,45,47,4);ctx.restore();
+        } else {
+          drawAxe(rightHand,.34+swing*.025,1);
+          drawAxe(leftHand,-.34-swing*.025,1);
+        }
         if(action.includes('Meteor')){ctx.fillStyle='#ffad5b';for(let i=0;i<4;i++){const a=i/4*TAU+this.elapsed*3;ctx.fillRect(Math.cos(a)*28-3,Math.sin(a)*28-3,7,7);}}
       }else if(type==='fullarms'){
         ctx.fillStyle='#263744';ctx.fillRect(-22,-19,8,36);ctx.fillRect(14,-19,8,36);ctx.fillStyle='#9eeaff';ctx.fillRect(17,-2+swing*.15,46,6);ctx.fillStyle='#dffcff';ctx.fillRect(54,-5+swing*.15,14,3);ctx.fillStyle='#687b87';ctx.fillRect(-50,-11,40,12);ctx.fillStyle='#d1e4ea';ctx.fillRect(-57,-7,12,4);
