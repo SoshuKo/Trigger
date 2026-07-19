@@ -1,0 +1,16 @@
+{
+  "version": 72,
+  "fixed": {
+    "tutorialProgress": "Trigger objectives now read metrics.triggerStats[triggerId].uses instead of display-name-keyed triggerUses."
+  },
+  "auditSinceV68": {
+    "v66TitleLayoutRestored": true,
+    "extraTitleCardsRemoved": true,
+    "cubeAnimationRetained": true,
+    "titleBattleDemoRemovedPerV69": true,
+    "tutorialUsesRealGameCanvasHudAndControls": true,
+    "operationGuideButtonConnected": true,
+    "setupGuideButtonConnected": true,
+    "tutorialAllCourseCountersUseStableIds": true
+  }
+}

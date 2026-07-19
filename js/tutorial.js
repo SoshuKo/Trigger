@@ -59,7 +59,13 @@
   function game() { return window.__TRION_GAME__ || null; }
   function human(g = game()) { return g?.human || null; }
   function metric(g, key) { return Number(human(g)?.metrics?.[key] || 0); }
-  function uses(g, id) { return Number(human(g)?.metrics?.triggerUses?.[id] || 0); }
+  function uses(g, id) {
+    const metrics = human(g)?.metrics;
+    if (!metrics) return 0;
+    // Game records triggerUses by display name, while triggerStats is keyed by trigger ID.
+    // Tutorial objectives must use the stable ID-keyed counter.
+    return Number(metrics.triggerStats?.[id]?.uses || 0);
+  }
   function damage(g) { return metric(g, 'damageDealt'); }
 
   function resetState(course) {
@@ -138,6 +144,102 @@
   $('#tutorialResetButton')?.addEventListener('click', restart);
   $('#tutorialNextButton')?.addEventListener('click', next);
   $('#tutorialCourseTabs')?.addEventListener('click', (event) => { const button = event.target.closest('button[data-course]'); if (button) open(button.dataset.course); });
+
+
+
+  function openGuide() {
+    $('#titleGuidePanel')?.classList.remove('hidden');
+  }
+
+  function closeGuide() {
+    $('#titleGuidePanel')?.classList.add('hidden');
+  }
+
+  function enterSetupFromGuide(openKeys = false) {
+    closeGuide();
+    $('#enterSetupButton')?.click();
+    if (!openKeys) return;
+    requestAnimationFrame(() => {
+      const details = $('#controlsDetailPanel');
+      if (details) details.open = true;
+      requestAnimationFrame(() => details?.scrollIntoView?.({ behavior:'smooth', block:'start' }));
+    });
+  }
+
+  $('#titleGuideCloseButton')?.addEventListener('click', closeGuide);
+  $('#titleGuidePanel')?.addEventListener('click', (event) => {
+    if (event.target === $('#titleGuidePanel')) closeGuide();
+  });
+  $('#guideOpenKeySettings')?.addEventListener('click', () => enterSetupFromGuide(true));
+  $('#guideEnterSetupButton')?.addEventListener('click', () => enterSetupFromGuide(false));
+
+
+
+  const SETUP_GUIDE_STEPS = [
+    { selector:'.match-panel', title:'1 / 4　試合設定', text:'まず対戦形式、参加人数、戦場、試合時間、難易度を選びます。迷った場合は「個人戦・普通・3分」のままで始められます。' },
+    { selector:'.stats-panel', title:'2 / 4　能力配分', text:'トリオン総量・技術力・戦闘力を配分します。合計値を超えると出撃できないため、表示される使用ポイントを確認してください。' },
+    { selector:'.loadout-panel', title:'3 / 4　トリガーセット', text:'右手MAINと左手SUBへトリガーを設定します。各スロットを選ぶと下に説明が表示されます。警告が出た場合は装備構成を修正してください。' },
+    { selector:'.setup-start-zone', title:'4 / 4　出撃', text:'設定が終わったら「ランク戦を開始」を押します。操作を先に練習する場合は、上部の「チュートリアル」を選んでください。' },
+  ];
+  let setupGuideIndex = 0;
+  let setupGuideOverlay = null;
+  let setupGuideFocus = null;
+
+  function ensureSetupGuideOverlay() {
+    if (setupGuideOverlay) return setupGuideOverlay;
+    setupGuideOverlay = document.createElement('div');
+    setupGuideOverlay.id = 'setupGuideOverlay';
+    setupGuideOverlay.className = 'setup-guide-overlay hidden';
+    setupGuideOverlay.innerHTML = `<div class="setup-guide-card" role="dialog" aria-modal="true" aria-labelledby="setupGuideTitle"><span>FIRST SORTIE GUIDE</span><h2 id="setupGuideTitle"></h2><p id="setupGuideText"></p><div><button id="setupGuideClose" type="button">閉じる</button><button id="setupGuidePrev" type="button">戻る</button><button id="setupGuideNext" type="button">次へ</button></div></div>`;
+    document.body.appendChild(setupGuideOverlay);
+    setupGuideOverlay.querySelector('#setupGuideClose')?.addEventListener('click', closeSetupGuide);
+    setupGuideOverlay.querySelector('#setupGuidePrev')?.addEventListener('click', () => showSetupGuideStep(setupGuideIndex - 1));
+    setupGuideOverlay.querySelector('#setupGuideNext')?.addEventListener('click', () => {
+      if (setupGuideIndex >= SETUP_GUIDE_STEPS.length - 1) closeSetupGuide();
+      else showSetupGuideStep(setupGuideIndex + 1);
+    });
+    return setupGuideOverlay;
+  }
+
+  function clearSetupGuideFocus() {
+    setupGuideFocus?.classList.remove('setup-guide-focus');
+    setupGuideFocus = null;
+  }
+
+  function showSetupGuideStep(index) {
+    const overlay = ensureSetupGuideOverlay();
+    setupGuideIndex = Math.max(0, Math.min(SETUP_GUIDE_STEPS.length - 1, index));
+    const step = SETUP_GUIDE_STEPS[setupGuideIndex];
+    clearSetupGuideFocus();
+    setupGuideFocus = document.querySelector(step.selector);
+    setupGuideFocus?.classList.add('setup-guide-focus');
+    overlay.querySelector('#setupGuideTitle').textContent = step.title;
+    overlay.querySelector('#setupGuideText').textContent = step.text;
+    const prev = overlay.querySelector('#setupGuidePrev');
+    const next = overlay.querySelector('#setupGuideNext');
+    if (prev) prev.disabled = setupGuideIndex === 0;
+    if (next) next.textContent = setupGuideIndex === SETUP_GUIDE_STEPS.length - 1 ? '完了' : '次へ';
+    overlay.classList.remove('hidden');
+    requestAnimationFrame(() => setupGuideFocus?.scrollIntoView?.({ behavior:'smooth', block:'center' }));
+  }
+
+  function openSetupGuide() {
+    if ($('#setupScreen')?.classList.contains('hidden')) $('#enterSetupButton')?.click();
+    requestAnimationFrame(() => showSetupGuideStep(0));
+  }
+
+  function closeSetupGuide() {
+    clearSetupGuideFocus();
+    setupGuideOverlay?.classList.add('hidden');
+  }
+
+  $('#setupGuideButton')?.addEventListener('click', openSetupGuide);
+  window.addEventListener('trion:setup-shown', (event) => {
+    if (event.detail?.manualGuide) openSetupGuide();
+  });
+
+
+  window.TRION_ONBOARDING = { openGuide, closeGuide, enterSetup: enterSetupFromGuide, openSetupGuide, closeSetupGuide };
 
   window.TRION_TUTORIAL = { open, close: exit, reset: restart };
 })();

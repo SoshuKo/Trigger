@@ -1,0 +1,13 @@
+{
+  "version": 70,
+  "fixes": [
+    "Defined window.TRION_ONBOARDING",
+    "Connected title guide open/close",
+    "Connected tutorial/start setup/key settings actions"
+  ],
+  "checks": [
+    "node --check js/game.js",
+    "node --check js/tutorial.js",
+    "single top-level world-trigger-arena folder"
+  ]
+}
