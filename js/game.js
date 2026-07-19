@@ -905,6 +905,20 @@
     }
   }
 
+  const LOADOUT_PRESET_KEY = 'trionArenaLoadoutPresetsV74';
+  const FAVORITE_LOADOUT_KEY = 'trionArenaFavoriteLoadoutV74';
+  function readLoadoutPresets(){ try{return JSON.parse(localStorage.getItem(LOADOUT_PRESET_KEY)||'[]')||[];}catch(_){return [];} }
+  function writeLoadoutPresets(rows){ localStorage.setItem(LOADOUT_PRESET_KEY,JSON.stringify(rows)); }
+  function renderLoadoutPresets(){ const select=$('#loadoutPresetSelect'); if(!select)return; const rows=readLoadoutPresets(); select.innerHTML='<option value="">選択してください</option>'+rows.map((r,i)=>`<option value="${i}">${escapeHtml(r.name)}</option>`).join(''); }
+  function applyLoadoutPreset(index){ const row=readLoadoutPresets()[Number(index)]; if(!row)return; setup.main=[...row.main];setup.sub=[...row.sub];buildLoadoutSlots();saveSetup();$('#loadoutPresetMessage').textContent=`${row.name}を読み込みました。`; }
+  function bindLoadoutPresets(){
+    renderLoadoutPresets();
+    $('#loadoutPresetSelect')?.addEventListener('change',e=>{if(e.target.value!=='')applyLoadoutPreset(e.target.value);});
+    $('#saveLoadoutPreset')?.addEventListener('click',()=>{const name=$('#loadoutPresetName').value.trim();if(!name){$('#loadoutPresetMessage').textContent='プリセット名を入力してください。';return;}const rows=readLoadoutPresets();const existing=rows.findIndex(r=>r.name===name);const row={name,main:[...setup.main],sub:[...setup.sub]};if(existing>=0)rows[existing]=row;else rows.push(row);writeLoadoutPresets(rows.slice(-12));renderLoadoutPresets();$('#loadoutPresetMessage').textContent='保存しました。';});
+    $('#deleteLoadoutPreset')?.addEventListener('click',()=>{const i=Number($('#loadoutPresetSelect').value);if(!Number.isInteger(i))return;const rows=readLoadoutPresets();rows.splice(i,1);writeLoadoutPresets(rows);renderLoadoutPresets();$('#loadoutPresetMessage').textContent='削除しました。';});
+    $('#setFavoriteLoadout')?.addEventListener('click',()=>{const favorite={main:[...setup.main],sub:[...setup.sub]};localStorage.setItem(FAVORITE_LOADOUT_KEY,JSON.stringify(favorite));window.dispatchEvent(new CustomEvent('trion:favorite-loadout',{detail:favorite}));$('#loadoutPresetMessage').textContent='プロフィールのお気に入り構成に設定しました。';});
+  }
+
   function bindSetupControls() {
     $('#enterSetupButton')?.addEventListener('click', () => showSetup());
     $('#titleGuideButton')?.addEventListener('click', () => window.TRION_ONBOARDING?.openGuide?.());
@@ -948,6 +962,7 @@
       setup.teamConfig.emblemPreset = 'custom'; setup.teamConfig.emblemPixels = emblemToString(pixels); syncTeamCustomizationUI(); saveSetup();
     }, $('#emblemUploadMessage')));
     bindKeyCapture();
+    bindLoadoutPresets();
     $('#mapId')?.addEventListener('change', (event) => { setup.mapId = MAP_IDS.includes(event.target.value) ? event.target.value : 'city'; syncMapWeatherUi(); saveSetup(); });
     $('#matchLength').addEventListener('change', saveSetup);
     $('#difficulty').addEventListener('change', (event) => {
@@ -1098,24 +1113,11 @@
       rainOption.disabled = mapId === 'desert' || mapId === 'underground';
       rainOption.hidden = mapId === 'desert' || mapId === 'underground';
     }
-    const fixedUnderground = mapId === 'underground';
-    if (mapId === 'desert' && setup.weather === 'rain') setup.weather = 'clear';
-    if (fixedUnderground) {
-      setup.weather = 'clear';
-      setup.weatherChange = false;
-      setup.timeOfDay = 'day';
-      setup.timeProgression = false;
-    }
-    if (weatherSelect) {
-      weatherSelect.disabled = fixedUnderground;
-      weatherSelect.value = setup.weather;
-    }
-    if (timeSelect) {
-      timeSelect.disabled = fixedUnderground;
-      timeSelect.value = setup.timeOfDay;
-    }
-    if (timeProgression) timeProgression.disabled = fixedUnderground;
-    if (weatherChange) weatherChange.disabled = fixedUnderground;
+    if ((mapId === 'desert' || mapId === 'underground') && setup.weather === 'rain') setup.weather = 'clear';
+    if (weatherSelect) { weatherSelect.disabled = false; weatherSelect.value = setup.weather; }
+    if (timeSelect) { timeSelect.disabled = false; timeSelect.value = setup.timeOfDay; }
+    if (timeProgression) timeProgression.disabled = false;
+    if (weatherChange) weatherChange.disabled = false;
     const help = $('#mapHelp');
     const rule = $('#mapRuleText');
     if (help) help.textContent = mapId === 'desert'
@@ -1202,6 +1204,7 @@
   }
 
   window.TRION_GET_SETUP_CONFIG = getSetupConfig;
+  window.TRION_GET_FAVORITE_LOADOUT = () => { try{return JSON.parse(localStorage.getItem(FAVORITE_LOADOUT_KEY)||'null');}catch(_){return null;} };
   window.TRION_APPLY_TEAM_CONFIG = (teamConfig = {}) => {
     setup.teamConfig = { ...setup.teamConfig, ...JSON.parse(JSON.stringify(teamConfig || {})) };
     syncTeamCustomizationUI();
@@ -9342,6 +9345,10 @@
         }
       }
 
+      const secondaryUnits=(p.ai.secondaryTargets||[]).map((id)=>this.players.find((u)=>u.id===id&&!u.dead)).filter(Boolean);
+      p.ai.crossfireThreat = secondaryUnits.reduce((sum,u)=>sum+(Math.hypot(u.x-p.x,u.y-p.y)<520?1:0),0);
+      if(p.ai.crossfireThreat>0){ p.ai.rethink=Math.min(p.ai.rethink,.18); p.ai.targetLockTimer=Math.min(p.ai.targetLockTimer,.42); }
+
       const predictedX = target.x + (target.vx || 0) * profile.prediction;
       const predictedY = target.y + (target.vy || 0) * profile.prediction;
       const dx = predictedX - p.x;
@@ -9678,6 +9685,10 @@
       }
       if (!candidates.length) { p.ai.target = null; return; }
       candidates.sort((a, b) => a.score - b.score);
+      const concurrent = candidates.filter((item)=>item.type==='player').slice(0,4);
+      p.ai.concurrentTargets = concurrent.map((item)=>item.target.id);
+      p.ai.secondaryTargets = concurrent.slice(1).map((item)=>item.target.id);
+      p.ai.engagedEnemyCount = concurrent.filter((item)=>Math.hypot(item.target.x-p.x,item.target.y-p.y)<700).length;
       const current = this.resolveAITarget(p);
       const currentEntry = current ? { target: current, type: p.ai.targetType, score: this.scoreAITargetCandidate(p, current, p.ai.targetType) } : null;
       const attackedBy = this.elapsed - (p.lastDamageAt || -999) < 2.4 ? candidates.find((item) => item.type === 'player' && item.target.id === p.ai.lastAttackerId) : null;
@@ -9690,7 +9701,8 @@
       let switchReason = force ? 'forced_or_missing' : attackedBy ? 'attacked_by' : immediateClose ? 'nearby_enemy' : immediateThreat ? 'immediate_threat' : 'score';
       if (!force && currentEntry && choice?.target.id !== currentEntry.target.id) {
         const currentLost = !Number.isFinite(currentEntry.score);
-        const meaningfullyBetter = choice.score < currentEntry.score * .55;
+        const multiPressure=(p.ai.engagedEnemyCount||0)>1;
+        const meaningfullyBetter = choice.score < currentEntry.score * (multiPressure ? .78 : .55);
         if (!currentLost && !meaningfullyBetter && !attackedBy && !immediateThreat) { choice = currentEntry; switchReason = 'retained'; }
       }
       const oldTarget = p.ai.target;

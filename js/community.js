@@ -189,6 +189,13 @@
     return Number(data || 0);
   };
 
+  service.fetchAccessTotal = async () => {
+    if (!service.client) return Number(storageGet('trionArenaAccessCountV67')||0);
+    const { data, error } = await service.client.rpc('get_page_visit_count');
+    if (error) throw error;
+    return Number(data||0);
+  };
+
   const originalFetchRankings = service.fetchRankings?.bind(service);
   service.fetchRankings = async () => {
     if (direct) {
@@ -196,7 +203,7 @@
       return { solo:data?.solo || [], team:data?.team || [], defense:data?.defense || [] };
     }
     if (!service.client) return { solo:[], team:[], defense:[] };
-    const fields = 'display_name,team_name,score,kills,deaths,defense_round,created_at';
+    const fields = 'user_id,display_name,team_name,score,kills,deaths,defense_round,created_at';
     const results = await Promise.all(['solo','team','defense'].map((mode) => service.client.from('rankings').select(fields).eq('mode',mode).order('score',{ascending:false}).limit(5)));
     results.forEach((result) => { if (result.error) throw result.error; });
     return { solo:results[0].data || [], team:results[1].data || [], defense:results[2].data || [] };
@@ -288,11 +295,20 @@
   async function renderRankings() {
     try {
       const rankings=await service.fetchRankings();
-      const render=(root,rows,team=false,defense=false)=>{if(!root)return;root.innerHTML=rows.length?rows.map((entry,index)=>`<div class="title-rank-row"><span class="position">${index+1}</span><div><strong>${escapeHtml(team?(entry.team_name||entry.display_name||'無所属隊'):(entry.display_name||'隊員'))}</strong><small>${defense?`ROUND ${Number(entry.defense_round||0)} · `:''}${Number(entry.kills||0)}K / ${Number(entry.deaths||0)}D · ONLINE</small></div><span class="points">${Math.round(Number(entry.score||0))}pt</span></div>`).join(''):'<div class="title-ranking-empty">オンライン記録はまだありません</div>';};
+      const render=(root,rows,team=false,defense=false)=>{if(!root)return;root.innerHTML=rows.length?rows.map((entry,index)=>`<button class="title-rank-row rank-profile-button" data-user-id="${escapeHtml(entry.user_id||'')}" data-display-name="${escapeHtml(entry.display_name||'隊員')}"><span class="position">${index+1}</span><div><strong>${escapeHtml(team?(entry.team_name||entry.display_name||'無所属隊'):(entry.display_name||'隊員'))}</strong><small>${defense?`ROUND ${Number(entry.defense_round||0)} · `:''}${Number(entry.kills||0)}K / ${Number(entry.deaths||0)}D · ONLINE</small></div><span class="points">${Math.round(Number(entry.score||0))}pt</span></button>`).join(''):'<div class="title-ranking-empty">オンライン記録はまだありません</div>';};
       render($('#soloTitleRanking'),rankings.solo,false,false);render($('#teamTitleRanking'),rankings.team,true,false);render($('#defenseTitleRanking'),rankings.defense,true,true);
     } catch(error){ console.warn('Ranking load failed',error); }
   }
   service.refreshRankings=renderRankings;
+
+  function drawProfileEmblem(serialized){const canvas=$('#rankingProfileEmblem');if(!canvas)return;const ctx=canvas.getContext('2d');ctx.clearRect(0,0,128,128);ctx.fillStyle='#fff';ctx.fillRect(0,0,128,128);ctx.fillStyle='#071521';[...String(serialized||'')].forEach((v,i)=>{if(v==='1')ctx.fillRect((i%32)*4,Math.floor(i/32)*4,4,4);});}
+  function renderProfileLoadout(loadout){const root=$('#rankingProfileLoadout');if(!root)return;const ids=[...(loadout?.main||[]),...(loadout?.sub||[])];root.innerHTML=ids.length?ids.map(id=>`<span>${escapeHtml(window.TRION_TRIGGER_DATA?.triggers?.[id]?.name||id)}</span>`).join(''):'<small>未設定</small>';}
+  async function openRankingProfile(userId,displayName){
+    $('#rankingProfileName').textContent=displayName||'隊員プロフィール';$('#rankingProfileSquad').textContent='無所属隊';$('#rankingProfileColor').style.background='#65e8ff';renderProfileLoadout(null);drawProfileEmblem('');$('#rankingProfilePanel').classList.remove('hidden');
+    if(!service.client||!userId)return;
+    try{const {data}=await service.client.from('profiles').select('display_name,squad_name,character_color,squad_emblem,favorite_loadout').eq('id',userId).maybeSingle();if(!data)return;$('#rankingProfileName').textContent=data.display_name||displayName||'隊員';$('#rankingProfileSquad').textContent=data.squad_name||'無所属隊';$('#rankingProfileColor').style.background=data.character_color||'#65e8ff';drawProfileEmblem(data.squad_emblem||'');renderProfileLoadout(data.favorite_loadout||null);}catch(error){console.warn('Profile load failed',error);}
+  }
+  function mountUtterances(){const root=$('#utterancesMount');if(!root||root.dataset.mounted)return;root.dataset.mounted='true';const s=document.createElement('script');s.src='https://utteranc.es/client.js';s.async=true;s.setAttribute('repo','SoshuKo/Trigger');s.setAttribute('issue-number','1');s.setAttribute('theme','github-dark');s.setAttribute('crossorigin','anonymous');root.appendChild(s);}
 
   function prepSummary() {
     const config=window.TRION_GET_SETUP_CONFIG?.() || {};
@@ -394,34 +410,29 @@
     $('#applySquadToSetup')?.addEventListener('click',applySquadToSetup);
     $('#leaveUserSquad')?.addEventListener('click',async()=>{if(!selectedSquad||!confirm('この隊を離れますか？'))return;try{await service.leaveSquad(selectedSquad.id);selectedSquad=null;await refreshFriendsAndSquads();setMessage('隊を離れました。');}catch(error){setMessage(error.message,true);}});
     $('#participationRole')?.addEventListener('change',prepSummary);
+    document.addEventListener('click',(event)=>{const row=event.target.closest('.rank-profile-button');if(row)openRankingProfile(row.dataset.userId,row.dataset.displayName);});
+    $('#rankingProfileClose')?.addEventListener('click',()=>$('#rankingProfilePanel')?.classList.add('hidden'));
+    $('#rankingProfilePanel')?.addEventListener('click',(event)=>{if(event.target.id==='rankingProfilePanel')event.currentTarget.classList.add('hidden');});
+    window.addEventListener('trion:favorite-loadout',async(event)=>{if(!service.client||!accountLoggedIn())return;try{await service.client.from('profiles').update({favorite_loadout:event.detail}).eq('id',service.user.id);}catch(error){console.warn('Favorite loadout save failed',error);}});
+    mountUtterances();
   }
 
   async function refreshAccessCounter(){
-    if(accessRegistered)return;
     const stampKey='trionArenaAccessRegisteredAtV67';
     const countKey='trionArenaAccessCountV67';
     const last=Number(storageGet(stampKey)||0);
     const cached=Number(storageGet(countKey)||0);
-    if(Date.now()-last<12*60*60*1000){
-      accessRegistered=true;
-      if($('#accessCounter'))$('#accessCounter').textContent=cached>0?cached.toLocaleString('ja-JP'):'---';
-      return;
-    }
     try{
-      const count=await service.fetchAccessCount();
-      accessRegistered=true;
-      storageSet(stampKey,String(Date.now()));
-      storageSet(countKey,String(Number(count||0)));
-      if($('#accessCounter'))$('#accessCounter').textContent=Number(count||0).toLocaleString('ja-JP');
-    }catch(error){
-      if($('#accessCounter')&&cached>0)$('#accessCounter').textContent=cached.toLocaleString('ja-JP');
-      console.warn('Access counter failed',error);
-    }
+      if(Date.now()-last>=12*60*60*1000){const registered=await service.fetchAccessCount();storageSet(stampKey,String(Date.now()));storageSet(countKey,String(Number(registered||0)));accessRegistered=true;}
+      const total=await service.fetchAccessTotal();storageSet(countKey,String(total));if($('#accessCounter'))$('#accessCounter').textContent=Number(total||0).toLocaleString('ja-JP');
+    }catch(error){if($('#accessCounter'))$('#accessCounter').textContent=cached>0?cached.toLocaleString('ja-JP'):'---';console.warn('Access counter failed',error);}
   }
+  let accessPollTimer=null;
+  function startAccessPolling(){if(accessPollTimer)clearInterval(accessPollTimer);accessPollTimer=setInterval(()=>{if(!document.hidden)refreshAccessCounter();},30000);}
   function dispatchAuthState(){window.dispatchEvent(new CustomEvent('trion:auth-state',{detail:{loggedIn:accountLoggedIn()}}));}
   async function initCommunity(){
     bindUi();emblemPixels=presetPixels('cube');drawEmblem();prepSummary();
-    await refreshAccessCounter();await renderRankings();renderUserState();dispatchAuthState();
+    await refreshAccessCounter();startAccessPolling();await renderRankings();renderUserState();dispatchAuthState();
   }
 
   service?.addEventListener('ready',async()=>{renderUserState();dispatchAuthState();await refreshAccessCounter();await renderRankings();if(accountLoggedIn())await refreshFriendsAndSquads();});

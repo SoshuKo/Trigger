@@ -39,6 +39,21 @@
             <div id="defenseTitleRanking" class="title-ranking-list"></div>
           </section>
         </div>
+        <div class="title-community-row">
+          <section class="title-update-log" aria-label="アップデートログ">
+            <header><span>UPDATE LOG</span><h2>アップデートログ</h2></header>
+            <ul>
+              <li><b>v74</b><span>CPU複数会敵・プリセット・プロフィール・コメント欄を追加</span></li>
+              <li><b>v73</b><span>バッグワーム会敵判定と射手訓練を修正</span></li>
+              <li><b>v69</b><span>重いタイトル背景デモを削除</span></li>
+            </ul>
+          </section>
+          <section class="title-comments" aria-label="コメント欄">
+            <header><span>COMMENTS</span><h2>開発・テストプレイ</h2></header>
+            <p>一緒に開発したりテストプレイをしてくれる方を募集しています。連絡はX(旧Twitter)まで</p>
+            <div id="utterancesMount"></div>
+          </section>
+        </div>
         <div class="title-access"><span>ACCESS</span><strong id="accessCounter">---</strong></div>
         <footer class="title-footer">
           <a href="https://twitter.com/PubRe26174" target="_blank" rel="noopener noreferrer">Twitter @PubRe26174</a>
@@ -96,6 +111,14 @@
         </section>
         <section id="simulationDetail" class="simulation-detail"><p>条件を選択すると詳細が表示されます。</p></section>
         <footer class="simulation-note">GitHub Actionsでゲーム本体のAI・攻撃・防御処理を描画なしで実行した集計です。各試合は固定乱数シードで再現できます。</footer>
+      </div>
+    </section>
+
+    <section id="rankingProfilePanel" class="guide-panel hidden" aria-label="隊員プロフィール">
+      <div class="ranking-profile-card">
+        <header><div><span>AGENT PROFILE</span><h2 id="rankingProfileName">隊員プロフィール</h2></div><button id="rankingProfileClose" type="button">×</button></header>
+        <div class="ranking-profile-main"><canvas id="rankingProfileEmblem" width="128" height="128"></canvas><div><span>隊名</span><strong id="rankingProfileSquad">無所属隊</strong><span>キャラクターカラー</span><i id="rankingProfileColor"></i></div></div>
+        <div><span>お気に入りのトリガー構成</span><div id="rankingProfileLoadout" class="profile-loadout"></div></div>
       </div>
     </section>
 
@@ -268,6 +291,14 @@
               </div>
             </div>
 
+            <div class="loadout-preset-bar">
+              <label><span>お気に入りプリセット</span><select id="loadoutPresetSelect"><option value="">選択してください</option></select></label>
+              <input id="loadoutPresetName" type="text" maxlength="24" placeholder="プリセット名" />
+              <button id="saveLoadoutPreset" type="button">保存</button>
+              <button id="deleteLoadoutPreset" type="button">削除</button>
+              <button id="setFavoriteLoadout" type="button">プロフィールに設定</button>
+            </div>
+            <small id="loadoutPresetMessage" class="field-help"></small>
             <div id="loadoutWarnings" class="warnings" aria-live="polite"></div>
             <div id="triggerInfo" class="trigger-info">
               <strong>トリガーを選択してください</strong>
