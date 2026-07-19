@@ -94,7 +94,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 67;
+  const GAME_VERSION = 68;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
@@ -421,6 +421,35 @@
     main: [...DATA.defaultLoadout.main],
     sub: [...DATA.defaultLoadout.sub],
   };
+
+  const TUTORIAL_COURSE_CONFIGS = {
+    basic: {
+      label: '基本操作', cpuCount: 1, targetDistance: 360,
+      main: ['kogetsu', 'shield', 'empty', 'empty'],
+      sub: ['shield', 'grasshopper', 'empty', 'empty'],
+    },
+    attacker: {
+      label: '攻撃手訓練', cpuCount: 3, targetDistance: 170,
+      main: ['kogetsu', 'senku', 'scorpion', 'raygust'],
+      sub: ['shield', 'thruster', 'grasshopper', 'empty'],
+    },
+    shooter: {
+      label: '射手訓練', cpuCount: 3, targetDistance: 520,
+      main: ['shooter_asteroid', 'shooter_hound', 'shooter_viper', 'shooter_meteor'],
+      sub: ['shield', 'shooter_asteroid', 'shooter_hound', 'empty'],
+    },
+    gunner: {
+      label: '銃手訓練', cpuCount: 3, targetDistance: 560,
+      main: ['gun_assault_asteroid', 'gun_assault_hound', 'gun_handgun_asteroid', 'gun_shotgun_asteroid'],
+      sub: ['shield', 'starmaker', 'leadBullet', 'empty'],
+    },
+    sniper: {
+      label: '狙撃手訓練', cpuCount: 3, targetDistance: 920,
+      main: ['egret', 'lightning', 'ibis', 'shield'],
+      sub: ['bagworm', 'shield', 'grasshopper', 'empty'],
+    },
+  };
+  const TUTORIAL_COURSE_IDS = Object.keys(TUTORIAL_COURSE_CONFIGS);
 
   const CPU_NAMES = ['AZ-01', 'MI-02', 'KA-03', 'SU-04', 'NA-05', 'OU-06', 'IK-07', 'YU-08', 'AR-09', 'NI-10', 'KU-11', 'TS-12', 'KO-13', 'IK-14', 'SA-15', 'KI-16', 'UR-17', 'TO-18', 'EB-19'];
 
@@ -1180,6 +1209,45 @@
   };
   window.TRION_SHOW_SETUP = (options = {}) => showSetup(options);
   window.TRION_SHOW_TITLE = () => showTitle();
+  window.TRION_START_TUTORIAL = (courseId = 'basic') => {
+    const course = TUTORIAL_COURSE_CONFIGS[courseId] || TUTORIAL_COURSE_CONFIGS.basic;
+    const base = getSetupConfig();
+    const cpuConfigs = Array.from({ length: course.cpuCount }, (_, index) => ({
+      id: `tutorial-target-${index}`,
+      name: `訓練標的 ${String.fromCharCode(65 + index)}`,
+      archetype: '訓練標的',
+      stats: { trion: 8, technique: 2, combat: 8 },
+      main: ['empty', 'empty', 'empty', 'empty'],
+      sub: ['empty', 'empty', 'empty', 'empty'],
+      squadName: '訓練場',
+      appearance: { bodyColor: index % 2 ? '#ff9f72' : '#e27070', emblemPreset: 'cross' },
+      extraType: 'agent',
+    }));
+    const config = {
+      ...base,
+      mode: 'solo',
+      playerRole: 'combatant',
+      cpuCount: course.cpuCount,
+      cpuConfigs,
+      difficulty: 'sandbag',
+      mapId: 'city',
+      matchLength: 0,
+      timeOfDay: 'day',
+      timeProgression: false,
+      weather: 'clear',
+      weatherChange: false,
+      guideEnabled: true,
+      beginnerSkill: 'none',
+      tutorialCourse: TUTORIAL_COURSE_IDS.includes(courseId) ? courseId : 'basic',
+      tutorialLabel: course.label,
+      tutorialTargetDistance: course.targetDistance,
+      loadout: { main: [...course.main], sub: [...course.sub] },
+      teamConfig: { ...base.teamConfig, playerName: 'YOU', squadName: '訓練隊' },
+    };
+    currentConfig = config;
+    launchGame(config);
+    return window.__TRION_GAME__;
+  };
   window.TRION_START_ONLINE_MATCH = (session) => {
     if (!session) return;
     const descriptor = window.trionOnline?.getSessionDescriptor?.() || {};
@@ -1230,6 +1298,8 @@
     $('#operatorPanel').classList.add('hidden');
     $('#spectatorHud').classList.add('hidden');
     $('#centerMessage').classList.add('hidden');
+    $('#tutorialTrainingPanel')?.classList.add('hidden');
+    document.body.classList.remove('tutorial-active');
     $('#killFeed').innerHTML = '';
     $('#spectateButton').textContent = 'SPECTATE';
     $('#pauseSpectateButton').textContent = '観戦モード';
@@ -1486,6 +1556,8 @@
   class ArenaGame {
     constructor(config) {
       this.config = config;
+      this.tutorialCourse = TUTORIAL_COURSE_IDS.includes(config.tutorialCourse) ? config.tutorialCourse : null;
+      this.isTutorial = Boolean(this.tutorialCourse);
       this.simulationMode = Boolean(config.simulationMode);
       this.onlineSession = config.onlineSession || null;
       this.isOnlineMatch = Boolean(this.onlineSession?.roomId && window.trionOnline);
@@ -1646,6 +1718,7 @@
       this.resize();
       this.generateArena();
       this.spawnCombatants();
+      if (this.isTutorial) this.placeTutorialCombatants();
       if (this.isOnlineMatch) this.setupOnlineNetworking();
       this.buildSlotHud();
       this.updateStaticHud();
@@ -2136,14 +2209,22 @@
         $('#operatorPanel').classList.remove('hidden');
         this.refreshOperatorUi();
         this.showCenterMessage('OPERATOR', '隊員へ戦術指示を送れ', 1.8);
+      } else if (this.isTutorial) {
+        this.showCenterMessage('TRAINING', this.config.tutorialLabel || '基本操作', 1.8);
+        document.body.classList.add('tutorial-active');
       } else {
         this.showCenterMessage(this.isDefenseMode ? 'DEFENSE' : this.config.mode === 'team' ? 'TEAM BATTLE' : 'SOLO BATTLE', this.isDefenseMode ? 'フラッグを守れ' : 'TRIGGER ON', 1.8);
       }
+      if (this.isTutorial) window.dispatchEvent(new CustomEvent('trion:tutorial-game-ready', { detail: { course: this.tutorialCourse } }));
       this.frameHandle = requestAnimationFrame((time) => this.loop(time));
     }
 
     destroy() {
       this.running = false;
+      if (this.isTutorial) {
+        document.body.classList.remove('tutorial-active');
+        window.dispatchEvent(new CustomEvent('trion:tutorial-game-ended', { detail: { course: this.tutorialCourse } }));
+      }
       cancelAnimationFrame(this.frameHandle);
       this.input.destroy();
       this.sfx?.destroy();
@@ -2223,11 +2304,13 @@
       $('#operatorPanel').classList.add('hidden');
       $('#spectatorHud').classList.add('hidden');
       $('#controlGuide').classList.add('hidden');
+      $('#tutorialTrainingPanel')?.classList.add('hidden');
+      document.body.classList.remove('tutorial-active');
       $('#gameScreen').classList.add('hidden');
     }
 
     returnToTitle(reason = 'abandoned') {
-      if (!this.logFinalized && this.elapsed > .05) this.finalizeLog(reason);
+      if (!this.isTutorial && !this.logFinalized && this.elapsed > .05) this.finalizeLog(reason);
       this.destroy();
       if (game === this) game = null;
       if (window.__TRION_GAME__ === this) window.__TRION_GAME__ = null;
@@ -2237,7 +2320,7 @@
     }
 
     returnToSetup(reason = 'abandoned') {
-      if (!this.logFinalized && this.elapsed > .05) this.finalizeLog(reason);
+      if (!this.isTutorial && !this.logFinalized && this.elapsed > .05) this.finalizeLog(reason);
       this.destroy();
       if (game === this) game = null;
       if (window.__TRION_GAME__ === this) window.__TRION_GAME__ = null;
@@ -4474,6 +4557,43 @@
 
 
 
+    placeTutorialCombatants() {
+      if (!this.isTutorial || !this.human) return;
+      const origin = this.randomOpenPoint(null);
+      this.human.x = origin.x; this.human.y = origin.y; this.human.vx = 0; this.human.vy = 0;
+      this.human.invulnTimer = 1.2;
+      const baseDistance = Number(this.config.tutorialTargetDistance || 420);
+      const targets = this.players.filter((unit) => unit !== this.human);
+      const pointIsOpen = (x, y, radius = 32) => {
+        const point = { x, y, radius };
+        if (x < 80 || y < 80 || x > this.world.w - 80 || y > this.world.h - 80) return false;
+        if (this.isInRiver(x, y)) return false;
+        if (this.walls.some((wall) => wall.hp > 0 && !wall.nonBlocking && circleRectOverlap(point, wall))) return false;
+        if (this.installations.some((facility) => facility.hp > 0 && Math.hypot(facility.x - x, facility.y - y) < 72)) return false;
+        return true;
+      };
+      targets.forEach((target, index) => {
+        let placed = null;
+        for (let attempt = 0; attempt < 80; attempt++) {
+          const spread = targets.length <= 1 ? 0 : (index - (targets.length - 1) / 2) * .36;
+          const angle = spread + (attempt % 2 ? 1 : -1) * Math.floor(attempt / 2) * .075;
+          const distance = baseDistance + (attempt % 5) * 34;
+          const x = origin.x + Math.cos(angle) * distance;
+          const y = origin.y + Math.sin(angle) * distance;
+          if (pointIsOpen(x, y, target.radius + 10)) { placed = { x, y }; break; }
+        }
+        if (!placed) placed = this.randomOpenPoint(target.team);
+        target.x = placed.x; target.y = placed.y; target.vx = 0; target.vy = 0;
+        target.invulnTimer = 0;
+        target.maxHp = Math.max(target.maxHp, this.tutorialCourse === 'attacker' ? 240 : 180);
+        target.hp = target.maxHp;
+        target.respawnTimer = Infinity;
+        target.name = `訓練標的 ${String.fromCharCode(65 + index)}`;
+      });
+      this.camera.x = clamp(this.human.x - this.viewW / 2, 0, Math.max(0, this.world.w - this.viewW));
+      this.camera.y = clamp(this.human.y - this.viewH / 2, 0, Math.max(0, this.world.h - this.viewH));
+    }
+
     applyPlayableDefenseForm(player, type = 'agent', force = false) {
       if (!player || (!this.isExtraMode && !force) || !EXTRA_UNIT_DEFS[type] || type === 'agent') return player;
       const def = EXTRA_UNIT_DEFS[type];
@@ -6570,7 +6690,9 @@
       const difficulty = AI_DIFFICULTIES[this.config.difficulty]?.label || '普通';
       const roleLabel = this.isPlayerOperator ? 'オペレーター' : this.isSetupSpectator ? '観戦' : '戦闘員';
       const teamText = this.isDefenseMode ? `防衛隊 ${this.config.teamSize || 3}人` : this.config.mode === 'team' ? `${this.teamCount}チーム・各${this.config.teamSize || 3}人` : '個人戦';
-      $('#modeLabel').textContent = `v${GAME_VERSION} / ${MAP_LABELS[this.mapId]} / ${teamText} / ${roleLabel} / ${difficulty}`;
+      $('#modeLabel').textContent = this.isTutorial
+        ? `v${GAME_VERSION} / TRAINING / ${this.config.tutorialLabel || '基本操作'}`
+        : `v${GAME_VERSION} / ${MAP_LABELS[this.mapId]} / ${teamText} / ${roleLabel} / ${difficulty}`;
       $('#teamScoreCard').classList.toggle('hidden', this.config.mode !== 'team');
       $('#defenseHud')?.classList.toggle('hidden', !this.isDefenseMode);
       $('#defenseBuildPanel')?.classList.toggle('hidden', !this.isDefenseMode);

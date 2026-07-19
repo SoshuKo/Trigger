@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
   <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=67" />
+  <link rel="stylesheet" href="styles.css?v=68" />
 </head>
 <body>
   <main id="app">
@@ -18,19 +18,14 @@
         <p class="title-kicker">B-GRADE RANK WAR</p>
         <h1>TRION<br>ARENA</h1>
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
-        <div class="version-badge" aria-label="現在のバージョン">VERSION 67</div>
+        <div class="version-badge" aria-label="現在のバージョン">VERSION 68</div>
         <div class="title-actions">
           <button id="enterSetupButton" class="title-start" type="button"><span>出撃準備へ</span><small>はじめてでもガイド付き</small></button>
           <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
-          <button id="userOpenButton" class="title-sub title-user-icon" type="button" aria-label="ユーザー" title="ユーザー"><span aria-hidden="true">👤</span></button>
+          <button id="userOpenButton" class="title-sub title-user-icon" type="button" aria-label="ユーザー" title="ユーザー"><span class="user-glyph" aria-hidden="true"></span></button>
           <button id="titleGuideButton" class="title-sub" type="button">操作案内</button>
           <button id="simulationResultsButton" class="title-sub title-simulation" type="button">シミュレーション結果</button>
         </div>
-        <section class="title-first-steps" aria-label="初めての方向け案内">
-          <div><b>1</b><span><strong>チュートリアル</strong><small>移動・照準・各ポジションを実地訓練</small></span></div>
-          <div><b>2</b><span><strong>出撃設定</strong><small>能力・装備・ルールをガイド付きで設定</small></span></div>
-          <div><b>3</b><span><strong>ランク戦</strong><small>個人戦・チーム戦・防衛戦へ出撃</small></span></div>
-        </section>
         <div class="online-title-status"><span id="onlineStatusBadge" data-status="disabled">未設定</span><small id="onlineStatusNote">Supabase設定後に利用できます。</small></div>
         <div class="title-rankings">
           <section class="ranking-board">
@@ -77,33 +72,6 @@
         </div>
       </div>
     </section>
-
-    <section id="tutorialScreen" class="screen tutorial-screen hidden" aria-label="チュートリアル">
-      <canvas id="tutorialCanvas" width="1280" height="720" tabindex="0"></canvas>
-      <header class="tutorial-topbar">
-        <div><span>TRAINING AREA</span><h1>チュートリアル</h1></div>
-        <div class="tutorial-top-actions"><button id="tutorialResetButton" type="button">課題をやり直す</button><button id="tutorialBackButton" type="button">タイトルへ戻る</button></div>
-      </header>
-      <aside class="tutorial-brief">
-        <nav id="tutorialCourseTabs" class="tutorial-course-tabs" aria-label="訓練コース">
-          <button type="button" data-course="basic" class="active">基本操作</button>
-          <button type="button" data-course="attacker">攻撃手</button>
-          <button type="button" data-course="shooter">射手</button>
-          <button type="button" data-course="gunner">銃手</button>
-          <button type="button" data-course="sniper">狙撃手</button>
-        </nav>
-        <p id="tutorialCourseKicker" class="tutorial-kicker">BASIC TRAINING</p>
-        <h2 id="tutorialCourseTitle">基本操作</h2>
-        <p id="tutorialCourseDescription">移動・照準・装備切替・攻撃の順に練習します。</p>
-        <ol id="tutorialObjectives" class="tutorial-objectives"></ol>
-        <div id="tutorialHint" class="tutorial-hint">WASDで移動してください。</div>
-        <div class="tutorial-progress"><i id="tutorialProgressBar"></i></div>
-        <div class="tutorial-brief-actions"><button id="tutorialNextButton" type="button" disabled>次の訓練へ</button><button id="tutorialSetupButton" type="button">出撃設定へ</button></div>
-      </aside>
-      <div class="tutorial-key-legend"><span><b>WASD</b>移動</span><span><b>マウス</b>照準</span><span><b>左クリック</b>MAIN</span><span><b>右クリック</b>SUB</span><span><b>Shift / C / R</b>特殊操作</span></div>
-      <div id="tutorialMessage" class="tutorial-message hidden"></div>
-    </section>
-
 
     <section id="simulationResultsScreen" class="screen simulation-results-screen hidden">
       <div class="cube-stream" aria-hidden="true"></div>
@@ -564,6 +532,32 @@
         <button id="debugButton" type="button">RECORD</button>
       </div>
 
+      <aside id="tutorialTrainingPanel" class="tutorial-training-panel hidden" aria-label="チュートリアル課題">
+        <header class="tutorial-training-heading">
+          <div><span>TRAINING AREA</span><strong>チュートリアル</strong></div>
+          <button id="tutorialExitButton" type="button">終了</button>
+        </header>
+        <nav id="tutorialCourseTabs" class="tutorial-course-tabs" aria-label="訓練コース">
+          <button type="button" data-course="basic" class="active">基本</button>
+          <button type="button" data-course="attacker">攻撃手</button>
+          <button type="button" data-course="shooter">射手</button>
+          <button type="button" data-course="gunner">銃手</button>
+          <button type="button" data-course="sniper">狙撃手</button>
+        </nav>
+        <div class="tutorial-training-course">
+          <p id="tutorialCourseKicker">BASIC TRAINING</p>
+          <h2 id="tutorialCourseTitle">基本操作</h2>
+          <p id="tutorialCourseDescription">通常戦と同じ画面・操作で基礎を確認します。</p>
+        </div>
+        <ol id="tutorialObjectives" class="tutorial-objectives"></ol>
+        <div id="tutorialHint" class="tutorial-hint">WASDで移動してください。</div>
+        <div class="tutorial-progress"><i id="tutorialProgressBar"></i></div>
+        <div class="tutorial-training-actions">
+          <button id="tutorialResetButton" type="button">やり直す</button>
+          <button id="tutorialNextButton" type="button" disabled>次の訓練へ</button>
+        </div>
+      </aside>
+
       <div class="top-hud">
         <div class="match-card">
           <span id="modeLabel">個人戦</span>
@@ -727,11 +721,11 @@
   <script src="js/online-config.js?v=32"></script>
   <script src="js/trigger-data.js?v=32"></script>
   <script src="js/online.js?v=32"></script>
-  <script src="js/community.js?v=67"></script>
+  <script src="js/community.js?v=68"></script>
   <script src="simulation-results/latest.js?v=65"></script>
   <script src="js/simulation-results.js?v=65"></script>
-  <script src="js/title-demo.js?v=67"></script>
-  <script src="js/tutorial.js?v=67"></script>
-  <script src="js/game.js?v=67"></script>
+  <script src="js/title-demo.js?v=68"></script>
+  <script src="js/game.js?v=68"></script>
+  <script src="js/tutorial.js?v=68"></script>
 </body>
 </html>

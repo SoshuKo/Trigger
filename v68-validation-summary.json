@@ -1,0 +1,11 @@
+{
+  "version": 68,
+  "base": "GitHub Pages v67 corrective build",
+  "fixes": [
+    "Removed title-screen setup-like step cards; title remains the established v66 layout with only requested action changes.",
+    "Restored falling cube animation above the demo canvas by separating z-index layers.",
+    "Rebuilt background battle demo as an independent responsive canvas with a visible delayed fade-in.",
+    "Tutorial now launches ArenaGame itself and uses the normal game canvas, camera, HUD, slot HUD, radar, key bindings, and trigger mechanics.",
+    "Training courses supply role-specific real trigger loadouts and stationary targets."
+  ]
+}
