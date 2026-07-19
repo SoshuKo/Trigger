@@ -1,0 +1,14 @@
+{
+  "version": 69,
+  "changes": {
+    "titlePerformance": "Removed animated battle demo canvas and script from title screen.",
+    "cubeAnimation": "Preserved the existing cube-stream animation.",
+    "tutorial": "Kept the real battle canvas and HUD tutorial implementation from v68."
+  },
+  "checks": [
+    "No titleDemoCanvas markup",
+    "No title-demo.js script",
+    "No title-demo CSS selectors",
+    "GAME_VERSION 69"
+  ]
+}

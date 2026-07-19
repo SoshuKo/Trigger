@@ -655,11 +655,8 @@ body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity
 .defense-support-grid button:hover{border-color:#ffd369!important;color:#fff2b2!important}
 .defense-support-grid button:disabled{opacity:.45;filter:saturate(.45);cursor:not-allowed}
 
-/* v67 onboarding, title demo and tutorial */
+/* v67 onboarding and tutorial */
 .title-screen { position:relative; isolation:isolate; overflow:hidden; }
-.title-demo-canvas { position:absolute; inset:0; width:100%; height:100%; opacity:0; filter:blur(5px) saturate(.85); transform:scale(1.035); pointer-events:none; transition:opacity 2.4s ease; z-index:0; }
-.title-demo-canvas.is-running { opacity:.34; }
-.title-demo-vignette { position:absolute; inset:0; z-index:1; pointer-events:none; background:linear-gradient(90deg,rgba(3,13,21,.87) 0%,rgba(3,13,21,.42) 48%,rgba(3,13,21,.82) 100%),linear-gradient(180deg,rgba(3,13,21,.2),rgba(3,13,21,.78)); }
 .title-shell { position:relative; z-index:2; }
 .title-start { display:grid; gap:2px; align-content:center; }
 .title-start small { font-size:8px; color:rgba(255,255,255,.67); letter-spacing:.08em; }
@@ -770,11 +767,10 @@ body.tutorial-active .kill-feed { display:none; }
   .setup-guide-card { right:16px; bottom:16px; }
 }
 @media (prefers-reduced-motion:reduce) {
-  .title-demo-canvas { display:none; }
 }
 
 
-/* v68: restore title motion layers and use the real battle HUD for training */
+/* v69: keep cube title motion and use the real battle HUD for training */
 .title-screen {
   place-items:start center;
   align-content:start;
@@ -783,9 +779,6 @@ body.tutorial-active .kill-feed { display:none; }
   overflow-y:auto;
   padding-top:clamp(28px,5vh,58px);
 }
-.title-demo-canvas { z-index:0; opacity:0; filter:blur(3px) saturate(.9); transform:scale(1.02); transition:opacity 1.8s ease; }
-.title-demo-canvas.is-running { opacity:.46; }
-.title-demo-vignette { z-index:1; background:linear-gradient(90deg,rgba(3,13,21,.72),rgba(3,13,21,.27) 50%,rgba(3,13,21,.7)),linear-gradient(180deg,rgba(3,13,21,.1),rgba(3,13,21,.62)); }
 .title-screen>.cube-stream { z-index:2; opacity:.9; }
 .title-screen>.cube-stream .flow-cube { border-color:rgba(105,230,255,.48); background:rgba(61,172,212,.1); }
 .title-shell { z-index:3; }
@@ -797,4 +790,3 @@ body.tutorial-active #operatorButton,
 body.tutorial-active #debugButton { display:none!important; }
 body.tutorial-active #modeLabel { color:#ffe895; }
 @media(max-width:980px){.title-rankings{grid-template-columns:1fr}.title-screen{overflow-y:auto}.tutorial-training-panel{top:150px;max-height:calc(100vh - 290px)}}
-@media(max-width:760px),(pointer:coarse){.title-demo-canvas{display:block;filter:blur(2px)}.title-demo-canvas.is-running{opacity:.28}.title-screen>.cube-stream{opacity:.72}.tutorial-training-panel{left:8px;right:8px;top:auto;bottom:106px;width:auto;max-height:44vh}}
