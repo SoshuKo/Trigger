@@ -94,7 +94,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 73;
+  const GAME_VERSION = 74;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
