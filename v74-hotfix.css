@@ -1,0 +1,78 @@
+/* v74: top-page trion cubes use a square front face and equal-depth side faces. */
+.title-mark { width:82px !important; height:58px !important; }
+.title-mark i {
+  width:20px !important;
+  height:20px !important;
+  border:1px solid var(--cyan) !important;
+  background:rgba(101,232,255,.08) !important;
+  transform:none !important;
+  box-shadow:inset -4px -4px 0 rgba(0,0,0,.18) !important;
+}
+.title-mark i::before,
+.title-mark i::after {
+  content:"";
+  position:absolute;
+  display:block;
+  box-sizing:border-box;
+  border:1px solid rgba(101,232,255,.72);
+  background:rgba(101,232,255,.05);
+}
+.title-mark i::before {
+  left:-1px;
+  top:-8px;
+  width:20px;
+  height:8px;
+  transform:skewX(-45deg);
+  transform-origin:left bottom;
+}
+.title-mark i::after {
+  right:-8px;
+  top:-1px;
+  width:8px;
+  height:20px;
+  transform:skewY(-45deg);
+  transform-origin:left top;
+}
+.title-mark i:nth-child(1){left:30px !important;top:6px !important}
+.title-mark i:nth-child(2){left:8px !important;top:31px !important}
+.title-mark i:nth-child(3){right:8px !important;top:31px !important}
+
+.flow-cube {
+  width:var(--size) !important;
+  height:var(--size) !important;
+  transform:none;
+  border:1px solid rgba(105,230,255,.36) !important;
+  background:rgba(61,172,212,.07) !important;
+  box-shadow:inset calc(var(--size)*-.16) calc(var(--size)*-.16) 0 rgba(0,8,16,.22),0 0 24px rgba(60,193,237,.1) !important;
+  transform-origin:center;
+}
+.flow-cube::before,
+.flow-cube::after {
+  content:"";
+  position:absolute;
+  display:block;
+  box-sizing:border-box;
+  border:1px solid rgba(105,230,255,.28) !important;
+  background:rgba(44,124,158,.06) !important;
+}
+.flow-cube::before {
+  left:-1px !important;
+  top:calc(var(--size)*-.34) !important;
+  width:var(--size) !important;
+  height:calc(var(--size)*.34) !important;
+  transform:skewX(-45deg);
+  transform-origin:left bottom;
+}
+.flow-cube::after {
+  right:calc(var(--size)*-.34) !important;
+  top:-1px !important;
+  width:calc(var(--size)*.34) !important;
+  height:var(--size) !important;
+  transform:skewY(-45deg);
+  transform-origin:left top;
+}
+@keyframes cubeDrift {
+  from { transform:translate3d(12vw,-130px,0) rotate(0deg); opacity:0; }
+  12% { opacity:.85; }
+  to { transform:translate3d(-22vw,calc(100svh + 180px),0) rotate(180deg); opacity:0; }
+}
