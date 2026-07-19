@@ -1,0 +1,46 @@
+{
+  "version": 67,
+  "base": "GitHub main v66 blobs verified before patching",
+  "features": {
+    "tutorial": [
+      "basic",
+      "attacker",
+      "shooter",
+      "gunner",
+      "sniper"
+    ],
+    "title": [
+      "person-only user icon",
+      "dedicated operation guide",
+      "smaller simulation link",
+      "delayed blurred battle demo"
+    ],
+    "setup": [
+      "first-visit guided tour for logged-out visitors",
+      "collapsible sections 04,06,07",
+      "persistent start panel"
+    ],
+    "bagworm": "radar-hidden; cover blocks visual detection; clear sight permits low-priority recognition; attacking creates persistent aggro",
+    "accessCounter": "12-hour browser dedupe plus per-user/day database dedupe migration"
+  },
+  "verifiedBaseBlobs": {
+    "index.html": "201e8951970eb98dc8ef58d7ba2d1a8af96fbe03",
+    "styles.css": "24484ceb9b52a08550dce3531a263d013f7c0cc5",
+    "js/game.js": "b5a4d887b994b51de74c65be8801e7bf7f2b7e36",
+    "js/community.js": "f5f969308b8b5f158146caaebdaaff952bfd8448"
+  },
+  "tests": {
+    "javascriptSyntax": [
+      "js/game.js",
+      "js/community.js",
+      "js/title-demo.js",
+      "js/tutorial.js"
+    ],
+    "html": "no duplicate IDs; required screens/details/scripts present",
+    "browserSmoke": [
+      "title -> operation guide -> tutorial -> title -> setup -> tutorial",
+      "first logged-out visit shows setup guide and can still start a match",
+      "logged-in visitor does not receive automatic setup guide"
+    ]
+  }
+}

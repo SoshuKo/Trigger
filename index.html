@@ -5,25 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
   <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=66" />
+  <link rel="stylesheet" href="styles.css?v=67" />
 </head>
 <body>
   <main id="app">
     <section id="titleScreen" class="screen title-screen">
       <div class="cube-stream" aria-hidden="true"></div>
+      <canvas id="titleDemoCanvas" class="title-demo-canvas" width="1280" height="720" aria-hidden="true"></canvas>
+      <div class="title-demo-vignette" aria-hidden="true"></div>
       <div class="title-shell">
         <div class="title-mark" aria-hidden="true"><i></i><i></i><i></i></div>
         <p class="title-kicker">B-GRADE RANK WAR</p>
         <h1>TRION<br>ARENA</h1>
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
-        <div class="version-badge" aria-label="現在のバージョン">VERSION 66</div>
+        <div class="version-badge" aria-label="現在のバージョン">VERSION 67</div>
         <div class="title-actions">
-          <button id="enterSetupButton" class="title-start" type="button">出撃準備へ</button>
+          <button id="enterSetupButton" class="title-start" type="button"><span>出撃準備へ</span><small>はじめてでもガイド付き</small></button>
           <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
-          <button id="userOpenButton" class="title-sub" type="button">ユーザー</button>
+          <button id="userOpenButton" class="title-sub title-user-icon" type="button" aria-label="ユーザー" title="ユーザー"><span aria-hidden="true">👤</span></button>
           <button id="titleGuideButton" class="title-sub" type="button">操作案内</button>
-          <button id="simulationResultsButton" class="title-sub" type="button">シミュレーション結果</button>
+          <button id="simulationResultsButton" class="title-sub title-simulation" type="button">シミュレーション結果</button>
         </div>
+        <section class="title-first-steps" aria-label="初めての方向け案内">
+          <div><b>1</b><span><strong>チュートリアル</strong><small>移動・照準・各ポジションを実地訓練</small></span></div>
+          <div><b>2</b><span><strong>出撃設定</strong><small>能力・装備・ルールをガイド付きで設定</small></span></div>
+          <div><b>3</b><span><strong>ランク戦</strong><small>個人戦・チーム戦・防衛戦へ出撃</small></span></div>
+        </section>
         <div class="online-title-status"><span id="onlineStatusBadge" data-status="disabled">未設定</span><small id="onlineStatusNote">Supabase設定後に利用できます。</small></div>
         <div class="title-rankings">
           <section class="ranking-board">
@@ -45,6 +52,56 @@
           <small>非公式ファンゲームです。権利者様から問題のご指摘があった場合は、公開停止・削除など速やかに対応します。</small>
         </footer>
       </div>
+    </section>
+
+
+    <section id="titleGuidePanel" class="guide-panel hidden" aria-label="操作案内">
+      <div class="guide-panel-card">
+        <header><div><span>FIELD MANUAL</span><h2>操作案内</h2></div><button id="titleGuideCloseButton" type="button" aria-label="閉じる">×</button></header>
+        <p class="guide-lead">まずは移動・照準・左右のトリガーを覚えれば遊べます。細かなキー設定は後から変更できます。</p>
+        <div class="guide-summary-grid">
+          <article><b>WASD</b><strong>移動</strong><span>キャラクターを移動します。</span></article>
+          <article><b>マウス</b><strong>照準</strong><span>カーソル方向へ狙いを定めます。</span></article>
+          <article><b>左 / 右クリック</b><strong>MAIN / SUB</strong><span>右手・左手のトリガーを発動します。</span></article>
+          <article><b>1–4 / 5–8</b><strong>装備切替</strong><span>MAIN・SUBの使用トリガーを選びます。</span></article>
+          <article><b>Shift / C / R</b><strong>特殊操作</strong><span>変形・合成・スコープを使います。</span></article>
+          <article><b>P / Esc</b><strong>メニュー</strong><span>一時停止して設定や退出を行います。</span></article>
+        </div>
+        <div class="guide-role-strip">
+          <span><strong>攻撃手</strong>接近して斬る</span><span><strong>射手</strong>キューブを生成・射出</span><span><strong>銃手</strong>連射と弾種切替</span><span><strong>狙撃手</strong>遠距離から精密射撃</span>
+        </div>
+        <div class="guide-panel-actions">
+          <button id="guideStartTutorialButton" class="primary" type="button">チュートリアルを開始</button>
+          <button id="guideOpenKeySettings" type="button">キー設定を開く</button>
+          <button id="guideEnterSetupButton" type="button">出撃準備へ</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="tutorialScreen" class="screen tutorial-screen hidden" aria-label="チュートリアル">
+      <canvas id="tutorialCanvas" width="1280" height="720" tabindex="0"></canvas>
+      <header class="tutorial-topbar">
+        <div><span>TRAINING AREA</span><h1>チュートリアル</h1></div>
+        <div class="tutorial-top-actions"><button id="tutorialResetButton" type="button">課題をやり直す</button><button id="tutorialBackButton" type="button">タイトルへ戻る</button></div>
+      </header>
+      <aside class="tutorial-brief">
+        <nav id="tutorialCourseTabs" class="tutorial-course-tabs" aria-label="訓練コース">
+          <button type="button" data-course="basic" class="active">基本操作</button>
+          <button type="button" data-course="attacker">攻撃手</button>
+          <button type="button" data-course="shooter">射手</button>
+          <button type="button" data-course="gunner">銃手</button>
+          <button type="button" data-course="sniper">狙撃手</button>
+        </nav>
+        <p id="tutorialCourseKicker" class="tutorial-kicker">BASIC TRAINING</p>
+        <h2 id="tutorialCourseTitle">基本操作</h2>
+        <p id="tutorialCourseDescription">移動・照準・装備切替・攻撃の順に練習します。</p>
+        <ol id="tutorialObjectives" class="tutorial-objectives"></ol>
+        <div id="tutorialHint" class="tutorial-hint">WASDで移動してください。</div>
+        <div class="tutorial-progress"><i id="tutorialProgressBar"></i></div>
+        <div class="tutorial-brief-actions"><button id="tutorialNextButton" type="button" disabled>次の訓練へ</button><button id="tutorialSetupButton" type="button">出撃設定へ</button></div>
+      </aside>
+      <div class="tutorial-key-legend"><span><b>WASD</b>移動</span><span><b>マウス</b>照準</span><span><b>左クリック</b>MAIN</span><span><b>右クリック</b>SUB</span><span><b>Shift / C / R</b>特殊操作</span></div>
+      <div id="tutorialMessage" class="tutorial-message hidden"></div>
     </section>
 
 
@@ -87,6 +144,7 @@
           </div>
           <div class="brand-actions">
             <button id="setupBackTitle" type="button">タイトルへ戻る</button>
+            <button id="setupGuideButton" type="button">設定ガイド</button>
             <button id="onlineSetupOpenButton" type="button">オンライン</button>
             <div class="brand-badge">MAIN 4 <span>＋</span> SUB 4</div>
           </div>
@@ -108,6 +166,7 @@
               <button type="button" data-mode="team">チーム戦</button>
               <button type="button" data-mode="defense">防衛戦</button>
               <button type="button" data-mode="extra">エキストラ</button>
+              <button type="button" data-mode="tutorial" class="tutorial-mode-button">チュートリアル</button>
             </div>
 
             <div id="extraModeFields" class="extra-mode-fields hidden">
@@ -250,11 +309,9 @@
             </div>
           </section>
 
-          <section class="panel squad-panel">
-            <div class="panel-heading">
-              <span class="step">04</span>
-              <div><h2>隊カスタマイズ</h2><p>隊員名、隊色、隊章、隊名を設定します。</p></div>
-            </div>
+          <details class="panel squad-panel collapsible-panel" id="squadDetailPanel">
+            <summary><span class="step">04</span><div><h2>隊カスタマイズ</h2><p>隊員名、隊色、隊章、隊名を設定します。</p></div><b>OPEN</b></summary>
+            <div class="collapsible-panel-body">
             <div class="squad-grid">
               <div class="squad-fields">
                 <label>プレイヤー名<input id="playerName" type="text" maxlength="18" value="YOU"></label>
@@ -272,7 +329,8 @@
                 <small>NPCや敵チームには、漢字二文字+隊の汎用隊名と汎用エンブレムが自動で割り当てられます。</small>
               </div>
             </div>
-          </section>
+            </div>
+          </details>
 
           <details class="panel cpu-detail-panel" id="cpuDetailPanel">
             <summary><span class="step">05</span><div><h2>対戦隊員設定</h2><p>必要な場合だけ開き、対戦隊員の装備と能力を変更できます。</p></div><b>OPEN</b></summary>
@@ -280,11 +338,9 @@
             <div id="cpuConfigList" class="cpu-config-list"></div>
           </details>
 
-          <section class="panel controls-panel">
-            <div class="panel-heading compact">
-              <span class="step">06</span>
-              <div><h2>操作</h2></div>
-            </div>
+          <details class="panel controls-panel collapsible-panel" id="controlsDetailPanel">
+            <summary><span class="step">06</span><div><h2>操作</h2><p>キー説明と割り当て変更</p></div><b>OPEN</b></summary>
+            <div class="collapsible-panel-body">
             <div class="controls-grid">
               <div><kbd>WASD</kbd><span>移動</span></div>
               <div><kbd>1–4</kbd><span>右手選択</span></div>
@@ -335,6 +391,11 @@
             </div>
             <label class="guide-setting"><span><strong>操作ガイド</strong><small>試合中にキーやボタンの役割を表示します。</small></span><input id="guideEnabled" type="checkbox" checked><i></i></label>
             <label class="guide-setting"><span><strong>効果音</strong><small>攻撃・狙撃・爆発などの効果音を再生します。</small></span><input id="soundEnabled" type="checkbox" checked><i></i></label>
+            </div>
+          </details>
+
+          <section class="panel launch-panel">
+            <div><strong>準備ができたら出撃</strong><span>設定はブラウザに自動保存されます。</span></div>
             <button id="startButton" class="start-button" type="button">
               <span>ランク戦を開始</span><small>START MATCH</small>
             </button>
@@ -344,17 +405,16 @@
             <p class="disclaimer">非公式ファンゲームです。効果音はユーザー提供素材を使用しています。</p>
           </section>
 
-          <section class="panel log-panel">
-            <div class="panel-heading compact">
-              <span class="step">07</span>
-              <div><h2>戦闘記録</h2><p>直近30試合をブラウザ内に保存します。</p></div>
-            </div>
+          <details class="panel log-panel collapsible-panel" id="logDetailPanel">
+            <summary><span class="step">07</span><div><h2>戦闘記録</h2><p>直近30試合をブラウザ内に保存します。</p></div><b>OPEN</b></summary>
+            <div class="collapsible-panel-body">
             <div id="savedLogSummary" class="saved-log-summary">保存ログはありません。</div>
             <div class="log-actions">
               <button id="exportAllLogsButton" type="button">全ログをJSON保存</button>
               <button id="clearLogsButton" type="button" class="secondary">保存ログを削除</button>
             </div>
-          </section>
+            </div>
+          </details>
         </div>
       </div>
     </section>
@@ -667,9 +727,11 @@
   <script src="js/online-config.js?v=32"></script>
   <script src="js/trigger-data.js?v=32"></script>
   <script src="js/online.js?v=32"></script>
-  <script src="js/community.js?v=32"></script>
+  <script src="js/community.js?v=67"></script>
   <script src="simulation-results/latest.js?v=65"></script>
   <script src="js/simulation-results.js?v=65"></script>
-  <script src="js/game.js?v=66"></script>
+  <script src="js/title-demo.js?v=67"></script>
+  <script src="js/tutorial.js?v=67"></script>
+  <script src="js/game.js?v=67"></script>
 </body>
 </html>

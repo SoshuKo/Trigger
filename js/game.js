@@ -31,7 +31,7 @@
   const WEATHER_TYPES = ['clear', 'cloudy', 'rain'];
   const MAP_IDS = ['city', 'desert', 'snowShrine', 'underground'];
   const MAP_LABELS = { city: '▦', desert: '◌', snowShrine: '❄', underground: '▤' };
-  const MODE_LABELS = { solo: '◇', team: '◆', defense: '▣', extra: '✦' };
+  const MODE_LABELS = { solo: '◇', team: '◆', defense: '▣', extra: '✦', tutorial: '◎' };
 
   const EXTRA_BASE_MODE_LABELS = { solo: '個人戦', team: 'チーム戦', defense: '防衛戦' };
   const EXTRA_UNIT_DEFS = {
@@ -94,7 +94,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 66;
+  const GAME_VERSION = 67;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
@@ -248,6 +248,8 @@
     document.documentElement.classList.remove('game-active');
     $('#gameScreen')?.classList.add('hidden');
     $('#setupScreen')?.classList.add('hidden');
+    $('#tutorialScreen')?.classList.add('hidden');
+    $('#titleGuidePanel')?.classList.add('hidden');
     $('#titleScreen')?.classList.remove('hidden');
     renderSavedLogSummary();
     renderTitleRankings();
@@ -260,11 +262,19 @@
     document.documentElement.classList.remove('game-active');
     $('#titleScreen')?.classList.add('hidden');
     $('#gameScreen')?.classList.add('hidden');
+    $('#tutorialScreen')?.classList.add('hidden');
     $('#setupScreen')?.classList.remove('hidden');
     syncSetupUI();
     window.scrollTo({ top: 0, behavior: 'auto' });
-    if (options.controls) setTimeout(() => $('.controls-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+    window.dispatchEvent(new CustomEvent('trion:setup-shown', { detail: { manualGuide: Boolean(options.guide) } }));
+    if (options.controls) {
+      $('#controlsDetailPanel')?.setAttribute('open','');
+      setTimeout(() => $('.controls-panel')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+    }
   }
+
+  window.TRION_SHOW_TITLE = showTitle;
+  window.TRION_SHOW_SETUP = showSetup;
 
   function angleDiff(a, b) {
     let d = (a - b + Math.PI) % TAU - Math.PI;
@@ -868,14 +878,18 @@
 
   function bindSetupControls() {
     $('#enterSetupButton')?.addEventListener('click', () => showSetup());
-    $('#titleGuideButton')?.addEventListener('click', () => showSetup({ controls: true }));
+    $('#titleGuideButton')?.addEventListener('click', () => window.TRION_ONBOARDING?.openGuide?.());
     $('#setupBackTitle')?.addEventListener('click', showTitle);
 
     $('#modeSelector').addEventListener('click', (event) => {
       const button = event.target.closest('button[data-mode]');
       if (!button) return;
+      if (button.dataset.mode === 'tutorial') {
+        window.TRION_TUTORIAL?.open?.();
+        return;
+      }
       setup.mode = button.dataset.mode;
-      $$('#modeSelector button').forEach((b) => b.classList.toggle('active', b === button));
+      $$('#modeSelector button').forEach((b) => b.classList.toggle('active', b.dataset.mode === setup.mode));
       syncModeFields();
       saveSetup();
     });
@@ -9386,16 +9400,22 @@
       }
     }
 
-    stealthBlocksAggro(target, reason = 'sight') {
+    stealthBlocksAggro(observer, target, reason = 'sight') {
       if (!target) return false;
-      if ((target.toggles?.bagworm || target.toggles?.bagwormTag) && reason !== 'attacked') return true;
+      const bagworm = target.toggles?.bagworm || target.toggles?.bagwormTag;
+      if (bagworm) {
+        if (['attacked','majorHit','objective'].includes(reason)) return false;
+        // バッグワームはレーダーだけを消す。遮蔽物の裏なら未発見、
+        // 実視界が通っていれば低優先度の敵として認識できる。
+        return !observer || !this.hasEffectiveSight(observer, target);
+      }
       if (target.toggles?.chameleon && !['attacked','majorHit'].includes(reason)) return true;
       return false;
     }
 
     addThreat(observer, target, amount, reason = 'sight', duration = 5) {
       if (!observer?.ai || !target || observer.id === target.id || !this.canDamage(observer, target)) return false;
-      if (this.stealthBlocksAggro(target, reason)) return false;
+      if (this.stealthBlocksAggro(observer, target, reason)) return false;
       observer.ai.threat ||= {};
       const entry = observer.ai.threat[target.id] || { value:0, timer:0, reason };
       entry.value = clamp(entry.value + amount, 0, 100);
@@ -9432,19 +9452,30 @@
       if (observer.ai.visionTimer > 0) return;
       observer.ai.visionTimer = observer.isDefenseEnemy ? .14 : .18;
       for (const target of this.players) {
-        if (!this.canDamage(observer, target) || this.stealthBlocksAggro(target, 'sight')) continue;
+        if (!this.canDamage(observer, target)) continue;
         const d = Math.hypot(target.x - observer.x, target.y - observer.y);
+        const bagworm = target.toggles?.bagworm || target.toggles?.bagwormTag;
+        const sight = this.hasEffectiveSight(observer, target);
+        if (bagworm) {
+          if (!sight) continue; // 画面範囲内でも遮蔽物の裏なら敵視しない。
+          this.addThreat(observer, target, .72, 'sight', .95); // 視認はするが非脅威ならすぐ優先対象から外れる。
+          continue;
+        }
+        if (this.stealthBlocksAggro(observer, target, 'sight')) continue;
         if (d <= 285) this.addThreat(observer, target, 7.5, 'proximity', 3.2);
-        else if (this.hasEffectiveSight(observer, target)) this.addThreat(observer, target, 2.4, 'sight', 2.2);
+        else if (sight) this.addThreat(observer, target, 2.4, 'sight', 2.2);
       }
     }
 
     emitCombatNoise(source, radius = 620, amount = 8, reason = 'noise') {
-      if (!source || source.toggles?.bagworm || source.toggles?.bagwormTag) return;
+      if (!source) return;
+      const bagworm = source.toggles?.bagworm || source.toggles?.bagwormTag;
       for (const observer of this.players) {
         if (!observer.ai || !this.canDamage(observer, source)) continue;
         const d = Math.hypot(observer.x - source.x, observer.y - source.y);
-        if (d <= radius) this.addThreat(observer, source, amount * (1 - d / Math.max(radius * 1.25, 1)), reason, 4.2);
+        if (d > radius) continue;
+        if (bagworm && !this.hasEffectiveSight(observer, source) && d > 240) continue;
+        this.addThreat(observer, source, amount * (1 - d / Math.max(radius * 1.25, 1)), bagworm ? 'attacked' : reason, bagworm ? 5.5 : 4.2);
       }
     }
 
@@ -9457,11 +9488,15 @@
       }
       const threatEntry = p.ai?.threat?.[target.id];
       const threat = Number(threatEntry?.value || 0);
-      if ((target.toggles.bagworm || target.toggles.bagwormTag) && threatEntry?.reason !== 'attacked') return Infinity;
-      if (target.toggles.chameleon && !['attacked','majorHit'].includes(threatEntry?.reason)) return Infinity;
-      const proximityAware = d <= 285 && !target.toggles.chameleon && !target.toggles.bagworm && !target.toggles.bagwormTag;
-      if (threat <= 0 && !proximityAware && !this.hasEffectiveSight(p, target)) return Infinity;
+      const bagworm = target.toggles.bagworm || target.toggles.bagwormTag;
+      const attackedThroughStealth = ['attacked','majorHit'].includes(threatEntry?.reason);
+      const visible = this.hasEffectiveSight(p, target);
+      if (bagworm && !attackedThroughStealth && !visible) return Infinity;
+      if (target.toggles.chameleon && !attackedThroughStealth) return Infinity;
+      const proximityAware = d <= 285 && !target.toggles.chameleon && !bagworm;
+      if (threat <= 0 && !proximityAware && !visible) return Infinity;
       let score = d / (1 + threat * .115);
+      if (bagworm && !attackedThroughStealth) score *= 2.35;
       if (proximityAware) score *= .38;
       const axisDx=Math.abs(target.x-p.x), axisDy=Math.abs(target.y-p.y);
       if (axisDx < 92 && axisDy > 210) score *= 1.22;

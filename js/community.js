@@ -16,6 +16,8 @@
   let drawValue = 1;
   let onlinePreparation = false;
   let accessRegistered = false;
+  const storageGet = (key) => { try { return localStorage.getItem(key); } catch (_) { return null; } };
+  const storageSet = (key, value) => { try { localStorage.setItem(key, value); } catch (_) {} };
 
   function accountLoggedIn() {
     if (!service) return false;
@@ -350,6 +352,7 @@
   }
   function renderUserState(){
     const logged=accountLoggedIn();$('#userLoggedOut')?.classList.toggle('hidden',logged);$('#userLoggedIn')?.classList.toggle('hidden',!logged);
+    window.dispatchEvent(new CustomEvent('trion:auth-state',{detail:{loggedIn:logged}}));
     if(!logged)return;
     $('#userAccountName').textContent=service.profile?.username||service.profile?.display_name||'USER';$('#userAccountCode').textContent=`FRIEND ${service.profile?.friend_code||'--------'}`;$('#userDisplayName').value=service.profile?.display_name||'隊員';
     $('#onlineDisplayName').value=service.profile?.display_name||'隊員';$('#onlineFriendCodeLabel').textContent=service.profile?.friend_code||'--------';
@@ -393,12 +396,34 @@
     $('#participationRole')?.addEventListener('change',prepSummary);
   }
 
-  async function refreshAccessCounter(){if(accessRegistered)return;try{const count=await service.fetchAccessCount();accessRegistered=true;if($('#accessCounter'))$('#accessCounter').textContent=Number(count||0).toLocaleString('ja-JP');}catch(error){console.warn('Access counter failed',error);}}
+  async function refreshAccessCounter(){
+    if(accessRegistered)return;
+    const stampKey='trionArenaAccessRegisteredAtV67';
+    const countKey='trionArenaAccessCountV67';
+    const last=Number(storageGet(stampKey)||0);
+    const cached=Number(storageGet(countKey)||0);
+    if(Date.now()-last<12*60*60*1000){
+      accessRegistered=true;
+      if($('#accessCounter'))$('#accessCounter').textContent=cached>0?cached.toLocaleString('ja-JP'):'---';
+      return;
+    }
+    try{
+      const count=await service.fetchAccessCount();
+      accessRegistered=true;
+      storageSet(stampKey,String(Date.now()));
+      storageSet(countKey,String(Number(count||0)));
+      if($('#accessCounter'))$('#accessCounter').textContent=Number(count||0).toLocaleString('ja-JP');
+    }catch(error){
+      if($('#accessCounter')&&cached>0)$('#accessCounter').textContent=cached.toLocaleString('ja-JP');
+      console.warn('Access counter failed',error);
+    }
+  }
+  function dispatchAuthState(){window.dispatchEvent(new CustomEvent('trion:auth-state',{detail:{loggedIn:accountLoggedIn()}}));}
   async function initCommunity(){
     bindUi();emblemPixels=presetPixels('cube');drawEmblem();prepSummary();
-    await refreshAccessCounter();await renderRankings();renderUserState();
+    await refreshAccessCounter();await renderRankings();renderUserState();dispatchAuthState();
   }
 
-  service?.addEventListener('ready',async()=>{renderUserState();await refreshAccessCounter();await renderRankings();if(accountLoggedIn())await refreshFriendsAndSquads();});
+  service?.addEventListener('ready',async()=>{renderUserState();dispatchAuthState();await refreshAccessCounter();await renderRankings();if(accountLoggedIn())await refreshFriendsAndSquads();});
   document.addEventListener('DOMContentLoaded',()=>setTimeout(initCommunity,0));
 })();
