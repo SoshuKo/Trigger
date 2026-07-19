@@ -94,7 +94,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 72;
+  const GAME_VERSION = 73;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
@@ -7191,7 +7191,17 @@
         if (options.shift) return this.splitShooterCube(p, hand, charge);
         if (charge.slot !== p.selected[hand] || charge.triggerId !== trigger.id) return false;
         p.shooterCharges[hand] = null;
-        return this.fireShooter(p, hand, trigger, charge.division || 1);
+        const trionSpentBefore = p.metrics?.trionSpent || 0;
+        const activation = this.beginTriggerActivation(p, trigger.id);
+        let used = false;
+        try {
+          used = this.fireShooter(p, hand, trigger, charge.division || 1);
+          if (used) this.recordTriggerUse(p, trigger.id, trigger.name, activation.id, (p.metrics?.trionSpent || 0) - trionSpentBefore);
+          else p._activationHits.delete(activation.id);
+        } finally {
+          this.activeActivation = null;
+        }
+        return used;
       }
       if ((trigger.kind === 'gun' || trigger.kind === 'sniper') && options.shift) return this.beginGunReload(p, hand, trigger);
       if (trigger.id === 'scorpion' && options.shift) {
@@ -9529,7 +9539,7 @@
         if (['attacked','majorHit','objective'].includes(reason)) return false;
         // バッグワームはレーダーだけを消す。遮蔽物の裏なら未発見、
         // 実視界が通っていれば低優先度の敵として認識できる。
-        return !observer || !this.hasEffectiveSight(observer, target);
+        return !observer || !this.hasBagwormVisualContact(observer, target);
       }
       if (target.toggles?.chameleon && !['attacked','majorHit'].includes(reason)) return true;
       return false;
@@ -9551,14 +9561,34 @@
       return Number(observer?.ai?.threat?.[target?.id]?.value || 0);
     }
 
+    getVisualDetectionRange(observer) {
+      return observer?.isDefenseEnemy ? 820 : observer?.archetype === '狙撃手' ? 1120 : observer?.archetype === '銃手' ? 920 : 760;
+    }
+
     hasEffectiveSight(observer, target) {
       if (!observer || !target || target.dead) return false;
       const d = Math.hypot(target.x - observer.x, target.y - observer.y);
-      const roleRange = observer.isDefenseEnemy ? 820 : observer.archetype === '狙撃手' ? 1120 : observer.archetype === '銃手' ? 920 : 760;
-      if (d > roleRange) return false;
+      if (d > this.getVisualDetectionRange(observer)) return false;
       const targetAngle = Math.atan2(target.y - observer.y, target.x - observer.x);
       const fov = observer.isDefenseEnemy ? 2.45 : observer.archetype === '狙撃手' ? 1.72 : 2.18;
       if (d > 150 && Math.abs(angleDiff(targetAngle, observer.aim || 0)) > fov / 2) return false;
+      return !this.findBlockingWall(observer.x, observer.y, target.x, target.y, 3);
+    }
+
+    isInsideObserverScreenView(observer, target, margin = 72) {
+      if (!observer || !target) return false;
+      const halfW = Math.max(360, Number(this.viewW || 1280) / 2) + margin;
+      const halfH = Math.max(260, Number(this.viewH || 720) / 2) + margin;
+      return Math.abs(target.x - observer.x) <= halfW && Math.abs(target.y - observer.y) <= halfH;
+    }
+
+    hasBagwormVisualContact(observer, target) {
+      if (!observer || !target || target.dead) return false;
+      const d = Math.hypot(target.x - observer.x, target.y - observer.y);
+      const longRangeSniperSight = observer.archetype === '狙撃手' && d <= this.getVisualDetectionRange(observer);
+      // バッグワームは視覚を消さない。AIの向きではなく、相手を中心とした実画面内に入っていれば視認できる。
+      // ただし壁・建物などの遮蔽物が線上にある場合は未発見のままにする。
+      if (!this.isInsideObserverScreenView(observer, target) && !longRangeSniperSight) return false;
       return !this.findBlockingWall(observer.x, observer.y, target.x, target.y, 3);
     }
 
@@ -9577,10 +9607,13 @@
         if (!this.canDamage(observer, target)) continue;
         const d = Math.hypot(target.x - observer.x, target.y - observer.y);
         const bagworm = target.toggles?.bagworm || target.toggles?.bagwormTag;
-        const sight = this.hasEffectiveSight(observer, target);
+        const sight = bagworm ? this.hasBagwormVisualContact(observer, target) : this.hasEffectiveSight(observer, target);
         if (bagworm) {
-          if (!sight) continue; // 画面範囲内でも遮蔽物の裏なら敵視しない。
-          this.addThreat(observer, target, .72, 'sight', .95); // 視認はするが非脅威ならすぐ優先対象から外れる。
+          if (!sight) continue; // 遮蔽物の裏なら画面範囲内でも敵視しない。
+          // 視界内なら会敵対象にはするが、未攻撃時は通常の敵より低い敵視値に留める。
+          const desiredThreat = d <= 285 ? 15 : 5.5;
+          const threatDelta = desiredThreat - this.getThreat(observer, target);
+          if (threatDelta > .05) this.addThreat(observer, target, threatDelta, d <= 285 ? 'proximity' : 'sight', d <= 285 ? 3.0 : 2.1);
           continue;
         }
         if (this.stealthBlocksAggro(observer, target, 'sight')) continue;
@@ -9596,7 +9629,7 @@
         if (!observer.ai || !this.canDamage(observer, source)) continue;
         const d = Math.hypot(observer.x - source.x, observer.y - source.y);
         if (d > radius) continue;
-        if (bagworm && !this.hasEffectiveSight(observer, source) && d > 240) continue;
+        if (bagworm && !this.hasBagwormVisualContact(observer, source) && d > 240) continue;
         this.addThreat(observer, source, amount * (1 - d / Math.max(radius * 1.25, 1)), bagworm ? 'attacked' : reason, bagworm ? 5.5 : 4.2);
       }
     }
@@ -9612,13 +9645,13 @@
       const threat = Number(threatEntry?.value || 0);
       const bagworm = target.toggles.bagworm || target.toggles.bagwormTag;
       const attackedThroughStealth = ['attacked','majorHit'].includes(threatEntry?.reason);
-      const visible = this.hasEffectiveSight(p, target);
+      const visible = bagworm ? this.hasBagwormVisualContact(p, target) : this.hasEffectiveSight(p, target);
       if (bagworm && !attackedThroughStealth && !visible) return Infinity;
       if (target.toggles.chameleon && !attackedThroughStealth) return Infinity;
       const proximityAware = d <= 285 && !target.toggles.chameleon && !bagworm;
       if (threat <= 0 && !proximityAware && !visible) return Infinity;
       let score = d / (1 + threat * .115);
-      if (bagworm && !attackedThroughStealth) score *= 2.35;
+      if (bagworm && !attackedThroughStealth) score *= 1.35;
       if (proximityAware) score *= .38;
       const axisDx=Math.abs(target.x-p.x), axisDy=Math.abs(target.y-p.y);
       if (axisDx < 92 && axisDy > 210) score *= 1.22;

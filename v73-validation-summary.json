@@ -1,0 +1,105 @@
+{
+  "version": 73,
+  "scope": "v66 major feature preservation plus v73 targeted regression tests",
+  "v66MajorFeatureAudit": {
+    "requiredDomIds": {
+      "titleScreen": true,
+      "setupScreen": true,
+      "simulationResultsScreen": true,
+      "userPanel": true,
+      "onlinePanel": true,
+      "gameScreen": true,
+      "gameCanvas": true,
+      "radarCanvas": true,
+      "operatorPanel": true,
+      "debugPanel": true,
+      "controlGuide": true,
+      "mobileControls": true,
+      "pauseOverlay": true,
+      "resultOverlay": true,
+      "modeSelector": true,
+      "mainSlots": true,
+      "subSlots": true,
+      "cpuConfigList": true,
+      "startButton": true
+    },
+    "requiredModes": {
+      "data-mode=\"solo\"": true,
+      "data-mode=\"team\"": true,
+      "data-mode=\"defense\"": true,
+      "data-mode=\"extra\"": true
+    },
+    "gameCodeMarkers": {
+      "blackTrigger": true,
+      "hyakki": true,
+      "EXTRA_UNIT_DEFS": true,
+      "TRION_SIMULATION_API": true,
+      "MASTERY_RANKS": true,
+      "DEFAULT_KEY_BINDINGS": true,
+      "AI_DIFFICULTIES": true,
+      "snowShrine": true,
+      "underground": true,
+      "defenseBuildPanel": true,
+      "beginShooterCharge": true,
+      "fireGun": true,
+      "fireSniper": true,
+      "useMelee": true,
+      "toggleTrigger": true
+    },
+    "cubeAnimationPresent": true,
+    "heavyTitleDemoAbsent": true,
+    "duplicateHtmlIds": []
+  },
+  "targetedTests": {
+    "shooterTutorial": {
+      "asteroidUses": 1,
+      "houndUses": 1,
+      "projectilesFired": 2,
+      "chargesStarted": 2,
+      "nextEnabled": true,
+      "objectiveClasses": [
+        "done",
+        "done",
+        "done"
+      ]
+    },
+    "bagwormAwareness": {
+      "bagworm": {
+        "ordinaryFacingSight": false,
+        "visualContact": true,
+        "threat": 2.6,
+        "targeted": true
+      },
+      "bagwormTag": {
+        "ordinaryFacingSight": false,
+        "visualContact": true,
+        "threat": 2.6,
+        "targeted": true
+      },
+      "cover": {
+        "visualContact": false,
+        "threat": 0,
+        "targeted": false
+      }
+    },
+    "pageErrors": []
+  },
+  "syntax": {
+    "js/game.js": "pass",
+    "js/tutorial.js": "pass",
+    "js/community.js": "pass",
+    "js/online.js": "pass",
+    "js/trigger-data.js": "pass",
+    "js/simulation-results.js": "pass"
+  },
+  "files": {
+    "index.html": "04b79b403f48a113d7e44af286b0e39ba5f70ced7d4846f222a59bf954b14141",
+    "styles.css": "ab90943bd12ee29c55a5d70ef13f91c84c863dfb4e27bf49aaf30861d7ee6165",
+    "js/game.js": "bed709ded7472048c3d95f933841781bfd7306c4255c6ac4284c635102705d7a",
+    "js/community.js": "18ccbf3273e01d35cddc4e0f3a5bf6b8c87425f106e0823eb1f0fb59a8d1c4af",
+    "js/tutorial.js": "04e6b9ef3c307838ef42a222c64dbc3135536f5cffcd6a2ea2d097dbc446c694",
+    "js/online.js": "861a15fc50bb281bcd9b8ff2033848a2699ecb17c6ed551289358a2fa1e87d6d",
+    "js/trigger-data.js": "811faeb6ac89b945d55c931df9a2031c99d25abaae99af10901e121587ea22a4",
+    "js/simulation-results.js": "086259e0f56209f700d8cf52620aac301689edb8421210e796bb6179f1300eb8"
+  }
+}
