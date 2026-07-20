@@ -34,6 +34,22 @@
     {id:'kakizaki',ja:'カキザキ隊',en:'KAKIZAKI SQUAD',agents:[A('カキザキ','KAKIZAKI','万能手',[4,7,7],['kogetsu','senku','gun_asteroid','gun_meteor'],['shield','shield','bagworm']),A('テルヤ','TERUYA','万能手',[4,8,6],['kogetsu','senku','gun_asteroid','gun_hound'],['shield','shield','bagworm']),A('トモエ','TOMOE','ガンナー',[3,6,9],['kogetsu','handgun_asteroid','handgun_hound','shield'],['grasshopper','shield','bagworm'])]}
   ];
 
+  const SQUAD_UNIFORMS={
+    ninomiya:{primary:'#20242b',secondary:'#4a505a',accent:'#f4f6f8'},
+    tamakoma2:{primary:'#176d9a',secondary:'#27c7d9',accent:'#f4f8fb'},
+    kageura:{primary:'#29272f',secondary:'#111216',accent:'#70449b'},
+    ikoma:{primary:'#b33a29',secondary:'#17191d',accent:'#f4f4f1'},
+    oji:{primary:'#152131',secondary:'#2456a6',accent:'#d8b35a'},
+    azuma:{primary:'#174f55',secondary:'#16191d',accent:'#80664d'},
+    nasu:{primary:'#f0f1f5',secondary:'#68459c',accent:'#32316d'},
+    yuba:{primary:'#681f32',secondary:'#17171b',accent:'#d9c6a2'},
+    kuruma:{primary:'#285a38',secondary:'#16191b',accent:'#c6cbd0'},
+    arafune:{primary:'#596331',secondary:'#34383b',accent:'#111316'},
+    katori:{primary:'#d86925',secondary:'#17181c',accent:'#f3f3ef'},
+    suwa:{primary:'#782c31',secondary:'#14161a',accent:'#7d848c'},
+    kakizaki:{primary:'#243d67',secondary:'#f0f2f5',accent:'#aeb7c1'}
+  };
+
   const NAMED_BEHAVIORS={
     NINOMIYA:{style:'artillery',preferredRange:430,aggression:.86,defense:.9,special:'ninomiya'},
     INUKAI:{style:'herder',preferredRange:300,aggression:.72,defense:.78,special:'herd'},
@@ -251,7 +267,7 @@
       if(slot?.squad==='vacant'){vacant.add(p);return;}
       if(!slot||slot.squad==='mob'||!slot.agent)return;
       const squad=SQUADS.find(s=>s.id===slot.squad),a=squad?.agents.find(agent=>agent.en===slot.agent);if(!a)return;
-      p.name=labelOf(a);p.v78Named=a.en;p.v78Squad=slot.squad;p.v79BaseCombat=a.stats[2];p.v78Tetra=!!a.tetra;p.archetype=ROLE_TO_ARCHETYPE[a.role]||a.role;
+      p.name=labelOf(a);p.v78Named=a.en;p.v78Squad=slot.squad;p.v79BaseCombat=a.stats[2];p.v78Tetra=!!a.tetra;p.archetype=ROLE_TO_ARCHETYPE[a.role]||a.role;const uniform=SQUAD_UNIFORMS[slot.squad];if(uniform){p.v86Uniform={...uniform};p.color=uniform.primary;p.characterColor=uniform.primary;p.bodyColor=uniform.primary;p.suitColor=uniform.primary;p.accentColor=uniform.accent;p.outlineColor=uniform.secondary;}
       p.stats={...(p.stats||{}),trion:a.stats[0],technique:a.stats[1],combat:a.stats[2]};p.loadout={main:[...a.main],sub:[...a.sub]};p.selected={main:0,sub:0};
       if(p.maxTrion!=null){p.maxTrion=Math.max(p.maxTrion,a.stats[0]*12+40);p.trion=p.maxTrion;}
     });
@@ -264,7 +280,19 @@
   function segDist(x1,y1,x2,y2,px,py){const dx=x2-x1,dy=y2-y1,l=dx*dx+dy*dy||1,t=clamp(((px-x1)*dx+(py-y1)*dy)/l,0,1);return{d:Math.hypot(px-(x1+dx*t),py-(y1+dy*t)),t};}
   function moleClaw(g,p=humanOf(g),quiet=false){if(!p||!hasTrigger(p,'scorpion'))return false;const walls=(g.walls||[]).filter(w=>{const cx=clamp(p.x,w.x,w.x+w.w),cy=clamp(p.y,w.y,w.y+w.h);return Math.hypot(p.x-cx,p.y-cy)<p.radius+26;});if(!walls.length)return false;const wall=walls[0];const target=(g.players||[]).filter(t=>g.canDamage?.(p,t)&&!t.dead).map(t=>({t,d:Math.hypot(t.x-clamp(t.x,wall.x,wall.x+wall.w),t.y-clamp(t.y,wall.y,wall.y+wall.h))})).filter(x=>x.d<x.t.radius+30).sort((a,b)=>a.d-b.d)[0]?.t;if(!target||!g.consumeTrion?.(p,4))return false;g.effects?.push({type:'slash',x:target.x,y:target.y,angle:Math.atan2(target.y-p.y,target.x-p.x),range:42,arc:6.1,style:'moleClaw',ttl:.28,maxTtl:.28});g.damagePlayer?.(target,28*(.82+p.stats.combat*.05),p,{x:target.x,y:target.y,type:'melee',name:'モールクロー',sourceKey:'moleClaw'});if(!quiet)flash('モールクロー');return true;}
   function pinball(g,blade){const p=humanOf(g),target=nearestEnemy(g,p,650);if(!p||!target)return;if(blade){if(!hasTrigger(p,'grasshopper')||!hasTrigger(p,'scorpion'))return flash('グラスホッパー＋スコーピオンが必要');}else{const count=[...(p.loadout.main||[]),...(p.loadout.sub||[])].filter(x=>x==='grasshopper').length;if(count<2||!['kogetsu','scorpion','raygust'].some(id=>hasTrigger(p,id)))return flash('グラスホッパー×2＋攻撃手トリガーが必要');}if(p.v77PinballUntil>performance.now())return;const cost=blade?15:12;if(!g.consumeTrion?.(p,cost))return;p.v77PinballUntil=performance.now()+2600;flash(blade?'ブレード乱反射':'乱反射');const points=Array.from({length:8},(_,i)=>{const a=i*Math.PI/4;return{x:target.x+Math.cos(a)*110,y:target.y+Math.sin(a)*110};});points.forEach((pt,i)=>setTimeout(()=>{if(p.dead||target.dead)return;p.x=clamp(pt.x,p.radius,g.world.w-p.radius);p.y=clamp(pt.y,p.radius,g.world.h-p.radius);p.vx=Math.cos(i*Math.PI/4+Math.PI/2)*420;p.vy=Math.sin(i*Math.PI/4+Math.PI/2)*420;g.effects?.push({type:'grasshopper',x:p.x,y:p.y,angle:p.aim,ttl:.35,maxTtl:.35});g.damagePlayer?.(target,(blade?10:7)*(.9+p.stats.combat*.035),p,{x:p.x,y:p.y,type:'melee',name:blade?'ブレード乱反射':'乱反射',sourceKey:blade?'bladePinball':'pinball'});},i*110));}
-  function drawTetra(g){const ctx=g?.ctx||g?.context;if(!ctx)return;for(const p of g.players||[]){if(!p.v78Tetra||p.dead)continue;const charge=p.shooterCharges&&Object.values(p.shooterCharges).some(Boolean);if(!charge&&!hasTrigger(p,'shooter_asteroid')&&!hasTrigger(p,'shooter_hound')&&!hasTrigger(p,'shooter_meteor'))continue;const cam=g.camera||{x:0,y:0};const x=p.x-(cam.x||0),y=p.y-(cam.y||0)-34,r=17;ctx.save();ctx.strokeStyle='rgba(158,220,255,.95)';ctx.fillStyle='rgba(83,156,220,.18)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x-r,y+r*.65);ctx.lineTo(x+r,y+r*.65);ctx.closePath();ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x,y+r*.18);ctx.lineTo(x-r,y+r*.65);ctx.moveTo(x,y+r*.18);ctx.lineTo(x+r,y+r*.65);ctx.stroke();ctx.restore();}}
+  function screenPoint(g,x,y){const cam=g.camera||{x:0,y:0};return{x:x-(cam.x||0),y:y-(cam.y||0)};}
+  function tetraPath(ctx,x,y,r,angle=0){ctx.save();ctx.translate(x,y);ctx.rotate(angle);ctx.beginPath();ctx.moveTo(0,-r);ctx.lineTo(-r*.92,r*.72);ctx.lineTo(r*.92,r*.72);ctx.closePath();ctx.moveTo(0,-r);ctx.lineTo(0,r*.18);ctx.lineTo(-r*.92,r*.72);ctx.moveTo(0,r*.18);ctx.lineTo(r*.92,r*.72);ctx.restore();}
+  function drawTetraAt(ctx,x,y,r,angle=0){ctx.save();ctx.fillStyle='rgba(74,153,218,.96)';ctx.strokeStyle='rgba(205,240,255,.98)';ctx.lineWidth=Math.max(1.5,r*.12);tetraPath(ctx,x,y,r,angle);ctx.fill();ctx.stroke();ctx.restore();}
+  function projectileOwnerIsNinomiya(g,item){if(!item)return false;const id=item.ownerId??item.playerId??item.sourceId??item.owner?.id??item.source?.id;return (g.players||[]).some(p=>p.v78Named==='NINOMIYA'&&(p===item.owner||p===item.source||p.id===id));}
+  function drawNinomiyaTetrahedrons(g){const ctx=g?.ctx||g?.context;if(!ctx)return;const n=(g.players||[]).find(p=>p.v78Named==='NINOMIYA'&&!p.dead);if(!n)return;
+    const charges=n.shooterCharges?Object.values(n.shooterCharges).filter(Boolean):[];
+    for(const charge of charges){const aim=Number.isFinite(charge.aim)?charge.aim:n.aim;const wx=Number.isFinite(charge.x)?charge.x:n.x+Math.cos(aim)*42;const wy=Number.isFinite(charge.y)?charge.y:n.y+Math.sin(aim)*42;const sp=screenPoint(g,wx,wy);drawTetraAt(ctx,sp.x,sp.y,18,aim+Math.PI/2);}
+    const groups=[g.projectiles,g.bullets,g.shots].filter(Array.isArray);
+    const seen=new Set();for(const group of groups)for(const item of group){if(!item||seen.has(item)||!projectileOwnerIsNinomiya(g,item))continue;seen.add(item);if(!Number.isFinite(item.x)||!Number.isFinite(item.y))continue;const sp=screenPoint(g,item.x,item.y);const ang=Number.isFinite(item.angle)?item.angle:Math.atan2(item.vy||0,item.vx||1);drawTetraAt(ctx,sp.x,sp.y,Math.max(7,Math.min(18,item.radius||item.r||10)),ang+Math.PI/2);}
+  }
+  function drawNamedUniforms(g){const ctx=g?.ctx||g?.context;if(!ctx)return;for(const p of g.players||[]){if(p.dead||!p.v86Uniform)continue;const sp=screenPoint(g,p.x,p.y),r=Math.max(10,p.radius||16),u=p.v86Uniform;ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(p.aim||0);ctx.fillStyle=u.primary;ctx.strokeStyle=u.secondary;ctx.lineWidth=Math.max(2,r*.18);ctx.beginPath();ctx.roundRect?.(-r*.72,-r*.62,r*1.44,r*1.24,r*.35);if(!ctx.roundRect){ctx.rect(-r*.72,-r*.62,r*1.44,r*1.24);}ctx.fill();ctx.stroke();ctx.strokeStyle=u.accent;ctx.lineWidth=Math.max(1.5,r*.12);ctx.beginPath();ctx.moveTo(-r*.54,0);ctx.lineTo(r*.54,0);ctx.stroke();ctx.restore();}}
+  function tagNewNinomiyaProjectiles(g,p,before){if(p?.v78Named!=='NINOMIYA')return;for(const [key,count] of Object.entries(before)){const arr=g[key];if(!Array.isArray(arr))continue;for(const item of arr.slice(count)){if(item&&typeof item==='object'){item.v86Tetra=true;item.ownerId??=p.id;}}}}
+
   function patchGame(g){if(!g||!g.constructor)return;currentGame=g;applyNamed(g);const proto=Object.getPrototypeOf(g);if(patchedProto===proto)return;patchedProto=proto;
     const oldUseMelee=proto.useMelee;proto.useMelee=function(p,hand,trigger,options){if(trigger?.id==='scorpion'&&moleClaw(this,p,true)){this.setCooldown?.(p,hand,Math.max(.28,trigger.cooldown*.8));this.revealOnAttack?.(p,1.2);return true;}return typeof oldUseMelee==='function'?oldUseMelee.call(this,p,hand,trigger,options):false;};
     const oldSenku=proto.performSenku;proto.performSenku=function(p,trigger){const duration=p.v79IkomaSenku?.2:clamp(settings.senkuDuration,.18,1.2),ratio=.7/duration,range=(trigger.range+p.stats.trion*8)*clamp(Math.sqrt(ratio),.72,p.v79IkomaSenku?2.75:2),end={x:p.x+Math.cos(p.aim)*range,y:p.y+Math.sin(p.aim)*range};this.sfx?.play('attacker',{x:p.x,y:p.y,bucket:`senku:${p.id}`,cooldown:.12,volume:.5,rate:.94});this.effects.push({type:'senku',x:p.x,y:p.y,x2:end.x,y2:end.y,ttl:duration,maxTtl:duration});this.damageWorldSegment?.(p.x,p.y,end.x,end.y,trigger.damage*.8,p.team,20);const hits=[];for(const target of this.players){if(!this.canDamage?.(p,target))continue;const hit=segDist(p.x,p.y,end.x,end.y,target.x,target.y);if(hit.d<=target.radius+20)hits.push({target,hit});}hits.sort((a,b)=>a.hit.t-b.hit.t).forEach(({target,hit},i)=>this.damagePlayer?.(target,trigger.damage*(.72+hit.t*.62)*[1,.62,.38,.25][Math.min(i,3)]*(.82+p.stats.combat*.04),p,{x:p.x,y:p.y,type:'melee',name:'旋空',sourceKey:'senku'}));};
@@ -272,15 +300,35 @@
     const oldWire=proto.placeWire;proto.placeWire=function(p,hand,trigger){const ok=typeof oldWire==='function'?oldWire.call(this,p,hand,trigger):false;if(ok&&p.spiderMode){const w=this.wires[this.wires.length-1];if(w){w.mode='spring';w.springPower=760+p.stats.combat*34;w.hp=Math.max(w.hp||0,42);w.ttl=Math.max(w.ttl||0,90);}}return ok;};
     const oldGrass=proto.grasshopper;proto.grasshopper=function(p,hand,trigger){if(p.human&&shiftHeld){settings.grasshopperMode=settings.grasshopperMode==='placed'?'instant':'placed';save();flash(`グラスホッパー：${settings.grasshopperMode==='placed'?'設置':'即時使用'}`);return true;}if((p.human&&settings.grasshopperMode==='placed')||p.v77PlaceGrasshopper){if(!this.consumeTrion?.(p,trigger.cost))return false;const target=p.human?this.getHumanAimPoint?.(p,210):{x:p.x+Math.cos(p.aim)*150,y:p.y+Math.sin(p.aim)*150},dx=target.x-p.x,dy=target.y-p.y,d=Math.hypot(dx,dy)||1,travel=Math.min(d,250);this.traps.push({x:p.x+dx/d*travel,y:p.y+dy/d*travel,radius:25,team:p.team,ownerId:p.id,type:2,ttl:55,armed:.1,hp:38,v77Grass:true,power:780+p.stats.combat*36});this.effects.push({type:'grasshopper',x:p.x+dx/d*travel,y:p.y+dy/d*travel,angle:p.aim,ttl:.7,maxTtl:.7});this.setCooldown?.(p,hand,Math.max(.35,trigger.cooldown*.72));return true;}if(!this.consumeTrion?.(p,trigger.cost))return false;const power=680+p.stats.combat*36;p.vx+=Math.cos(p.aim)*power;p.vy+=Math.sin(p.aim)*power;p.metrics.grasshopperBoostImpulse=(p.metrics.grasshopperBoostImpulse||0)+power;this.effects.push({type:'grasshopper',x:p.x+Math.cos(p.aim)*30,y:p.y+Math.sin(p.aim)*30,angle:p.aim,ttl:.55,maxTtl:.55});this.setCooldown?.(p,hand,Math.max(.3,trigger.cooldown*.65));return true;};
     const oldUpdate=proto.update;proto.update=function(dt){const out=oldUpdate.call(this,dt);for(const p of this.players||[]){for(const hand of ['main','sub']){const s=p.shields?.[hand];if(!s)continue;const coverage=clamp(settings.shieldCoverage,.15,1),thickness=1/coverage;s.v77Coverage=coverage;s.arc=(s.baseArc||s.arc||1.3)*(.55+coverage*.8);s.radius=(s.baseRadius||s.radius||70)*(.65+coverage*.75);s.hp=Math.max(s.hp||0,(s.maxHp||80)*(.65+thickness*.65));}for(const w of this.wires||[]){if(w.mode!=='spring')continue;const hit=segDist(w.x1,w.y1,w.x2,w.y2,p.x,p.y);if(hit.d>p.radius+8||p.v77WireBounce>performance.now())continue;const ally=w.team===p.team||this.config?.mode==='solo'&&w.ownerId===p.id;if(!ally)continue;const nx=-(w.y2-w.y1),ny=w.x2-w.x1,n=Math.hypot(nx,ny)||1,power=w.springPower||720;p.vx+=nx/n*power;p.vy+=ny/n*power;p.v77WireBounce=performance.now()+700;this.effects.push({type:'grasshopper',x:p.x,y:p.y,angle:Math.atan2(ny,nx),ttl:.45,maxTtl:.45});}applyNamedBehavior(this,p,dt);}return out;};
+    const oldFireShooter=proto.fireShooter;if(oldFireShooter)proto.fireShooter=function(p,...args){const before={projectiles:Array.isArray(this.projectiles)?this.projectiles.length:0,bullets:Array.isArray(this.bullets)?this.bullets.length:0,shots:Array.isArray(this.shots)?this.shots.length:0};const out=oldFireShooter.call(this,p,...args);tagNewNinomiyaProjectiles(this,p,before);return out;};
+    const oldBeginShooterCharge=proto.beginShooterCharge;if(oldBeginShooterCharge)proto.beginShooterCharge=function(p,hand,trigger){const out=oldBeginShooterCharge.call(this,p,hand,trigger);if(p?.v78Named==='NINOMIYA'&&p.shooterCharges?.[hand])p.shooterCharges[hand].v86Tetra=true;return out;};
     const oldDamage=proto.damagePlayer;if(oldDamage)proto.damagePlayer=function(target,amount,source,meta){if(target?.v79DefenseScale)amount/=target.v79DefenseScale;if(source?.v78Named==='NINOMIYA'&&meta?.sourceKey?.includes('asteroid'))amount*=1.12;if(source?.v78Named==='YUBA'&&performance.now()<(source.v79QuickdrawUntil||0))amount*=1.18;if(source?.v78Named==='HANZAKI'&&meta?.type==='sniper')amount*=1.15;return oldDamage.call(this,target,amount,source,meta);};
-    const oldRender=proto.render;if(oldRender)proto.render=function(...args){const out=oldRender.apply(this,args);drawTetra(this);return out;};
+    const oldRender=proto.render;if(oldRender)proto.render=function(...args){const out=oldRender.apply(this,args);drawNamedUniforms(this);drawNinomiyaTetrahedrons(this);return out;};
   }
   window.addEventListener('keydown',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=true;if(e.repeat||e.code!=='KeyC'||!currentGame)return;const p=humanOf(currentGame);if(!p)return;const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])],hasBlade=all.includes('grasshopper')&&all.includes('scorpion'),hasPin=all.filter(x=>x==='grasshopper').length>=2&&['kogetsu','scorpion','raygust'].some(id=>all.includes(id));if(!hasBlade&&!hasPin)return;e.preventDefault();e.stopImmediatePropagation();setTimeout(()=>pinball(currentGame,hasBlade),0);},true);
   window.addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=false;},true);window.addEventListener('blur',()=>shiftHeld=false);
+  function resetNamedOpponentSlotsToMob(){
+    for(let i=0;i<opponentSlots.length;i++) opponentSlots[i]={squad:'mob',agent:''};
+    saveRoster();
+    mobSnapshots.clear();
+    document.querySelectorAll('#cpuConfigList .cpu-card').forEach(card=>{
+      clearCardVacant(card);
+      delete card.dataset.namedAgent;
+    });
+    mountRoster(true);
+  }
+  document.addEventListener('click',event=>{
+    const button=event.target?.closest?.('button');
+    if(!button)return;
+    const text=(button.textContent||'').replace(/\s+/g,' ').trim();
+    const isStandardReset=text.includes('標準編成に戻す')||(/standard/i.test(text)&&/(restore|reset|return)/i.test(text));
+    if(!isStandardReset)return;
+    setTimeout(resetNamedOpponentSlotsToMob,0);
+  },true);
   mountRoster(true);
   window.addEventListener('trion-language-change',()=>mountRoster(true));
   const rosterObserver=new MutationObserver(()=>mountRoster(false));
   const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
-  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=84;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 84');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
+  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=86;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 86');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
   window.addEventListener('beforeunload',()=>{clearInterval(timer);rosterObserver.disconnect();});
 })();
