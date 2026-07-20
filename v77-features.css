@@ -4,3 +4,10 @@
 .v81-card-agent-picker{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;margin-bottom:4px;border:1px solid rgba(103,218,255,.3);background:rgba(7,31,44,.7)}
 .v81-card-agent-picker label{display:grid;gap:6px}.v81-card-agent-picker span{font-size:12px;color:#9dbdcc}.v81-card-agent-picker select{width:100%;min-height:42px;padding:8px 12px;background:#102b3a;color:#e8faff;border:1px solid #36748c}.v81-card-agent-picker select:disabled{opacity:.58}
 @media(max-width:720px){.v81-card-agent-picker{grid-template-columns:1fr}}
+
+
+/* v84: vacant opponent slots */
+.cpu-card.v84-vacant-card { opacity: .68; }
+.cpu-card.v84-vacant-card .cpu-loadout-grid,
+.cpu-card.v84-vacant-card .cpu-stat-grid { filter: grayscale(.85); }
+.cpu-card.v84-vacant-card .v81-card-agent-picker { opacity: 1; filter: none; }

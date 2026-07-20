@@ -97,7 +97,7 @@
     const d=Math.hypot(target.x-p.x,target.y-p.y);p.aim=Math.atan2(target.y-p.y,target.x-p.x);
     const desired=b.preferredRange||240;if(d>desired*1.2)nudgeToward(p,target.x,target.y,(b.aggression||.7)*28*dt);if(d<desired*.65)nudgeAway(p,target.x,target.y,(b.defense||.7)*26*dt);
     if(p.v79Think>0)return;p.v79Think=.18+Math.random()*.18;
-    const leader=allies.find(a=>a.v78Named===squadLeaderName[chosen.squad]);
+    const leader=allies.find(a=>a.v78Named===squadLeaderName[p.v78Squad]);
     if(['guardLeader','bodyguard'].includes(b.special)&&leader){const ld=Math.hypot(leader.x-p.x,leader.y-p.y);if(ld>140)nudgeToward(p,leader.x,leader.y,95);const threat=nearest(enemies,leader)?.t;if(threat)setAiTarget(p,threat);}
     if(b.special==='pair'){const mate=allies.find(a=>['KOARAI','OKUDERA'].includes(a.v78Named));if(mate){const md=Math.hypot(mate.x-p.x,mate.y-p.y);if(md>150)nudgeToward(p,mate.x,mate.y,75);else{p.stats.combat=Math.max(p.stats.combat,p.v79BaseCombat? p.v79BaseCombat+1.2:p.stats.combat);}}}
     if(b.special==='formation'){const mates=allies.filter(a=>['KAKIZAKI','TERUYA','TOMOE'].includes(a.v78Named));const far=mates.find(a=>Math.hypot(a.x-p.x,a.y-p.y)>210);if(far)nudgeToward(p,far.x,far.y,70);else{p.v79FormationBonus=1;p.hp=Math.min(p.maxHp||p.hp,p.hp+dt*.3);}}
@@ -127,7 +127,7 @@
   function loadOpponentSlots(){
     try{
       const raw=JSON.parse(localStorage.getItem(ROSTER_STORAGE_KEY)||'null');
-      if(Array.isArray(raw)) return Array.from({length:MAX_OPPONENT_SLOTS},(_,i)=>({squad:raw[i]?.squad||'mob',agent:raw[i]?.agent||''}));
+      if(Array.isArray(raw)) return Array.from({length:MAX_OPPONENT_SLOTS},(_,i)=>{const squad=raw[i]?.squad;return {squad:squad==='vacant'||SQUADS.some(s=>s.id===squad)?squad:'mob',agent:raw[i]?.agent||''};});
     }catch(_){ }
     return Array.from({length:MAX_OPPONENT_SLOTS},()=>({squad:'mob',agent:''}));
   }
@@ -165,58 +165,111 @@
     const title=card.querySelector('.cpu-card-title');if(title&&snap.summary)title.innerHTML=snap.summary;
     delete card.dataset.namedAgent;
   }
-  function mountRoster(){
+  function setCardVacant(card,index){
+    snapshotCard(card,index);
+    card.classList.add('v84-vacant-card');
+    card.dataset.vacant='true';
+    const name=card.querySelector('.cpu-name');if(name)name.value=lang()==='en'?'VACANT':'空き枠';
+    const title=card.querySelector('.cpu-card-title');if(title)title.innerHTML=`<strong>${lang()==='en'?'VACANT':'空き枠'}</strong><span>${lang()==='en'?'No combatant':'隊員なし'}</span>`;
+    card.querySelectorAll('.cpu-basic-grid input,.cpu-basic-grid select:not([data-squad]):not([data-agent]),.cpu-loadout-grid select').forEach(el=>el.disabled=true);
+    delete card.dataset.namedAgent;
+  }
+  function clearCardVacant(card){
+    card.classList.remove('v84-vacant-card');
+    delete card.dataset.vacant;
+    card.querySelectorAll('.cpu-basic-grid input,.cpu-basic-grid select:not([data-squad]):not([data-agent]),.cpu-loadout-grid select').forEach(el=>el.disabled=false);
+  }
+  function mountRoster(force=false){
     document.querySelectorAll('.v80-opponent-slots,.v78-named-roster').forEach(el=>el.remove());
     const root=document.querySelector('#cpuConfigList');if(!root)return;
     const cards=[...root.querySelectorAll('.cpu-card')];
+    const language=lang();
     cards.forEach((card,index)=>{
       const grid=card.querySelector('.cpu-basic-grid');if(!grid)return;
       let picker=grid.querySelector('.v81-card-agent-picker');
-      if(!picker){
+      const needsCreate=!picker;
+      if(needsCreate){
         picker=document.createElement('div');picker.className='v81-card-agent-picker';picker.innerHTML='<label><span data-squad-label></span><select data-squad></select></label><label><span data-agent-label></span><select data-agent></select></label>';
         grid.prepend(picker);
       }
-      const slot=opponentSlots[index]||{squad:'mob',agent:''},en=lang()==='en';
+      if(!force&&!needsCreate&&picker.dataset.language===language)return;
+      picker.dataset.language=language;
+      const slot=opponentSlots[index]||{squad:'mob',agent:''},en=language==='en';
       picker.querySelector('[data-squad-label]').textContent=en?'Squad / Type':'部隊／種別';
       picker.querySelector('[data-agent-label]').textContent=en?'Agent':'隊員';
       const squadSel=picker.querySelector('[data-squad]'),agentSel=picker.querySelector('[data-agent]');
-      squadSel.innerHTML=`<option value="mob">${en?'MOB / CUSTOM':'モブ／カスタム'}</option>`+SQUADS.map(s=>`<option value="${s.id}">${en?s.en:s.ja}</option>`).join('');
-      squadSel.value=SQUADS.some(s=>s.id===slot.squad)?slot.squad:'mob';
+      const fillSquads=()=>{
+        const current=slot.squad==='vacant'||SQUADS.some(s=>s.id===slot.squad)?slot.squad:'mob';
+        squadSel.innerHTML=`<option value="mob">${en?'MOB / CUSTOM':'モブ／カスタム'}</option><option value="vacant">${en?'VACANT':'空き枠'}</option>`+SQUADS.map(s=>`<option value="${s.id}">${en?s.en:s.ja}</option>`).join('');
+        squadSel.value=current;
+      };
       const fillAgents=()=>{
-        const squad=SQUADS.find(s=>s.id===squadSel.value);
+        if(slot.squad==='vacant'){
+          agentSel.disabled=true;
+          agentSel.innerHTML=`<option value="">${en?'No combatant':'隊員なし'}</option>`;
+          agentSel.value='';
+          setCardVacant(card,index);
+          return;
+        }
+        const squad=SQUADS.find(s=>s.id===slot.squad);
         agentSel.disabled=!squad;
-        if(!squad){agentSel.innerHTML=`<option value="">${en?'Use current custom settings':'現在のモブ設定を使用'}</option>`;slot.squad='mob';slot.agent='';restoreMobDisplay(card,index);return;}
-        agentSel.innerHTML=squad.agents.map(a=>`<option value="${a.en}">${labelOf(a)}</option>`).join('');
+        clearCardVacant(card);
+        if(!squad){
+          agentSel.innerHTML=`<option value="">${en?'Use current custom settings':'現在のモブ設定を使用'}</option>`;
+          agentSel.value='';
+          restoreMobDisplay(card,index);
+          return;
+        }
+        agentSel.innerHTML=squad.agents.map(a=>`<option value="${a.en}">${en?a.en:a.ja}</option>`).join('');
         if(!squad.agents.some(a=>a.en===slot.agent))slot.agent=squad.agents[0]?.en||'';
         agentSel.value=slot.agent;
         const agent=squad.agents.find(a=>a.en===slot.agent);if(agent)setCardDisplay(card,index,agent);
       };
-      squadSel.onchange=()=>{slot.squad=squadSel.value;slot.agent='';fillAgents();saveRoster();};
-      agentSel.onchange=()=>{slot.agent=agentSel.value;const squad=SQUADS.find(s=>s.id===slot.squad),agent=squad?.agents.find(a=>a.en===slot.agent);if(agent)setCardDisplay(card,index,agent);saveRoster();};
+      fillSquads();
       fillAgents();
+      squadSel.onchange=()=>{
+        slot.squad=squadSel.value==='vacant'?'vacant':(SQUADS.some(s=>s.id===squadSel.value)?squadSel.value:'mob');
+        slot.agent='';
+        fillAgents();
+        saveRoster();
+      };
+      agentSel.onchange=()=>{
+        slot.agent=agentSel.value;
+        const squad=SQUADS.find(s=>s.id===slot.squad),agent=squad?.agents.find(a=>a.en===slot.agent);
+        if(agent)setCardDisplay(card,index,agent);
+        saveRoster();
+      };
     });
     rosterMounted=true;
   }
   function applyNamed(g){
-    const cpus=(g.players||[]).filter(p=>!p.human);
+    if(!g||g.simulationMode||!Array.isArray(g.players))return;
+    const cpus=g.players.filter(p=>!p.human);
+    const vacant=new Set();
     cpus.forEach((p,i)=>{
-      const slot=opponentSlots[i];if(!slot||slot.squad==='mob'||!slot.agent)return;
+      const slot=opponentSlots[i];
+      if(slot?.squad==='vacant'){vacant.add(p);return;}
+      if(!slot||slot.squad==='mob'||!slot.agent)return;
       const squad=SQUADS.find(s=>s.id===slot.squad),a=squad?.agents.find(agent=>agent.en===slot.agent);if(!a)return;
       p.name=labelOf(a);p.v78Named=a.en;p.v78Squad=slot.squad;p.v79BaseCombat=a.stats[2];p.v78Tetra=!!a.tetra;p.archetype=ROLE_TO_ARCHETYPE[a.role]||a.role;
       p.stats={...(p.stats||{}),trion:a.stats[0],technique:a.stats[1],combat:a.stats[2]};p.loadout={main:[...a.main],sub:[...a.sub]};p.selected={main:0,sub:0};
       if(p.maxTrion!=null){p.maxTrion=Math.max(p.maxTrion,a.stats[0]*12+40);p.trion=p.maxTrion;}
     });
+    if(vacant.size){
+      for(let i=g.players.length-1;i>=0;i--){if(vacant.has(g.players[i]))g.players.splice(i,1);}
+      if(g.player&&vacant.has(g.player))g.player=g.players.find(p=>p.human)||null;
+    }
   }
   function flash(text){const e=document.createElement('div');e.className='v77-skill-flash';e.textContent=text;document.body.appendChild(e);setTimeout(()=>e.remove(),950);}
   function segDist(x1,y1,x2,y2,px,py){const dx=x2-x1,dy=y2-y1,l=dx*dx+dy*dy||1,t=clamp(((px-x1)*dx+(py-y1)*dy)/l,0,1);return{d:Math.hypot(px-(x1+dx*t),py-(y1+dy*t)),t};}
-  function moleClaw(g,quiet=false){const p=humanOf(g);if(!p||!hasTrigger(p,'scorpion'))return false;const walls=(g.walls||[]).filter(w=>{const cx=clamp(p.x,w.x,w.x+w.w),cy=clamp(p.y,w.y,w.y+w.h);return Math.hypot(p.x-cx,p.y-cy)<p.radius+26;});if(!walls.length)return false;const wall=walls[0];const target=(g.players||[]).filter(t=>g.canDamage?.(p,t)&&!t.dead).map(t=>({t,d:Math.hypot(t.x-clamp(t.x,wall.x,wall.x+wall.w),t.y-clamp(t.y,wall.y,wall.y+wall.h))})).filter(x=>x.d<x.t.radius+30).sort((a,b)=>a.d-b.d)[0]?.t;if(!target||!g.consumeTrion?.(p,4))return false;g.effects?.push({type:'slash',x:target.x,y:target.y,angle:Math.atan2(target.y-p.y,target.x-p.x),range:42,arc:6.1,style:'moleClaw',ttl:.28,maxTtl:.28});g.damagePlayer?.(target,28*(.82+p.stats.combat*.05),p,{x:target.x,y:target.y,type:'melee',name:'モールクロー',sourceKey:'moleClaw'});if(!quiet)flash('モールクロー');return true;}
+  function moleClaw(g,p=humanOf(g),quiet=false){if(!p||!hasTrigger(p,'scorpion'))return false;const walls=(g.walls||[]).filter(w=>{const cx=clamp(p.x,w.x,w.x+w.w),cy=clamp(p.y,w.y,w.y+w.h);return Math.hypot(p.x-cx,p.y-cy)<p.radius+26;});if(!walls.length)return false;const wall=walls[0];const target=(g.players||[]).filter(t=>g.canDamage?.(p,t)&&!t.dead).map(t=>({t,d:Math.hypot(t.x-clamp(t.x,wall.x,wall.x+wall.w),t.y-clamp(t.y,wall.y,wall.y+wall.h))})).filter(x=>x.d<x.t.radius+30).sort((a,b)=>a.d-b.d)[0]?.t;if(!target||!g.consumeTrion?.(p,4))return false;g.effects?.push({type:'slash',x:target.x,y:target.y,angle:Math.atan2(target.y-p.y,target.x-p.x),range:42,arc:6.1,style:'moleClaw',ttl:.28,maxTtl:.28});g.damagePlayer?.(target,28*(.82+p.stats.combat*.05),p,{x:target.x,y:target.y,type:'melee',name:'モールクロー',sourceKey:'moleClaw'});if(!quiet)flash('モールクロー');return true;}
   function pinball(g,blade){const p=humanOf(g),target=nearestEnemy(g,p,650);if(!p||!target)return;if(blade){if(!hasTrigger(p,'grasshopper')||!hasTrigger(p,'scorpion'))return flash('グラスホッパー＋スコーピオンが必要');}else{const count=[...(p.loadout.main||[]),...(p.loadout.sub||[])].filter(x=>x==='grasshopper').length;if(count<2||!['kogetsu','scorpion','raygust'].some(id=>hasTrigger(p,id)))return flash('グラスホッパー×2＋攻撃手トリガーが必要');}if(p.v77PinballUntil>performance.now())return;const cost=blade?15:12;if(!g.consumeTrion?.(p,cost))return;p.v77PinballUntil=performance.now()+2600;flash(blade?'ブレード乱反射':'乱反射');const points=Array.from({length:8},(_,i)=>{const a=i*Math.PI/4;return{x:target.x+Math.cos(a)*110,y:target.y+Math.sin(a)*110};});points.forEach((pt,i)=>setTimeout(()=>{if(p.dead||target.dead)return;p.x=clamp(pt.x,p.radius,g.world.w-p.radius);p.y=clamp(pt.y,p.radius,g.world.h-p.radius);p.vx=Math.cos(i*Math.PI/4+Math.PI/2)*420;p.vy=Math.sin(i*Math.PI/4+Math.PI/2)*420;g.effects?.push({type:'grasshopper',x:p.x,y:p.y,angle:p.aim,ttl:.35,maxTtl:.35});g.damagePlayer?.(target,(blade?10:7)*(.9+p.stats.combat*.035),p,{x:p.x,y:p.y,type:'melee',name:blade?'ブレード乱反射':'乱反射',sourceKey:blade?'bladePinball':'pinball'});},i*110));}
   function drawTetra(g){const ctx=g?.ctx||g?.context;if(!ctx)return;for(const p of g.players||[]){if(!p.v78Tetra||p.dead)continue;const charge=p.shooterCharges&&Object.values(p.shooterCharges).some(Boolean);if(!charge&&!hasTrigger(p,'shooter_asteroid')&&!hasTrigger(p,'shooter_hound')&&!hasTrigger(p,'shooter_meteor'))continue;const cam=g.camera||{x:0,y:0};const x=p.x-(cam.x||0),y=p.y-(cam.y||0)-34,r=17;ctx.save();ctx.strokeStyle='rgba(158,220,255,.95)';ctx.fillStyle='rgba(83,156,220,.18)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x-r,y+r*.65);ctx.lineTo(x+r,y+r*.65);ctx.closePath();ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(x,y-r);ctx.lineTo(x,y+r*.18);ctx.lineTo(x-r,y+r*.65);ctx.moveTo(x,y+r*.18);ctx.lineTo(x+r,y+r*.65);ctx.stroke();ctx.restore();}}
   function patchGame(g){if(!g||!g.constructor)return;currentGame=g;applyNamed(g);const proto=Object.getPrototypeOf(g);if(patchedProto===proto)return;patchedProto=proto;
-    const oldUseMelee=proto.useMelee;proto.useMelee=function(p,hand,trigger,options){if(trigger?.id==='scorpion'&&moleClaw(this,true)){this.setCooldown?.(p,hand,Math.max(.28,trigger.cooldown*.8));this.revealOnAttack?.(p,1.2);return true;}return oldUseMelee.call(this,p,hand,trigger,options);};
+    const oldUseMelee=proto.useMelee;proto.useMelee=function(p,hand,trigger,options){if(trigger?.id==='scorpion'&&moleClaw(this,p,true)){this.setCooldown?.(p,hand,Math.max(.28,trigger.cooldown*.8));this.revealOnAttack?.(p,1.2);return true;}return typeof oldUseMelee==='function'?oldUseMelee.call(this,p,hand,trigger,options):false;};
     const oldSenku=proto.performSenku;proto.performSenku=function(p,trigger){const duration=p.v79IkomaSenku?.2:clamp(settings.senkuDuration,.18,1.2),ratio=.7/duration,range=(trigger.range+p.stats.trion*8)*clamp(Math.sqrt(ratio),.72,p.v79IkomaSenku?2.75:2),end={x:p.x+Math.cos(p.aim)*range,y:p.y+Math.sin(p.aim)*range};this.sfx?.play('attacker',{x:p.x,y:p.y,bucket:`senku:${p.id}`,cooldown:.12,volume:.5,rate:.94});this.effects.push({type:'senku',x:p.x,y:p.y,x2:end.x,y2:end.y,ttl:duration,maxTtl:duration});this.damageWorldSegment?.(p.x,p.y,end.x,end.y,trigger.damage*.8,p.team,20);const hits=[];for(const target of this.players){if(!this.canDamage?.(p,target))continue;const hit=segDist(p.x,p.y,end.x,end.y,target.x,target.y);if(hit.d<=target.radius+20)hits.push({target,hit});}hits.sort((a,b)=>a.hit.t-b.hit.t).forEach(({target,hit},i)=>this.damagePlayer?.(target,trigger.damage*(.72+hit.t*.62)*[1,.62,.38,.25][Math.min(i,3)]*(.82+p.stats.combat*.04),p,{x:p.x,y:p.y,type:'melee',name:'旋空',sourceKey:'senku'}));};
     const oldSlash=proto.performSlash;proto.performSlash=function(p,range,damage,arc,style){const before=this.effects?.length||0,result=oldSlash.call(this,p,range,damage,arc,style);if(style==='kogetsu'&&this.effects?.length>before){const e=this.effects[this.effects.length-1],speed=clamp(.42-p.stats.combat*.028,.12,.38);e.ttl=e.maxTtl=speed;e.v77Draw=true;}return result;};
-    const oldWire=proto.placeWire;proto.placeWire=function(p,hand,trigger){const ok=oldWire.call(this,p,hand,trigger);if(ok&&p.spiderMode){const w=this.wires[this.wires.length-1];if(w){w.mode='spring';w.springPower=760+p.stats.combat*34;w.hp=Math.max(w.hp||0,42);w.ttl=Math.max(w.ttl||0,90);}}return ok;};
+    const oldWire=proto.placeWire;proto.placeWire=function(p,hand,trigger){const ok=typeof oldWire==='function'?oldWire.call(this,p,hand,trigger):false;if(ok&&p.spiderMode){const w=this.wires[this.wires.length-1];if(w){w.mode='spring';w.springPower=760+p.stats.combat*34;w.hp=Math.max(w.hp||0,42);w.ttl=Math.max(w.ttl||0,90);}}return ok;};
     const oldGrass=proto.grasshopper;proto.grasshopper=function(p,hand,trigger){if(p.human&&shiftHeld){settings.grasshopperMode=settings.grasshopperMode==='placed'?'instant':'placed';save();flash(`グラスホッパー：${settings.grasshopperMode==='placed'?'設置':'即時使用'}`);return true;}if((p.human&&settings.grasshopperMode==='placed')||p.v77PlaceGrasshopper){if(!this.consumeTrion?.(p,trigger.cost))return false;const target=p.human?this.getHumanAimPoint?.(p,210):{x:p.x+Math.cos(p.aim)*150,y:p.y+Math.sin(p.aim)*150},dx=target.x-p.x,dy=target.y-p.y,d=Math.hypot(dx,dy)||1,travel=Math.min(d,250);this.traps.push({x:p.x+dx/d*travel,y:p.y+dy/d*travel,radius:25,team:p.team,ownerId:p.id,type:2,ttl:55,armed:.1,hp:38,v77Grass:true,power:780+p.stats.combat*36});this.effects.push({type:'grasshopper',x:p.x+dx/d*travel,y:p.y+dy/d*travel,angle:p.aim,ttl:.7,maxTtl:.7});this.setCooldown?.(p,hand,Math.max(.35,trigger.cooldown*.72));return true;}if(!this.consumeTrion?.(p,trigger.cost))return false;const power=680+p.stats.combat*36;p.vx+=Math.cos(p.aim)*power;p.vy+=Math.sin(p.aim)*power;p.metrics.grasshopperBoostImpulse=(p.metrics.grasshopperBoostImpulse||0)+power;this.effects.push({type:'grasshopper',x:p.x+Math.cos(p.aim)*30,y:p.y+Math.sin(p.aim)*30,angle:p.aim,ttl:.55,maxTtl:.55});this.setCooldown?.(p,hand,Math.max(.3,trigger.cooldown*.65));return true;};
     const oldUpdate=proto.update;proto.update=function(dt){const out=oldUpdate.call(this,dt);for(const p of this.players||[]){for(const hand of ['main','sub']){const s=p.shields?.[hand];if(!s)continue;const coverage=clamp(settings.shieldCoverage,.15,1),thickness=1/coverage;s.v77Coverage=coverage;s.arc=(s.baseArc||s.arc||1.3)*(.55+coverage*.8);s.radius=(s.baseRadius||s.radius||70)*(.65+coverage*.75);s.hp=Math.max(s.hp||0,(s.maxHp||80)*(.65+thickness*.65));}for(const w of this.wires||[]){if(w.mode!=='spring')continue;const hit=segDist(w.x1,w.y1,w.x2,w.y2,p.x,p.y);if(hit.d>p.radius+8||p.v77WireBounce>performance.now())continue;const ally=w.team===p.team||this.config?.mode==='solo'&&w.ownerId===p.id;if(!ally)continue;const nx=-(w.y2-w.y1),ny=w.x2-w.x1,n=Math.hypot(nx,ny)||1,power=w.springPower||720;p.vx+=nx/n*power;p.vy+=ny/n*power;p.v77WireBounce=performance.now()+700;this.effects.push({type:'grasshopper',x:p.x,y:p.y,angle:Math.atan2(ny,nx),ttl:.45,maxTtl:.45});}applyNamedBehavior(this,p,dt);}return out;};
     const oldDamage=proto.damagePlayer;if(oldDamage)proto.damagePlayer=function(target,amount,source,meta){if(target?.v79DefenseScale)amount/=target.v79DefenseScale;if(source?.v78Named==='NINOMIYA'&&meta?.sourceKey?.includes('asteroid'))amount*=1.12;if(source?.v78Named==='YUBA'&&performance.now()<(source.v79QuickdrawUntil||0))amount*=1.18;if(source?.v78Named==='HANZAKI'&&meta?.type==='sniper')amount*=1.15;return oldDamage.call(this,target,amount,source,meta);};
@@ -224,6 +277,10 @@
   }
   window.addEventListener('keydown',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=true;if(e.repeat||e.code!=='KeyC'||!currentGame)return;const p=humanOf(currentGame);if(!p)return;const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])],hasBlade=all.includes('grasshopper')&&all.includes('scorpion'),hasPin=all.filter(x=>x==='grasshopper').length>=2&&['kogetsu','scorpion','raygust'].some(id=>all.includes(id));if(!hasBlade&&!hasPin)return;e.preventDefault();e.stopImmediatePropagation();setTimeout(()=>pinball(currentGame,hasBlade),0);},true);
   window.addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=false;},true);window.addEventListener('blur',()=>shiftHeld=false);
-  const timer=setInterval(()=>{mountRoster();const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=81;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 81');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
-  window.addEventListener('beforeunload',()=>clearInterval(timer));
+  mountRoster(true);
+  window.addEventListener('trion-language-change',()=>mountRoster(true));
+  const rosterObserver=new MutationObserver(()=>mountRoster(false));
+  const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
+  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=84;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 84');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
+  window.addEventListener('beforeunload',()=>{clearInterval(timer);rosterObserver.disconnect();});
 })();
