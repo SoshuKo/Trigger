@@ -34,20 +34,20 @@
     {id:'kakizaki',ja:'カキザキ隊',en:'KAKIZAKI SQUAD',agents:[A('カキザキ','KAKIZAKI','万能手',[4,7,7],['kogetsu','senku','gun_asteroid','gun_meteor'],['shield','shield','bagworm']),A('テルヤ','TERUYA','万能手',[4,8,6],['kogetsu','senku','gun_asteroid','gun_hound'],['shield','shield','bagworm']),A('トモエ','TOMOE','ガンナー',[3,6,9],['kogetsu','handgun_asteroid','handgun_hound','shield'],['grasshopper','shield','bagworm'])]}
   ];
 
-  const SQUAD_UNIFORMS={
-    ninomiya:{primary:'#20242b',secondary:'#4a505a',accent:'#f4f6f8'},
-    tamakoma2:{primary:'#176d9a',secondary:'#27c7d9',accent:'#f4f8fb'},
-    kageura:{primary:'#29272f',secondary:'#111216',accent:'#70449b'},
-    ikoma:{primary:'#b33a29',secondary:'#17191d',accent:'#f4f4f1'},
-    oji:{primary:'#152131',secondary:'#2456a6',accent:'#d8b35a'},
-    azuma:{primary:'#174f55',secondary:'#16191d',accent:'#80664d'},
-    nasu:{primary:'#f0f1f5',secondary:'#68459c',accent:'#32316d'},
-    yuba:{primary:'#681f32',secondary:'#17171b',accent:'#d9c6a2'},
-    kuruma:{primary:'#285a38',secondary:'#16191b',accent:'#c6cbd0'},
-    arafune:{primary:'#596331',secondary:'#34383b',accent:'#111316'},
-    katori:{primary:'#d86925',secondary:'#17181c',accent:'#f3f3ef'},
-    suwa:{primary:'#782c31',secondary:'#14161a',accent:'#7d848c'},
-    kakizaki:{primary:'#243d67',secondary:'#f0f2f5',accent:'#aeb7c1'}
+  const CHARACTER_COLORS={
+    NINOMIYA:{body:'#2b3038',accent:'#d7dce2'}, INUKAI:{body:'#6f7f8f',accent:'#eef4fa'}, TSUJI:{body:'#3d4f63',accent:'#c9d8e7'},
+    MIKUMO:{body:'#2f6f9f',accent:'#d8efff'}, KUGA:{body:'#eef1f4',accent:'#5d6a76'}, AMATORI:{body:'#d7a7b8',accent:'#fff3f7'}, HYUSE:{body:'#496b86',accent:'#d8e7f2'},
+    KAGEURA:{body:'#382f43',accent:'#bb8de0'}, KITAZOE:{body:'#7b5d39',accent:'#f0d3a8'}, EMA:{body:'#5c7990',accent:'#e0f1ff'},
+    IKOMA:{body:'#8e3d2f',accent:'#f1c4b7'}, MIZUKAMI:{body:'#49667a',accent:'#cde0ec'}, OKI:{body:'#7a6655',accent:'#ead8c7'}, MINAMISAWA:{body:'#b95a36',accent:'#ffe0c8'},
+    OJI:{body:'#263f70',accent:'#d8b35a'}, KURAUCHI:{body:'#556d8c',accent:'#dbe8f8'}, KASHIO:{body:'#3f6093',accent:'#d9e7ff'},
+    AZUMA:{body:'#315f62',accent:'#d5ecec'}, KOARAI:{body:'#5f7d79',accent:'#dcebe7'}, OKUDERA:{body:'#3f5a5c',accent:'#c9dcdd'},
+    NASU:{body:'#8b6eaf',accent:'#f1e8ff'}, KUMAGAI:{body:'#6f588b',accent:'#e4d8f3'}, HIURA:{body:'#a48bc0',accent:'#f5efff'},
+    YUBA:{body:'#7e2f43',accent:'#e7c6cf'}, OBISHIMA:{body:'#a45465',accent:'#f7d9df'}, TONOOKA:{body:'#5f3f4a',accent:'#dfc4cc'},
+    KURUMA:{body:'#39704c',accent:'#d6ecdc'}, MURAKAMI:{body:'#294f3a',accent:'#c7dfcf'}, BETSUYAKU:{body:'#5f7e65',accent:'#e0efe3'},
+    ARAFUNE:{body:'#657044',accent:'#e2e6ca'}, HOKARI:{body:'#7b8052',accent:'#edf0d7'}, HANZAKI:{body:'#4f5940',accent:'#d7ddc7'},
+    KATORI:{body:'#d16a32',accent:'#ffe0c7'}, MIURA:{body:'#94513b',accent:'#f0d0c5'}, WAKAMURA:{body:'#b47b48',accent:'#f7e2cd'},
+    SUWA:{body:'#83383d',accent:'#efc9cc'}, TSUTSUMI:{body:'#664045',accent:'#e1cdd0'}, SASAMORI:{body:'#a55d5f',accent:'#f4d9da'},
+    KAKIZAKI:{body:'#385985',accent:'#d8e6f7'}, TERUYA:{body:'#567cad',accent:'#e4efff'}, TOMOE:{body:'#2d476c',accent:'#ccdcef'}
   };
 
   const NAMED_BEHAVIORS={
@@ -267,7 +267,7 @@
       if(slot?.squad==='vacant'){vacant.add(p);return;}
       if(!slot||slot.squad==='mob'||!slot.agent)return;
       const squad=SQUADS.find(s=>s.id===slot.squad),a=squad?.agents.find(agent=>agent.en===slot.agent);if(!a)return;
-      p.name=labelOf(a);p.v78Named=a.en;p.v78Squad=slot.squad;p.v79BaseCombat=a.stats[2];p.v78Tetra=!!a.tetra;p.archetype=ROLE_TO_ARCHETYPE[a.role]||a.role;const uniform=SQUAD_UNIFORMS[slot.squad];if(uniform){p.v86Uniform={...uniform};p.color=uniform.primary;p.characterColor=uniform.primary;p.bodyColor=uniform.primary;p.suitColor=uniform.primary;p.accentColor=uniform.accent;p.outlineColor=uniform.secondary;}
+      p.name=labelOf(a);p.v78Named=a.en;p.v78Squad=slot.squad;p.v79BaseCombat=a.stats[2];p.v78Tetra=!!a.tetra;p.archetype=ROLE_TO_ARCHETYPE[a.role]||a.role;const characterColor=CHARACTER_COLORS[a.en];if(characterColor){p.appearance={...(p.appearance||{}),bodyColor:characterColor.body,uniformColor:characterColor.body,accentColor:characterColor.accent};p.color=characterColor.body;p.characterColor=characterColor.body;p.bodyColor=characterColor.body;p.accentColor=characterColor.accent;}
       p.stats={...(p.stats||{}),trion:a.stats[0],technique:a.stats[1],combat:a.stats[2]};p.loadout={main:[...a.main],sub:[...a.sub]};p.selected={main:0,sub:0};
       if(p.maxTrion!=null){p.maxTrion=Math.max(p.maxTrion,a.stats[0]*12+40);p.trion=p.maxTrion;}
     });
@@ -290,7 +290,6 @@
     const groups=[g.projectiles,g.bullets,g.shots].filter(Array.isArray);
     const seen=new Set();for(const group of groups)for(const item of group){if(!item||seen.has(item)||!projectileOwnerIsNinomiya(g,item))continue;seen.add(item);if(!Number.isFinite(item.x)||!Number.isFinite(item.y))continue;const sp=screenPoint(g,item.x,item.y);const ang=Number.isFinite(item.angle)?item.angle:Math.atan2(item.vy||0,item.vx||1);drawTetraAt(ctx,sp.x,sp.y,Math.max(7,Math.min(18,item.radius||item.r||10)),ang+Math.PI/2);}
   }
-  function drawNamedUniforms(g){const ctx=g?.ctx||g?.context;if(!ctx)return;for(const p of g.players||[]){if(p.dead||!p.v86Uniform)continue;const sp=screenPoint(g,p.x,p.y),r=Math.max(10,p.radius||16),u=p.v86Uniform;ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(p.aim||0);ctx.fillStyle=u.primary;ctx.strokeStyle=u.secondary;ctx.lineWidth=Math.max(2,r*.18);ctx.beginPath();ctx.roundRect?.(-r*.72,-r*.62,r*1.44,r*1.24,r*.35);if(!ctx.roundRect){ctx.rect(-r*.72,-r*.62,r*1.44,r*1.24);}ctx.fill();ctx.stroke();ctx.strokeStyle=u.accent;ctx.lineWidth=Math.max(1.5,r*.12);ctx.beginPath();ctx.moveTo(-r*.54,0);ctx.lineTo(r*.54,0);ctx.stroke();ctx.restore();}}
   function tagNewNinomiyaProjectiles(g,p,before){if(p?.v78Named!=='NINOMIYA')return;for(const [key,count] of Object.entries(before)){const arr=g[key];if(!Array.isArray(arr))continue;for(const item of arr.slice(count)){if(item&&typeof item==='object'){item.v86Tetra=true;item.ownerId??=p.id;}}}}
 
   function patchGame(g){if(!g||!g.constructor)return;currentGame=g;applyNamed(g);const proto=Object.getPrototypeOf(g);if(patchedProto===proto)return;patchedProto=proto;
@@ -303,7 +302,7 @@
     const oldFireShooter=proto.fireShooter;if(oldFireShooter)proto.fireShooter=function(p,...args){const before={projectiles:Array.isArray(this.projectiles)?this.projectiles.length:0,bullets:Array.isArray(this.bullets)?this.bullets.length:0,shots:Array.isArray(this.shots)?this.shots.length:0};const out=oldFireShooter.call(this,p,...args);tagNewNinomiyaProjectiles(this,p,before);return out;};
     const oldBeginShooterCharge=proto.beginShooterCharge;if(oldBeginShooterCharge)proto.beginShooterCharge=function(p,hand,trigger){const out=oldBeginShooterCharge.call(this,p,hand,trigger);if(p?.v78Named==='NINOMIYA'&&p.shooterCharges?.[hand])p.shooterCharges[hand].v86Tetra=true;return out;};
     const oldDamage=proto.damagePlayer;if(oldDamage)proto.damagePlayer=function(target,amount,source,meta){if(target?.v79DefenseScale)amount/=target.v79DefenseScale;if(source?.v78Named==='NINOMIYA'&&meta?.sourceKey?.includes('asteroid'))amount*=1.12;if(source?.v78Named==='YUBA'&&performance.now()<(source.v79QuickdrawUntil||0))amount*=1.18;if(source?.v78Named==='HANZAKI'&&meta?.type==='sniper')amount*=1.15;return oldDamage.call(this,target,amount,source,meta);};
-    const oldRender=proto.render;if(oldRender)proto.render=function(...args){const out=oldRender.apply(this,args);drawNamedUniforms(this);drawNinomiyaTetrahedrons(this);return out;};
+    const oldRender=proto.render;if(oldRender)proto.render=function(...args){const out=oldRender.apply(this,args);drawNinomiyaTetrahedrons(this);return out;};
   }
   window.addEventListener('keydown',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=true;if(e.repeat||e.code!=='KeyC'||!currentGame)return;const p=humanOf(currentGame);if(!p)return;const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])],hasBlade=all.includes('grasshopper')&&all.includes('scorpion'),hasPin=all.filter(x=>x==='grasshopper').length>=2&&['kogetsu','scorpion','raygust'].some(id=>all.includes(id));if(!hasBlade&&!hasPin)return;e.preventDefault();e.stopImmediatePropagation();setTimeout(()=>pinball(currentGame,hasBlade),0);},true);
   window.addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=false;},true);window.addEventListener('blur',()=>shiftHeld=false);
@@ -329,6 +328,6 @@
   window.addEventListener('trion-language-change',()=>mountRoster(true));
   const rosterObserver=new MutationObserver(()=>mountRoster(false));
   const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
-  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=86;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 86');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
+  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=87;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 87');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
   window.addEventListener('beforeunload',()=>{clearInterval(timer);rosterObserver.disconnect();});
 })();
