@@ -121,28 +121,61 @@
     if(b.special==='chameleonGrab'&&p.v79SpecialCd<=0&&d<260){if(d>90)tryNamedUse(g,p,'chameleon');else tryNamedUse(g,p,'kogetsu');p.v79SpecialCd=1.2;}
   }
 
-  const chosen=JSON.parse(localStorage.getItem('trion-v78-named-roster')||'{"squad":"mob","agents":[]}');
-  const saveRoster=()=>localStorage.setItem('trion-v78-named-roster',JSON.stringify(chosen));
+  const ROSTER_STORAGE_KEY='trion-v80-opponent-slots';
+  const MAX_OPPONENT_SLOTS=12;
+  function loadOpponentSlots(){
+    try{
+      const raw=JSON.parse(localStorage.getItem(ROSTER_STORAGE_KEY)||'null');
+      if(Array.isArray(raw)) return Array.from({length:MAX_OPPONENT_SLOTS},(_,i)=>({squad:raw[i]?.squad||'mob',agent:raw[i]?.agent||''}));
+      const old=JSON.parse(localStorage.getItem('trion-v78-named-roster')||'null');
+      if(old?.squad&&old.squad!=='mob'){
+        const squad=SQUADS.find(s=>s.id===old.squad),ids=Array.isArray(old.agents)&&old.agents.length?old.agents:squad?.agents.map((_,i)=>i)||[];
+        return Array.from({length:MAX_OPPONENT_SLOTS},(_,i)=>{const a=squad?.agents[ids[i%Math.max(1,ids.length)]];return a?{squad:old.squad,agent:a.en}:{squad:'mob',agent:''};});
+      }
+    }catch(_){ }
+    return Array.from({length:MAX_OPPONENT_SLOTS},()=>({squad:'mob',agent:''}));
+  }
+  const opponentSlots=loadOpponentSlots();
+  const saveRoster=()=>localStorage.setItem(ROSTER_STORAGE_KEY,JSON.stringify(opponentSlots));
+  function guessedCpuCount(){
+    const setup=document.querySelector('#setupScreen');
+    if(!setup)return 4;
+    const controls=[...setup.querySelectorAll('input,select')].filter(el=>/cpu/i.test(`${el.id} ${el.name} ${el.getAttribute('aria-label')||''}`));
+    for(const el of controls){const n=Number(el.value);if(Number.isFinite(n)&&n>=0&&n<=MAX_OPPONENT_SLOTS)return Math.max(1,n);}
+    const text=setup.textContent||'';
+    const m=text.match(/CPU\s*[×x:]?\s*(\d+)/i);return m?Math.max(1,Math.min(MAX_OPPONENT_SLOTS,Number(m[1]))):4;
+  }
   function mountRoster(){
     if(rosterMounted)return;const setup=document.querySelector('#setupScreen');if(!setup)return;
-    const host=[...setup.querySelectorAll('section,div')].find(e=>/対戦隊員設定|参加CPU|CPU Participants/i.test(e.textContent||''))||setup.querySelector('.setup-shell')||setup;
-    const box=document.createElement('section');box.className='v78-named-roster';box.innerHTML='<header><strong data-title></strong><small data-note></small></header><label><span data-squad-label></span><select data-squad></select></label><div data-agents></div>';
+    const heading=[...setup.querySelectorAll('h2,h3,strong,summary,legend')].find(e=>/^\s*05\s*[:：]?\s*対戦隊員設定|対戦隊員設定|CPU Agent Settings/i.test(e.textContent||''));
+    const host=heading?.closest('section,fieldset,.setup-panel,.setup-card,details')||[...setup.querySelectorAll('section,div')].find(e=>/対戦隊員設定|CPU Agent Settings/i.test(e.textContent||''))||setup.querySelector('.setup-shell')||setup;
+    const box=document.createElement('section');box.className='v80-opponent-slots';box.innerHTML='<header><strong data-title></strong><small data-note></small></header><div data-slot-list></div>';
     host.appendChild(box);rosterMounted=true;
-    const squadSel=box.querySelector('[data-squad]');
+    const list=box.querySelector('[data-slot-list]');
     const render=()=>{
-      const en=lang()==='en';box.querySelector('[data-title]').textContent=en?'Named Opponents':'ネームド対戦隊員';box.querySelector('[data-note]').textContent=en?'Keep Mob to use the existing random opponents.':'モブを選ぶと従来のランダム隊員を維持します。';box.querySelector('[data-squad-label]').textContent=en?'Squad':'部隊';
-      const current=chosen.squad||'mob';squadSel.innerHTML=`<option value="mob">${en?'MOB / RANDOM':'モブ／ランダム'}</option>`+SQUADS.map(s=>`<option value="${s.id}">${en?s.en:s.ja}</option>`).join('');squadSel.value=current;
-      const squad=SQUADS.find(s=>s.id===current),area=box.querySelector('[data-agents]');area.innerHTML='';if(!squad)return;
-      squad.agents.forEach((a,i)=>{const id=`v78-agent-${i}`;const label=document.createElement('label');label.className='agent';label.innerHTML=`<input id="${id}" type="checkbox" ${chosen.agents?.includes(i)?'checked':''}><span>${labelOf(a)}</span><small>${a.role}</small>`;label.querySelector('input').onchange=e=>{const set=new Set(chosen.agents||[]);e.target.checked?set.add(i):set.delete(i);chosen.agents=[...set];saveRoster();};area.appendChild(label);});
+      const en=lang()==='en';box.querySelector('[data-title]').textContent=en?'Individual CPU Agent Setup':'CPUごとの対戦隊員設定';box.querySelector('[data-note]').textContent=en?'Set each CPU slot separately. MOB / RANDOM keeps the original opponent.':'各CPU枠を個別に設定します。モブ／ランダムは従来性能のままです。';
+      const count=guessedCpuCount();list.innerHTML='';
+      for(let i=0;i<MAX_OPPONENT_SLOTS;i++){
+        const slot=opponentSlots[i],row=document.createElement('div');row.className='v80-opponent-row';row.hidden=i>=count;
+        row.innerHTML=`<strong>${en?'CPU':'CPU'} ${i+1}</strong><label><span>${en?'Squad':'部隊'}</span><select data-squad></select></label><label><span>${en?'Agent':'隊員'}</span><select data-agent></select></label>`;
+        const squadSel=row.querySelector('[data-squad]'),agentSel=row.querySelector('[data-agent]');
+        squadSel.innerHTML=`<option value="mob">${en?'MOB / RANDOM':'モブ／ランダム'}</option>`+SQUADS.map(s=>`<option value="${s.id}">${en?s.en:s.ja}</option>`).join('');
+        squadSel.value=SQUADS.some(s=>s.id===slot.squad)?slot.squad:'mob';
+        const fillAgents=()=>{const squad=SQUADS.find(s=>s.id===squadSel.value);agentSel.disabled=!squad;if(!squad){agentSel.innerHTML=`<option value="">${en?'Original random CPU':'従来のランダムCPU'}</option>`;slot.squad='mob';slot.agent='';return;}agentSel.innerHTML=squad.agents.map(a=>`<option value="${a.en}">${labelOf(a)} / ${en?a.role:a.role}</option>`).join('');if(!squad.agents.some(a=>a.en===slot.agent))slot.agent=squad.agents[0]?.en||'';agentSel.value=slot.agent;};
+        squadSel.onchange=()=>{slot.squad=squadSel.value;slot.agent='';fillAgents();saveRoster();};agentSel.onchange=()=>{slot.agent=agentSel.value;saveRoster();};fillAgents();list.appendChild(row);
+      }
     };
-    squadSel.onchange=()=>{chosen.squad=squadSel.value;chosen.agents=[];saveRoster();render();};
-    window.addEventListener('trion-language-change',render);render();
+    window.addEventListener('trion-language-change',render);setup.addEventListener('change',e=>{if(/cpu/i.test(`${e.target?.id||''} ${e.target?.name||''}`))setTimeout(render,0);});render();
   }
   function applyNamed(g){
-    const squad=SQUADS.find(s=>s.id===chosen.squad);if(!squad)return;
-    const picks=(chosen.agents?.length?chosen.agents:squad.agents.map((_,i)=>i)).map(i=>squad.agents[i]).filter(Boolean);
     const cpus=(g.players||[]).filter(p=>!p.human);
-    cpus.forEach((p,i)=>{const a=picks[i%picks.length];if(!a)return;p.name=labelOf(a);p.v78Named=a.en;p.v78Squad=chosen.squad;p.v79BaseCombat=a.stats[2];p.v78Tetra=!!a.tetra;p.archetype=a.role;p.stats={...(p.stats||{}),trion:a.stats[0],technique:a.stats[1],combat:a.stats[2]};p.loadout={main:[...a.main],sub:[...a.sub]};p.selected={main:0,sub:0};if(p.maxTrion!=null){p.maxTrion=Math.max(p.maxTrion,a.stats[0]*12+40);p.trion=Math.min(p.maxTrion,Math.max(p.trion||0,p.maxTrion));}});
+    cpus.forEach((p,i)=>{
+      const slot=opponentSlots[i];if(!slot||slot.squad==='mob'||!slot.agent)return;
+      const squad=SQUADS.find(s=>s.id===slot.squad),a=squad?.agents.find(agent=>agent.en===slot.agent);if(!a)return;
+      p.name=labelOf(a);p.v78Named=a.en;p.v78Squad=slot.squad;p.v79BaseCombat=a.stats[2];p.v78Tetra=!!a.tetra;p.archetype=a.role;
+      p.stats={...(p.stats||{}),trion:a.stats[0],technique:a.stats[1],combat:a.stats[2]};p.loadout={main:[...a.main],sub:[...a.sub]};p.selected={main:0,sub:0};
+      if(p.maxTrion!=null){p.maxTrion=Math.max(p.maxTrion,a.stats[0]*12+40);p.trion=p.maxTrion;}
+    });
   }
   function flash(text){const e=document.createElement('div');e.className='v77-skill-flash';e.textContent=text;document.body.appendChild(e);setTimeout(()=>e.remove(),950);}
   function segDist(x1,y1,x2,y2,px,py){const dx=x2-x1,dy=y2-y1,l=dx*dx+dy*dy||1,t=clamp(((px-x1)*dx+(py-y1)*dy)/l,0,1);return{d:Math.hypot(px-(x1+dx*t),py-(y1+dy*t)),t};}
@@ -161,6 +194,6 @@
   }
   window.addEventListener('keydown',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=true;if(e.repeat||e.code!=='KeyC'||!currentGame)return;const p=humanOf(currentGame);if(!p)return;const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])],hasBlade=all.includes('grasshopper')&&all.includes('scorpion'),hasPin=all.filter(x=>x==='grasshopper').length>=2&&['kogetsu','scorpion','raygust'].some(id=>all.includes(id));if(!hasBlade&&!hasPin)return;e.preventDefault();e.stopImmediatePropagation();setTimeout(()=>pinball(currentGame,hasBlade),0);},true);
   window.addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=false;},true);window.addEventListener('blur',()=>shiftHeld=false);
-  const timer=setInterval(()=>{mountRoster();const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=79;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 79');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
+  const timer=setInterval(()=>{mountRoster();const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=80;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 80');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
   window.addEventListener('beforeunload',()=>clearInterval(timer));
 })();
