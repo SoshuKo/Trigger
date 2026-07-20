@@ -13,25 +13,59 @@
   const A=(ja,en,role,stats,main,sub,extra={})=>({ja,en,role,stats,main:norm(main),sub:norm(sub),...extra});
   const SQUADS=[
     {id:'ninomiya',ja:'ニノミヤ隊',en:'NINOMIYA SQUAD',agents:[
-      A('ニノミヤ','NINOMIYA','シューター',[8,6,4],['shooter_asteroid','shooter_hound','shield','shooter_meteor'],['shooter_asteroid','shield','bagworm'],{tetra:true}),
-      A('イヌカイ','INUKAI','ガンナー',[6,6,6],['gun_asteroid','gun_hound','shield'],['shooter_hound','scorpion','shield','bagworm']),
-      A('ツジ','TSUJI','アタッカー',[4,6,8],['kogetsu','senku','shield'],['shield','bagworm'])]},
+      A('ニノミヤ','NINOMIYA','シューター',[8,6,4],['shooter_asteroid','shooter_hound','shield','shooter_meteor'],['shooter_asteroid','shield','bagworm','empty'],{tetra:true}),
+      A('イヌカイ','INUKAI','ガンナー',[6,6,6],['gun_assault_asteroid','gun_assault_hound','shield','scorpion'],['shooter_hound','shield','bagworm','empty']),
+      A('ツジ','TSUJI','アタッカー',[4,6,8],['kogetsu','senku','shield','empty'],['shield','bagworm','empty','empty'])]},
     {id:'tamakoma2',ja:'タマコマ第二',en:'TAMAKOMA SECOND',agents:[
-      A('ミクモ','MIKUMO','シューター',[2,10,6],['raygust','thruster','shooter_asteroid','shield'],['bagworm','spider']),
-      A('クガ','KUGA','アタッカー',[4,6,10],['scorpion','grasshopper','shield'],['scorpion','shield','bagworm']),
+      A('ミクモ','MIKUMO','シューター',[2,10,6],['raygust','thruster','shooter_asteroid','shield'],['bagworm','spider','empty','empty']),
+      A('クガ','KUGA','アタッカー',[4,6,10],['scorpion','grasshopper','shield','empty'],['scorpion','shield','bagworm','empty']),
       A('アマトリ','AMATORI','スナイパー',[14,6,6],['egret','lightning','ibis','shield'],['shooter_hound','shooter_meteor','shield','bagworm']),
-      A('ヒュース','HYUSE','アタッカー',[9,5,6],['kogetsu','senku','viper','shield'],['escudo','shield','bagworm'])]},
-    {id:'kageura',ja:'カゲウラ隊',en:'KAGEURA SQUAD',agents:[A('カゲウラ','KAGEURA','アタッカー',[4,5,11],['scorpion','shield'],['scorpion','shield','bagworm']),A('キタゾエ','KITAZOE','ガンナー',[7,5,6],['gun_asteroid','gun_meteor','shield'],['shooter_meteor','shield','bagworm']),A('エマ','EMA','スナイパー',[4,8,6],['egret','lightning','ibis','shield'],['shield','bagworm'])]},
-    {id:'ikoma',ja:'イコマ隊',en:'IKOMA SQUAD',agents:[A('イコマ','IKOMA','アタッカー',[4,8,8],['kogetsu','senku','shield'],['shield','bagworm']),A('ミズカミ','MIZUKAMI','シューター',[3,9,6],['shooter_asteroid','shooter_meteor','shield'],['shooter_asteroid','shield','bagworm']),A('オキ','OKI','スナイパー',[5,8,5],['egret','lightning','shield'],['grasshopper','shield','bagworm']),A('ミナミサワ','MINAMISAWA','アタッカー',[3,5,10],['kogetsu','senku','shield'],['grasshopper','shield','bagworm'])]},
-    {id:'oji',ja:'オウジ隊',en:'OJI SQUAD',agents:[A('オウジ','OJI','アタッカー',[4,8,6],['kogetsu','senku','hound','shield'],['scorpion','grasshopper','shield','bagworm']),A('クラウチ','KURAUCHI','シューター',[4,8,6],['shooter_asteroid','shooter_meteor','shooter_hound','shield'],['shooter_hound','shield','bagworm']),A('カシオ','KASHIO','アタッカー',[3,6,9],['kogetsu','senku','hound','shield'],['grasshopper','shield','bagworm'])]},
-    {id:'azuma',ja:'アズマ隊',en:'AZUMA SQUAD',agents:[A('アズマ','AZUMA','スナイパー',[4,13,4],['egret','lightning','ibis','shield'],['dummyBeacon','shield','bagworm']),A('コアライ','KOARAI','アタッカー',[3,5,10],['kogetsu','senku','shield'],['grasshopper','shield','bagworm']),A('オクデラ','OKUDERA','アタッカー',[3,6,9],['kogetsu','senku','shield'],['grasshopper','shield','bagworm'])]},
-    {id:'nasu',ja:'ナス隊',en:'NASU SQUAD',agents:[A('ナス','NASU','シューター',[5,10,5],['shooter_asteroid','viper','shooter_meteor','shield'],['shield','bagworm']),A('クマガイ','KUMAGAI','アタッカー',[3,6,9],['kogetsu','senku','shooter_meteor','shield'],['shield','bagworm']),A('ヒウラ','HIURA','スナイパー',[3,8,7],['egret','lightning','ibis','shield'],['shooter_meteor','shield','bagworm'])]},
-    {id:'yuba',ja:'ユバ隊',en:'YUBA SQUAD',agents:[A('ユバ','YUBA','ガンナー',[4,7,8],['handgun_asteroid','handgun_viper','shield'],['handgun_asteroid','handgun_viper','shield','bagworm']),A('オビシマ','OBISHIMA','万能手',[3,6,9],['kogetsu','senku','gun_asteroid','gun_hound'],['grasshopper','shield','shield','bagworm']),A('トノオカ','TONOOKA','スナイパー',[4,9,5],['egret','lightning','ibis','shield'],['shield','bagworm'])]},
-    {id:'kuruma',ja:'クルマ隊',en:'KURUMA SQUAD',agents:[A('クルマ','KURUMA','ガンナー',[4,7,7],['gun_asteroid','gun_hound','shield'],['gun_asteroid','shield','bagworm']),A('ムラカミ','MURAKAMI','アタッカー',[4,8,8],['kogetsu','senku','shield'],['raygust','thruster','shield','bagworm']),A('ベツヤク','BETSUYAKU','スナイパー',[3,8,7],['egret','lightning','ibis','shield'],['escudo','shield','bagworm'])]},
-    {id:'arafune',ja:'アラフネ隊',en:'ARAFUNE SQUAD',agents:[A('アラフネ','ARAFUNE','スナイパー',[4,11,5],['kogetsu','senku','egret','shield'],['shield','bagworm']),A('ホカリ','HOKARI','スナイパー',[4,7,7],['egret','shield'],['shield','bagworm']),A('ハンザキ','HANZAKI','スナイパー',[3,12,5],['egret','shield'],['shield','bagworm'])]},
-    {id:'katori',ja:'カトリ隊',en:'KATORI SQUAD',agents:[A('カトリ','KATORI','万能手',[4,5,9],['scorpion','handgun_asteroid','handgun_hound','shield'],['scorpion','chameleon','shield','bagworm']),A('ミウラ','MIURA','アタッカー',[3,6,9],['kogetsu','senku','shield'],['shield','bagworm']),A('ワカムラ','WAKAMURA','ガンナー',[4,7,7],['gun_asteroid','gun_hound','shield'],['chameleon','shield','bagworm'])]},
-    {id:'suwa',ja:'スワ隊',en:'SUWA SQUAD',agents:[A('スワ','SUWA','ガンナー',[4,5,9],['shotgun_asteroid','shield','starmaker'],['shotgun_asteroid','shield','bagworm']),A('ツツミ','TSUTSUMI','ガンナー',[4,6,8],['shotgun_asteroid','shield','starmaker'],['shotgun_asteroid','shield','bagworm']),A('ササモリ','SASAMORI','アタッカー',[3,6,9],['kogetsu','senku','shield'],['chameleon','shield','bagworm'])]},
-    {id:'kakizaki',ja:'カキザキ隊',en:'KAKIZAKI SQUAD',agents:[A('カキザキ','KAKIZAKI','万能手',[4,7,7],['kogetsu','senku','gun_asteroid','gun_meteor'],['shield','shield','bagworm']),A('テルヤ','TERUYA','万能手',[4,8,6],['kogetsu','senku','gun_asteroid','gun_hound'],['shield','shield','bagworm']),A('トモエ','TOMOE','ガンナー',[3,6,9],['kogetsu','handgun_asteroid','handgun_hound','shield'],['grasshopper','shield','bagworm'])]}
+      A('ヒュース','HYUSE','アタッカー',[9,5,6],['kogetsu','senku','shield','shooter_viper'],['escudo','shield','bagworm','empty'])]},
+    {id:'kageura',ja:'カゲウラ隊',en:'KAGEURA SQUAD',agents:[
+      A('カゲウラ','KAGEURA','アタッカー',[4,5,11],['scorpion','shield','empty','empty'],['scorpion','shield','bagworm','empty']),
+      A('キタゾエ','KITAZOE','ガンナー',[7,5,6],['gun_grenade_asteroid','gun_grenade_meteor','shield','empty'],['shooter_meteor','shield','bagworm','empty']),
+      A('エマ','EMA','スナイパー',[4,8,6],['egret','lightning','ibis','shield'],['shield','bagworm','empty','empty'])]},
+    {id:'ikoma',ja:'イコマ隊',en:'IKOMA SQUAD',agents:[
+      A('イコマ','IKOMA','アタッカー',[4,8,8],['kogetsu','senku','shield','empty'],['shield','bagworm','empty','empty']),
+      A('ミズカミ','MIZUKAMI','シューター',[3,9,6],['shooter_asteroid','shooter_meteor','shield','empty'],['shooter_asteroid','shield','bagworm','empty']),
+      A('オキ','OKI','スナイパー',[5,8,5],['egret','lightning','shield','empty'],['grasshopper','shield','bagworm','empty']),
+      A('ミナミサワ','MINAMISAWA','アタッカー',[3,5,10],['kogetsu','senku','shield','empty'],['grasshopper','shield','bagworm','empty'])]},
+    {id:'oji',ja:'オウジ隊',en:'OJI SQUAD',agents:[
+      A('オウジ','OJI','アタッカー',[4,8,6],['kogetsu','senku','shield','shooter_hound'],['scorpion','grasshopper','shield','bagworm']),
+      A('クラウチ','KURAUCHI','シューター',[4,8,6],['shooter_asteroid','shooter_meteor','shooter_hound','shield'],['shooter_hound','shield','bagworm','empty']),
+      A('カシオ','KASHIO','アタッカー',[3,6,9],['kogetsu','senku','shield','shooter_hound'],['grasshopper','shield','bagworm','empty'])]},
+    {id:'azuma',ja:'アズマ隊',en:'AZUMA SQUAD',agents:[
+      A('アズマ','AZUMA','スナイパー',[4,13,4],['egret','lightning','ibis','shield'],['dummyBeacon','shield','bagworm','empty']),
+      A('コアライ','KOARAI','アタッカー',[3,5,10],['kogetsu','senku','shield','empty'],['grasshopper','shield','bagworm','empty']),
+      A('オクデラ','OKUDERA','アタッカー',[3,6,9],['kogetsu','senku','shield','empty'],['grasshopper','shield','bagworm','empty'])]},
+    {id:'nasu',ja:'ナス隊',en:'NASU SQUAD',agents:[
+      A('ナス','NASU','シューター',[5,10,5],['shooter_asteroid','shooter_viper','shooter_meteor','shield'],['shield','bagworm','empty','empty']),
+      A('クマガイ','KUMAGAI','アタッカー',[3,6,9],['kogetsu','senku','shooter_meteor','shield'],['shield','bagworm','empty','empty']),
+      A('ヒウラ','HIURA','スナイパー',[3,8,7],['egret','lightning','ibis','shield'],['shooter_meteor','shield','bagworm','empty'])]},
+    {id:'yuba',ja:'ユバ隊',en:'YUBA SQUAD',agents:[
+      A('ユバ','YUBA','ガンナー',[4,7,8],['gun_handgun_asteroid','gun_handgun_viper','shield','empty'],['gun_handgun_asteroid','gun_handgun_viper','shield','bagworm']),
+      A('オビシマ','OBISHIMA','万能手',[3,6,9],['kogetsu','senku','gun_assault_asteroid','gun_assault_hound'],['grasshopper','shield','shield','bagworm']),
+      A('トノオカ','TONOOKA','スナイパー',[4,9,5],['egret','lightning','ibis','shield'],['shield','bagworm','empty','empty'])]},
+    {id:'kuruma',ja:'クルマ隊',en:'KURUMA SQUAD',agents:[
+      A('クルマ','KURUMA','ガンナー',[4,7,7],['gun_assault_asteroid','gun_assault_hound','shield','empty'],['gun_assault_asteroid','shield','bagworm','empty']),
+      A('ムラカミ','MURAKAMI','アタッカー',[4,8,8],['kogetsu','senku','shield','empty'],['raygust','thruster','shield','bagworm']),
+      A('ベツヤク','BETSUYAKU','スナイパー',[3,8,7],['egret','lightning','ibis','shield'],['escudo','shield','bagworm','empty'])]},
+    {id:'arafune',ja:'アラフネ隊',en:'ARAFUNE SQUAD',agents:[
+      A('アラフネ','ARAFUNE','スナイパー',[4,11,5],['kogetsu','senku','egret','shield'],['shield','bagworm','empty','empty']),
+      A('ホカリ','HOKARI','スナイパー',[4,7,7],['egret','shield','empty','empty'],['shield','bagworm','empty','empty']),
+      A('ハンザキ','HANZAKI','スナイパー',[3,12,5],['egret','shield','empty','empty'],['shield','bagworm','empty','empty'])]},
+    {id:'katori',ja:'カトリ隊',en:'KATORI SQUAD',agents:[
+      A('カトリ','KATORI','万能手',[4,5,9],['scorpion','gun_handgun_asteroid','gun_handgun_hound','shield'],['scorpion','chameleon','shield','bagworm']),
+      A('ミウラ','MIURA','アタッカー',[3,6,9],['kogetsu','senku','shield','empty'],['shield','bagworm','empty','empty']),
+      A('ワカムラ','WAKAMURA','ガンナー',[4,7,7],['gun_assault_asteroid','gun_assault_hound','shield','empty'],['chameleon','shield','bagworm','empty'])]},
+    {id:'suwa',ja:'スワ隊',en:'SUWA SQUAD',agents:[
+      A('スワ','SUWA','ガンナー',[4,5,9],['gun_shotgun_asteroid','shield','starmaker','empty'],['gun_shotgun_asteroid','shield','bagworm','empty']),
+      A('ツツミ','TSUTSUMI','ガンナー',[4,6,8],['gun_shotgun_asteroid','shield','starmaker','empty'],['gun_shotgun_asteroid','shield','bagworm','empty']),
+      A('ササモリ','SASAMORI','アタッカー',[3,6,9],['kogetsu','senku','shield','empty'],['chameleon','shield','bagworm','empty'])]},
+    {id:'kakizaki',ja:'カキザキ隊',en:'KAKIZAKI SQUAD',agents:[
+      A('カキザキ','KAKIZAKI','万能手',[4,7,7],['kogetsu','senku','gun_assault_asteroid','gun_assault_meteor'],['shield','shield','bagworm','empty']),
+      A('テルヤ','TERUYA','万能手',[4,8,6],['kogetsu','senku','gun_assault_asteroid','gun_assault_hound'],['shield','shield','bagworm','empty']),
+      A('トモエ','TOMOE','ガンナー',[3,6,9],['kogetsu','gun_handgun_asteroid','gun_handgun_hound','shield'],['grasshopper','shield','bagworm','empty'])]}
   ];
 
   const SQUAD_COLORS={
@@ -115,19 +149,19 @@
     if(b.special==='wireField'&&p.v79SpecialCd<=0&&d<430){p.ai.placePoint={x:p.x+Math.cos(p.aim+1.25)*160,y:p.y+Math.sin(p.aim+1.25)*160};tryNamedUse(g,p,'spider');p.v79SpecialCd=2.1;}
     if(b.special==='kuga'&&p.v79SpecialCd<=0&&d<230){if(hasTrigger(p,'grasshopper'))tryNamedUse(g,p,'grasshopper');if(d<120)tryNamedUse(g,p,'scorpion');p.v79SpecialCd=.9;}
     if(b.special==='chika'&&p.v79SpecialCd<=0&&d>340){const id=d>650?'ibis':(hasTrigger(p,'shooter_meteor')?'shooter_meteor':'lightning');tryNamedUse(g,p,id);p.v79SpecialCd=2.8;}
-    if(b.special==='hyuse'&&p.v79SpecialCd<=0){if(d<210)tryNamedUse(g,p,'escudo');else tryNamedUse(g,p,'viper');p.v79SpecialCd=1.7;}
+    if(b.special==='hyuse'&&p.v79SpecialCd<=0){if(d<210)tryNamedUse(g,p,'escudo');else tryNamedUse(g,p,'shooter_viper');p.v79SpecialCd=1.7;}
     if(b.special==='hostilitySense'){p.v79ThreatSense=1;p.ai.dodgeTimer=Math.max(p.ai.dodgeTimer||0,.22);}
     if(b.special==='areaBombard'&&p.v79SpecialCd<=0&&d<650){tryNamedUse(g,p,hasTrigger(p,'gun_meteor')?'gun_meteor':'shooter_meteor');p.v79SpecialCd=2.3;}
     if(b.special==='ikomaSenku'&&p.v79SpecialCd<=0&&d>150&&d<500){p.v79IkomaSenku=true;tryNamedUse(g,p,'senku');p.v79IkomaSenku=false;p.v79SpecialCd=2.2;}
     if(b.special==='mobileSnipe'&&p.v79SpecialCd<=0){if(d<450)tryNamedUse(g,p,'grasshopper');else tryNamedUse(g,p,'egret');p.v79SpecialCd=1.6;}
-    if(b.special==='birdcage'&&p.v79SpecialCd<=0&&d<560){for(let i=0;i<3;i++)setTimeout(()=>{p.aim+=i?-.28:.56;tryNamedUse(g,p,'viper')},i*120);p.v79SpecialCd=2.8;}
-    if(b.special==='quickdraw'&&p.v79SpecialCd<=0&&d<230){p.v79QuickdrawUntil=performance.now()+420;tryNamedUse(g,p,hasTrigger(p,'handgun_asteroid')?'handgun_asteroid':'handgun_viper');p.v79SpecialCd=.55;}
-    if(b.special==='fullAttackWithMurakami'){const m=allies.find(a=>a.v78Named==='MURAKAMI'&&Math.hypot(a.x-p.x,a.y-p.y)<180);if(m&&p.v79SpecialCd<=0){tryNamedUse(g,p,'gun_asteroid');setTimeout(()=>tryNamedUse(g,p,'gun_asteroid'),80);p.v79SpecialCd=.8;}}
+    if(b.special==='birdcage'&&p.v79SpecialCd<=0&&d<560){for(let i=0;i<3;i++)setTimeout(()=>{p.aim+=i?-.28:.56;tryNamedUse(g,p,'shooter_viper')},i*120);p.v79SpecialCd=2.8;}
+    if(b.special==='quickdraw'&&p.v79SpecialCd<=0&&d<230){p.v79QuickdrawUntil=performance.now()+420;tryNamedUse(g,p,hasTrigger(p,'gun_handgun_asteroid')?'gun_handgun_asteroid':'gun_handgun_viper');p.v79SpecialCd=.55;}
+    if(b.special==='fullAttackWithMurakami'){const m=allies.find(a=>a.v78Named==='MURAKAMI'&&Math.hypot(a.x-p.x,a.y-p.y)<180);if(m&&p.v79SpecialCd<=0){tryNamedUse(g,p,'gun_assault_asteroid');setTimeout(()=>tryNamedUse(g,p,'gun_assault_asteroid'),80);p.v79SpecialCd=.8;}}
     if(b.special==='learningGuard'){p.v79GuardLearn=(p.v79GuardLearn||0)+dt;p.v79DefenseScale=1+Math.min(.22,p.v79GuardLearn/120);if(d<150&&p.v79SpecialCd<=0){tryNamedUse(g,p,'raygust');p.v79SpecialCd=.7;}}
     if(b.special==='hybrid'){if(d<240)tryNamedUse(g,p,'kogetsu');else if(p.v79SpecialCd<=0){tryNamedUse(g,p,'egret');p.v79SpecialCd=1.4;}}
-    if(b.special==='adaptive'){p.v79Adaptive=(p.v79Adaptive||0)+dt;if(d<180)tryNamedUse(g,p,'scorpion');else tryNamedUse(g,p,'handgun_asteroid');}
-    if(b.special==='shotgun'&&p.v79SpecialCd<=0&&d<220){tryNamedUse(g,p,'shotgun_asteroid');p.v79SpecialCd=.65;}
-    if(b.special==='alternatingShotgun'&&p.v79SpecialCd<=0&&d<260){const suwa=allies.find(a=>a.v78Named==='SUWA');if(!suwa||!(suwa.v79SpecialCd>0)){tryNamedUse(g,p,'shotgun_asteroid');p.v79SpecialCd=.8;}}
+    if(b.special==='adaptive'){p.v79Adaptive=(p.v79Adaptive||0)+dt;if(d<180)tryNamedUse(g,p,'scorpion');else tryNamedUse(g,p,'gun_handgun_asteroid');}
+    if(b.special==='shotgun'&&p.v79SpecialCd<=0&&d<220){tryNamedUse(g,p,'gun_shotgun_asteroid');p.v79SpecialCd=.65;}
+    if(b.special==='alternatingShotgun'&&p.v79SpecialCd<=0&&d<260){const suwa=allies.find(a=>a.v78Named==='SUWA');if(!suwa||!(suwa.v79SpecialCd>0)){tryNamedUse(g,p,'gun_shotgun_asteroid');p.v79SpecialCd=.8;}}
     if(b.special==='chameleonGrab'&&p.v79SpecialCd<=0&&d<260){if(d>90)tryNamedUse(g,p,'chameleon');else tryNamedUse(g,p,'kogetsu');p.v79SpecialCd=1.2;}
   }
 
@@ -276,15 +310,22 @@
   function pinball(g,blade){const p=humanOf(g),target=nearestEnemy(g,p,650);if(!p||!target)return;if(blade){if(!hasTrigger(p,'grasshopper')||!hasTrigger(p,'scorpion'))return flash('グラスホッパー＋スコーピオンが必要');}else{const count=[...(p.loadout.main||[]),...(p.loadout.sub||[])].filter(x=>x==='grasshopper').length;if(count<2||!['kogetsu','scorpion','raygust'].some(id=>hasTrigger(p,id)))return flash('グラスホッパー×2＋攻撃手トリガーが必要');}if(p.v77PinballUntil>performance.now())return;const cost=blade?15:12;if(!g.consumeTrion?.(p,cost))return;p.v77PinballUntil=performance.now()+2600;flash(blade?'ブレード乱反射':'乱反射');const points=Array.from({length:8},(_,i)=>{const a=i*Math.PI/4;return{x:target.x+Math.cos(a)*110,y:target.y+Math.sin(a)*110};});points.forEach((pt,i)=>setTimeout(()=>{if(p.dead||target.dead)return;p.x=clamp(pt.x,p.radius,g.world.w-p.radius);p.y=clamp(pt.y,p.radius,g.world.h-p.radius);p.vx=Math.cos(i*Math.PI/4+Math.PI/2)*420;p.vy=Math.sin(i*Math.PI/4+Math.PI/2)*420;g.effects?.push({type:'grasshopper',x:p.x,y:p.y,angle:p.aim,ttl:.35,maxTtl:.35});g.damagePlayer?.(target,(blade?10:7)*(.9+p.stats.combat*.035),p,{x:p.x,y:p.y,type:'melee',name:blade?'ブレード乱反射':'乱反射',sourceKey:blade?'bladePinball':'pinball'});},i*110));}
   function screenPoint(g,x,y){const cam=g.camera||{x:0,y:0};return{x:x-(cam.x||0),y:y-(cam.y||0)};}
   function tetraPath(ctx,x,y,r,angle=0){ctx.save();ctx.translate(x,y);ctx.rotate(angle);ctx.beginPath();ctx.moveTo(0,-r);ctx.lineTo(-r*.78,r*.58);ctx.lineTo(r*.78,r*.58);ctx.closePath();ctx.moveTo(0,-r);ctx.lineTo(r*.12,r*.08);ctx.lineTo(-r*.78,r*.58);ctx.moveTo(r*.12,r*.08);ctx.lineTo(r*.78,r*.58);ctx.restore();}
-  function drawTetraAt(ctx,x,y,r,angle=0){ctx.save();ctx.fillStyle='rgba(74,153,218,.78)';ctx.strokeStyle='rgba(220,247,255,.9)';ctx.lineWidth=.7;ctx.lineJoin='round';tetraPath(ctx,x,y,r,angle);ctx.fill();ctx.stroke();ctx.restore();}
+  function drawTetraAt(ctx,x,y,r,angle=0){ctx.save();ctx.fillStyle='rgba(74,153,218,.78)';ctx.strokeStyle='rgba(220,247,255,.9)';ctx.lineWidth=.28;ctx.lineJoin='round';tetraPath(ctx,x,y,r,angle);ctx.fill();ctx.stroke();ctx.restore();}
   function projectileOwnerIsNinomiya(g,item){if(!item)return false;const id=item.ownerId??item.playerId??item.sourceId??item.owner?.id??item.source?.id;return (g.players||[]).some(p=>p.v78Named==='NINOMIYA'&&(p===item.owner||p===item.source||p.id===id));}
   function animatedTetraAngle(base,seed,speed=.0018){return base+Math.sin(performance.now()*speed+seed)*.42+performance.now()*speed*.16;}
-  function drawNinomiyaTetrahedrons(g){const ctx=g?.ctx||g?.context;if(!ctx)return;const n=(g.players||[]).find(p=>p.v78Named==='NINOMIYA'&&!p.dead);if(!n)return;
-    const charges=n.shooterCharges?Object.values(n.shooterCharges).filter(Boolean):[];
-    charges.forEach((charge,index)=>{const aim=Number.isFinite(charge.aim)?charge.aim:n.aim;const wx=Number.isFinite(charge.x)?charge.x:n.x+Math.cos(aim)*36;const wy=Number.isFinite(charge.y)?charge.y:n.y+Math.sin(aim)*36;const sp=screenPoint(g,wx,wy);const seed=charge.v88SpinSeed??(charge.v88SpinSeed=(index+1)*1.73);drawTetraAt(ctx,sp.x,sp.y,10.5,animatedTetraAngle(aim+Math.PI/2,seed,.0022));});
-    const groups=[g.projectiles,g.bullets,g.shots].filter(Array.isArray);
-    const seen=new Set();for(const group of groups)for(const item of group){if(!item||seen.has(item)||!projectileOwnerIsNinomiya(g,item))continue;seen.add(item);if(!Number.isFinite(item.x)||!Number.isFinite(item.y))continue;const sp=screenPoint(g,item.x,item.y);const base=Number.isFinite(item.angle)?item.angle:Math.atan2(item.vy||0,item.vx||1);const seed=item.v88SpinSeed??(item.v88SpinSeed=Math.random()*Math.PI*2);const size=Math.max(4.8,Math.min(9.5,(item.radius||item.r||9)*.62));drawTetraAt(ctx,sp.x,sp.y,size,animatedTetraAngle(base+Math.PI/2,seed,.0028));}
+  function splitCountOf(charge){
+    const candidates=[charge?.splitCount,charge?.divisions,charge?.divisionCount,charge?.parts,charge?.level,charge?.splitLevel];
+    for(const value of candidates)if(Number.isFinite(Number(value)))return clamp(Math.round(Number(value)),0,16);
+    for(const key of ['fragments','cubes','orbits','pieces'])if(Array.isArray(charge?.[key]))return clamp(charge[key].length,0,16);
+    return charge?.v86Tetra?4:0;
   }
+  function drawNinomiyaTetrahedrons(g){const ctx=g?.ctx||g?.context;if(!ctx)return;const n=(g.players||[]).find(p=>p.v78Named==='NINOMIYA'&&!p.dead);if(!n)return;
+    const now=performance.now();
+    const charges=n.shooterCharges?Object.values(n.shooterCharges).filter(Boolean):[];
+    charges.forEach((charge,index)=>{const aim=Number.isFinite(charge.aim)?charge.aim:n.aim;const wx=Number.isFinite(charge.x)?charge.x:n.x+Math.cos(aim)*34;const wy=Number.isFinite(charge.y)?charge.y:n.y+Math.sin(aim)*34;const sp=screenPoint(g,wx,wy);const seed=charge.v88SpinSeed??(charge.v88SpinSeed=(index+1)*1.73);drawTetraAt(ctx,sp.x,sp.y,7.2,animatedTetraAngle(aim+Math.PI/2,seed,.0027));const count=splitCountOf(charge);const orbit=12.5+Math.min(9,count*.55);for(let i=0;i<count;i++){const a=now*.00135+seed+i*Math.PI*2/count;drawTetraAt(ctx,sp.x+Math.cos(a)*orbit,sp.y+Math.sin(a)*orbit,3.05,animatedTetraAngle(a,seed+i*.83,.0034));}});
+    const groups=[g.projectiles,g.bullets,g.shots].filter(Array.isArray);const seen=new Set();for(const group of groups)for(const item of group){if(!item||seen.has(item)||!projectileOwnerIsNinomiya(g,item))continue;seen.add(item);if(!Number.isFinite(item.x)||!Number.isFinite(item.y))continue;const sp=screenPoint(g,item.x,item.y);const base=Number.isFinite(item.angle)?item.angle:Math.atan2(item.vy||0,item.vx||1);const seed=item.v88SpinSeed??(item.v88SpinSeed=Math.random()*Math.PI*2);const size=Math.max(3.2,Math.min(6.4,(item.radius||item.r||8)*.46));drawTetraAt(ctx,sp.x,sp.y,size,animatedTetraAngle(base+Math.PI/2,seed,.0031));}
+  }
+  function hideNinomiyaNativeCubes(g){const n=(g.players||[]).find(p=>p.v78Named==='NINOMIYA');const saved={charges:n?.shooterCharges,groups:[]};if(n&&n.shooterCharges)n.shooterCharges={};for(const key of ['projectiles','bullets','shots']){const arr=g[key];if(!Array.isArray(arr))continue;const filtered=arr.filter(item=>!projectileOwnerIsNinomiya(g,item));if(filtered.length!==arr.length){saved.groups.push([key,arr]);g[key]=filtered;}}return()=>{if(n&&saved.charges)n.shooterCharges=saved.charges;for(const [key,arr] of saved.groups)g[key]=arr;};}
   function tagNewNinomiyaProjectiles(g,p,before){if(p?.v78Named!=='NINOMIYA')return;for(const [key,count] of Object.entries(before)){const arr=g[key];if(!Array.isArray(arr))continue;for(const item of arr.slice(count)){if(item&&typeof item==='object'){item.v86Tetra=true;item.v88SpinSeed??=Math.random()*Math.PI*2;item.ownerId??=p.id;}}}}
 
   function patchGame(g){if(!g||!g.constructor)return;currentGame=g;applyNamed(g);const proto=Object.getPrototypeOf(g);if(patchedProto===proto)return;patchedProto=proto;
@@ -297,7 +338,7 @@
     const oldFireShooter=proto.fireShooter;if(oldFireShooter)proto.fireShooter=function(p,...args){const before={projectiles:Array.isArray(this.projectiles)?this.projectiles.length:0,bullets:Array.isArray(this.bullets)?this.bullets.length:0,shots:Array.isArray(this.shots)?this.shots.length:0};const out=oldFireShooter.call(this,p,...args);tagNewNinomiyaProjectiles(this,p,before);return out;};
     const oldBeginShooterCharge=proto.beginShooterCharge;if(oldBeginShooterCharge)proto.beginShooterCharge=function(p,hand,trigger){const out=oldBeginShooterCharge.call(this,p,hand,trigger);if(p?.v78Named==='NINOMIYA'&&p.shooterCharges?.[hand])p.shooterCharges[hand].v86Tetra=true;p.shooterCharges[hand].v88SpinSeed??=Math.random()*Math.PI*2;return out;};
     const oldDamage=proto.damagePlayer;if(oldDamage)proto.damagePlayer=function(target,amount,source,meta){if(target?.v79DefenseScale)amount/=target.v79DefenseScale;if(source?.v78Named==='NINOMIYA'&&meta?.sourceKey?.includes('asteroid'))amount*=1.12;if(source?.v78Named==='YUBA'&&performance.now()<(source.v79QuickdrawUntil||0))amount*=1.18;if(source?.v78Named==='HANZAKI'&&meta?.type==='sniper')amount*=1.15;return oldDamage.call(this,target,amount,source,meta);};
-    const oldRender=proto.render;if(oldRender)proto.render=function(...args){const out=oldRender.apply(this,args);drawNinomiyaTetrahedrons(this);return out;};
+    const oldRender=proto.render;if(oldRender)proto.render=function(...args){const restore=hideNinomiyaNativeCubes(this);let out;try{out=oldRender.apply(this,args);}finally{restore();}drawNinomiyaTetrahedrons(this);return out;};
   }
   window.addEventListener('keydown',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=true;if(e.repeat||e.code!=='KeyC'||!currentGame)return;const p=humanOf(currentGame);if(!p)return;const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])],hasBlade=all.includes('grasshopper')&&all.includes('scorpion'),hasPin=all.filter(x=>x==='grasshopper').length>=2&&['kogetsu','scorpion','raygust'].some(id=>all.includes(id));if(!hasBlade&&!hasPin)return;e.preventDefault();e.stopImmediatePropagation();setTimeout(()=>pinball(currentGame,hasBlade),0);},true);
   window.addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=false;},true);window.addEventListener('blur',()=>shiftHeld=false);
@@ -323,6 +364,6 @@
   window.addEventListener('trion-language-change',()=>mountRoster(true));
   const rosterObserver=new MutationObserver(()=>mountRoster(false));
   const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
-  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=88;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 88');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
+  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=89;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 89');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
   window.addEventListener('beforeunload',()=>{clearInterval(timer);rosterObserver.disconnect();});
 })();
