@@ -4,9 +4,51 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#071521" />
-  <title>TRION ARENA — B級ランク戦</title>
-  <link rel="stylesheet" href="styles.css?v=74" />
-  <link rel="stylesheet" href="v74-hotfix.css?v=74" />
+  <title>TRION ARENA | ワールドトリガー風ブラウザ対戦ゲーム</title>
+  <meta name="description" content="TRION ARENAは、トリガー構成を選び、個人戦・チーム戦・防衛戦を遊べる非公式ブラウザ対戦ゲームです。チュートリアル、ランキング、オンライン機能に対応。" />
+  <meta name="keywords" content="TRION ARENA,ワールドトリガー,ブラウザゲーム,対戦ゲーム,ランク戦,トリガー,World Trigger,fan game" />
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+  <meta name="author" content="SoshuKo" />
+  <link rel="canonical" href="https://soshuko.github.io/Trigger/" />
+  <link rel="alternate" hreflang="ja" href="https://soshuko.github.io/Trigger/?lang=ja" />
+  <link rel="alternate" hreflang="en" href="https://soshuko.github.io/Trigger/?lang=en" />
+  <link rel="alternate" hreflang="x-default" href="https://soshuko.github.io/Trigger/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TRION ARENA" />
+  <meta property="og:title" content="TRION ARENA | Browser Battle Game" />
+  <meta property="og:description" content="Choose your Trigger loadout and fight in solo, team and defense battles in this unofficial browser game." />
+  <meta property="og:url" content="https://soshuko.github.io/Trigger/" />
+  <meta property="og:locale" content="ja_JP" />
+  <meta property="og:locale:alternate" content="en_US" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="TRION ARENA | Browser Battle Game" />
+  <meta name="twitter:description" content="A free unofficial browser battle game with customizable Trigger loadouts." />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css?v=76" />
+  <link rel="stylesheet" href="v74-hotfix.css?v=76" />
+  <link rel="stylesheet" href="v76-i18n.css?v=76" />
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-GGSX120HTF"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-GGSX120HTF');
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"VideoGame",
+    "name":"TRION ARENA",
+    "url":"https://soshuko.github.io/Trigger/",
+    "description":"A free unofficial browser battle game with customizable Trigger loadouts, solo, team and defense modes.",
+    "applicationCategory":"Game",
+    "operatingSystem":"Web Browser",
+    "inLanguage":["ja","en"],
+    "isAccessibleForFree":true,
+    "author":{"@type":"Person","name":"SoshuKo"}
+  }
+  </script>
 </head>
 <body>
   <main id="app">
@@ -17,7 +59,7 @@
         <p class="title-kicker">B-GRADE RANK WAR</p>
         <h1>TRION<br>ARENA</h1>
         <p class="title-copy">戦場を駆け、トリガーを選び、勝ち残れ。</p>
-        <div class="version-badge" aria-label="現在のバージョン">VERSION 74</div>
+        <div class="version-badge" aria-label="現在のバージョン">VERSION 76</div>
         <div class="title-actions">
           <button id="enterSetupButton" class="title-start" type="button"><span>出撃準備へ</span><small>はじめてでもガイド付き</small></button>
           <button id="onlineOpenButton" class="title-online" type="button">オンライン出撃</button>
@@ -754,7 +796,8 @@
   <script src="js/community.js?v=70"></script>
   <script src="simulation-results/latest.js?v=65"></script>
   <script src="js/simulation-results.js?v=65"></script>
-  <script src="js/game.js?v=74"></script>
-  <script src="js/tutorial.js?v=73"></script>
+  <script src="js/i18n.js?v=76"></script>
+  <script src="js/game.js?v=76"></script>
+  <script src="js/tutorial.js?v=76"></script>
 </body>
 </html>

@@ -1,0 +1,12 @@
+{
+  "name": "TRION ARENA",
+  "short_name": "TRION ARENA",
+  "description": "A free unofficial browser battle game with customizable Trigger loadouts.",
+  "start_url": "/Trigger/",
+  "scope": "/Trigger/",
+  "display": "standalone",
+  "background_color": "#06121c",
+  "theme_color": "#071521",
+  "lang": "ja",
+  "categories": ["games", "entertainment"]
+}

@@ -1,0 +1,14 @@
+.language-toggle {
+  min-width: 64px !important;
+  padding-inline: 14px;
+  color: var(--cyan) !important;
+  letter-spacing: .12em !important;
+}
+html[lang="en"] body { word-break: normal; }
+html[lang="en"] .title-actions button { letter-spacing: .035em; }
+html[lang="en"] .panel-heading p,
+html[lang="en"] .field-help,
+html[lang="en"] .guide-summary-grid span { line-height: 1.45; }
+@media (max-width: 720px) {
+  .language-toggle { min-width: 54px !important; }
+}
