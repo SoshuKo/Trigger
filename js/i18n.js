@@ -138,8 +138,10 @@
       const actions = document.querySelector('.title-actions');
       if (actions) actions.appendChild(button);
     }
-    button.textContent = language === 'ja' ? 'EN' : '日本語';
-    button.setAttribute('aria-label', language === 'ja' ? 'Switch to English' : '日本語に切り替え');
+    const nextText = language === 'ja' ? 'EN' : '日本語';
+    const nextLabel = language === 'ja' ? 'Switch to English' : '日本語に切り替え';
+    if (button.textContent !== nextText) button.textContent = nextText;
+    if (button.getAttribute('aria-label') !== nextLabel) button.setAttribute('aria-label', nextLabel);
   }
 
   function setLanguage(nextLanguage) {
