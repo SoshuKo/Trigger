@@ -319,11 +319,69 @@
     for(const key of ['fragments','cubes','orbits','pieces'])if(Array.isArray(charge?.[key]))return clamp(charge[key].length,0,16);
     return charge?.v86Tetra?4:0;
   }
+  function nativeCubeDiameter(source,fallback=14){
+    const direct=[source?.cubeSize,source?.size,source?.diameter,source?.edge,source?.width];
+    for(const value of direct)if(Number.isFinite(Number(value))&&Number(value)>0)return Number(value);
+    const radial=[source?.radius,source?.r];
+    for(const value of radial)if(Number.isFinite(Number(value))&&Number(value)>0)return Number(value)*2;
+    return fallback;
+  }
+  function nativeOrbitRadius(charge,owner,count){
+    const values=[charge?.orbitRadius,charge?.orbitDistance,charge?.ringRadius,charge?.distanceFromOwner];
+    for(const value of values)if(Number.isFinite(Number(value))&&Number(value)>0)return Number(value);
+    const arrays=['fragments','cubes','orbits','pieces'];
+    for(const key of arrays){
+      const list=charge?.[key];
+      if(!Array.isArray(list)||!list.length)continue;
+      const distances=list.filter(Boolean).map(item=>Math.hypot((item.x??owner.x)-owner.x,(item.y??owner.y)-owner.y)).filter(Number.isFinite);
+      if(distances.length)return distances.reduce((a,b)=>a+b,0)/distances.length;
+    }
+    return 38+Math.min(12,Math.max(0,count-1)*1.6);
+  }
+  function nativeFragmentList(charge){
+    for(const key of ['fragments','cubes','orbits','pieces'])if(Array.isArray(charge?.[key]))return charge[key];
+    return null;
+  }
+  function tetraRadiusFromCubeDiameter(diameter){return Math.max(1.8,diameter*.5);}
   function drawNinomiyaTetrahedrons(g){const ctx=g?.ctx||g?.context;if(!ctx)return;const n=(g.players||[]).find(p=>p.v78Named==='NINOMIYA'&&!p.dead);if(!n)return;
     const now=performance.now();
     const charges=n.shooterCharges?Object.values(n.shooterCharges).filter(Boolean):[];
-    charges.forEach((charge,index)=>{const aim=Number.isFinite(charge.aim)?charge.aim:n.aim;const wx=Number.isFinite(charge.x)?charge.x:n.x+Math.cos(aim)*34;const wy=Number.isFinite(charge.y)?charge.y:n.y+Math.sin(aim)*34;const sp=screenPoint(g,wx,wy);const seed=charge.v88SpinSeed??(charge.v88SpinSeed=(index+1)*1.73);drawTetraAt(ctx,sp.x,sp.y,7.2,animatedTetraAngle(aim+Math.PI/2,seed,.0027));const count=splitCountOf(charge);const orbit=12.5+Math.min(9,count*.55);for(let i=0;i<count;i++){const a=now*.00135+seed+i*Math.PI*2/count;drawTetraAt(ctx,sp.x+Math.cos(a)*orbit,sp.y+Math.sin(a)*orbit,3.05,animatedTetraAngle(a,seed+i*.83,.0034));}});
-    const groups=[g.projectiles,g.bullets,g.shots].filter(Array.isArray);const seen=new Set();for(const group of groups)for(const item of group){if(!item||seen.has(item)||!projectileOwnerIsNinomiya(g,item))continue;seen.add(item);if(!Number.isFinite(item.x)||!Number.isFinite(item.y))continue;const sp=screenPoint(g,item.x,item.y);const base=Number.isFinite(item.angle)?item.angle:Math.atan2(item.vy||0,item.vx||1);const seed=item.v88SpinSeed??(item.v88SpinSeed=Math.random()*Math.PI*2);const size=Math.max(3.2,Math.min(6.4,(item.radius||item.r||8)*.46));drawTetraAt(ctx,sp.x,sp.y,size,animatedTetraAngle(base+Math.PI/2,seed,.0031));}
+    charges.forEach((charge,index)=>{
+      const aim=Number.isFinite(charge.aim)?charge.aim:n.aim;
+      const seed=charge.v88SpinSeed??(charge.v88SpinSeed=(index+1)*1.73);
+      const baseDiameter=nativeCubeDiameter(charge,14);
+      const count=splitCountOf(charge);
+      const fragments=nativeFragmentList(charge);
+      if(count<=0){
+        const wx=Number.isFinite(charge.x)?charge.x:n.x+Math.cos(aim)*34;
+        const wy=Number.isFinite(charge.y)?charge.y:n.y+Math.sin(aim)*34;
+        const sp=screenPoint(g,wx,wy);
+        drawTetraAt(ctx,sp.x,sp.y,tetraRadiusFromCubeDiameter(baseDiameter),animatedTetraAngle(aim+Math.PI/2,seed,.0027));
+        return;
+      }
+      const splitDiameter=baseDiameter/Math.sqrt(Math.max(1,count));
+      if(fragments&&fragments.length){
+        fragments.forEach((fragment,i)=>{
+          if(!fragment)return;
+          const wx=Number.isFinite(fragment.x)?fragment.x:n.x;
+          const wy=Number.isFinite(fragment.y)?fragment.y:n.y;
+          const sp=screenPoint(g,wx,wy);
+          const diameter=nativeCubeDiameter(fragment,splitDiameter);
+          const base=Number.isFinite(fragment.angle)?fragment.angle:Math.atan2(wy-n.y,wx-n.x);
+          drawTetraAt(ctx,sp.x,sp.y,tetraRadiusFromCubeDiameter(diameter),animatedTetraAngle(base+Math.PI/2,seed+i*.83,.0031));
+        });
+        return;
+      }
+      const orbit=nativeOrbitRadius(charge,n,count);
+      const phase=Number.isFinite(charge.orbitAngle)?charge.orbitAngle:(Number.isFinite(charge.phase)?charge.phase:seed);
+      const speed=Number.isFinite(charge.orbitSpeed)?charge.orbitSpeed:.00135;
+      const ownerSp=screenPoint(g,n.x,n.y);
+      for(let i=0;i<count;i++){
+        const a=phase+now*speed+i*Math.PI*2/count;
+        drawTetraAt(ctx,ownerSp.x+Math.cos(a)*orbit,ownerSp.y+Math.sin(a)*orbit,tetraRadiusFromCubeDiameter(splitDiameter),animatedTetraAngle(a+Math.PI/2,seed+i*.83,.0031));
+      }
+    });
+    const groups=[g.projectiles,g.bullets,g.shots].filter(Array.isArray);const seen=new Set();for(const group of groups)for(const item of group){if(!item||seen.has(item)||!projectileOwnerIsNinomiya(g,item))continue;seen.add(item);if(!Number.isFinite(item.x)||!Number.isFinite(item.y))continue;const sp=screenPoint(g,item.x,item.y);const base=Number.isFinite(item.angle)?item.angle:Math.atan2(item.vy||0,item.vx||1);const seed=item.v88SpinSeed??(item.v88SpinSeed=Math.random()*Math.PI*2);const diameter=nativeCubeDiameter(item,Math.max(7,(item.radius||item.r||4)*2));drawTetraAt(ctx,sp.x,sp.y,tetraRadiusFromCubeDiameter(diameter),animatedTetraAngle(base+Math.PI/2,seed,.0031));}
   }
   function hideNinomiyaNativeCubes(g){const n=(g.players||[]).find(p=>p.v78Named==='NINOMIYA');const saved={charges:n?.shooterCharges,groups:[]};if(n&&n.shooterCharges)n.shooterCharges={};for(const key of ['projectiles','bullets','shots']){const arr=g[key];if(!Array.isArray(arr))continue;const filtered=arr.filter(item=>!projectileOwnerIsNinomiya(g,item));if(filtered.length!==arr.length){saved.groups.push([key,arr]);g[key]=filtered;}}return()=>{if(n&&saved.charges)n.shooterCharges=saved.charges;for(const [key,arr] of saved.groups)g[key]=arr;};}
   function tagNewNinomiyaProjectiles(g,p,before){if(p?.v78Named!=='NINOMIYA')return;for(const [key,count] of Object.entries(before)){const arr=g[key];if(!Array.isArray(arr))continue;for(const item of arr.slice(count)){if(item&&typeof item==='object'){item.v86Tetra=true;item.v88SpinSeed??=Math.random()*Math.PI*2;item.ownerId??=p.id;}}}}
@@ -364,6 +422,6 @@
   window.addEventListener('trion-language-change',()=>mountRoster(true));
   const rosterObserver=new MutationObserver(()=>mountRoster(false));
   const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
-  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=89;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 89');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
+  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=90;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 90');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
   window.addEventListener('beforeunload',()=>{clearInterval(timer);rosterObserver.disconnect();});
 })();
