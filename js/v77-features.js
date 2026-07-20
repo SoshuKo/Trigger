@@ -121,58 +121,88 @@
     if(b.special==='chameleonGrab'&&p.v79SpecialCd<=0&&d<260){if(d>90)tryNamedUse(g,p,'chameleon');else tryNamedUse(g,p,'kogetsu');p.v79SpecialCd=1.2;}
   }
 
-  const ROSTER_STORAGE_KEY='trion-v80-opponent-slots';
+  const ROSTER_STORAGE_KEY='trion-v81-card-opponents';
   const MAX_OPPONENT_SLOTS=12;
+  const ROLE_TO_ARCHETYPE={ 'アタッカー':'攻撃手','シューター':'射手','ガンナー':'銃手','スナイパー':'狙撃手','万能手':'万能手' };
   function loadOpponentSlots(){
     try{
       const raw=JSON.parse(localStorage.getItem(ROSTER_STORAGE_KEY)||'null');
       if(Array.isArray(raw)) return Array.from({length:MAX_OPPONENT_SLOTS},(_,i)=>({squad:raw[i]?.squad||'mob',agent:raw[i]?.agent||''}));
-      const old=JSON.parse(localStorage.getItem('trion-v78-named-roster')||'null');
-      if(old?.squad&&old.squad!=='mob'){
-        const squad=SQUADS.find(s=>s.id===old.squad),ids=Array.isArray(old.agents)&&old.agents.length?old.agents:squad?.agents.map((_,i)=>i)||[];
-        return Array.from({length:MAX_OPPONENT_SLOTS},(_,i)=>{const a=squad?.agents[ids[i%Math.max(1,ids.length)]];return a?{squad:old.squad,agent:a.en}:{squad:'mob',agent:''};});
-      }
     }catch(_){ }
     return Array.from({length:MAX_OPPONENT_SLOTS},()=>({squad:'mob',agent:''}));
   }
   const opponentSlots=loadOpponentSlots();
   const saveRoster=()=>localStorage.setItem(ROSTER_STORAGE_KEY,JSON.stringify(opponentSlots));
-  function guessedCpuCount(){
-    const setup=document.querySelector('#setupScreen');
-    if(!setup)return 4;
-    const controls=[...setup.querySelectorAll('input,select')].filter(el=>/cpu/i.test(`${el.id} ${el.name} ${el.getAttribute('aria-label')||''}`));
-    for(const el of controls){const n=Number(el.value);if(Number.isFinite(n)&&n>=0&&n<=MAX_OPPONENT_SLOTS)return Math.max(1,n);}
-    const text=setup.textContent||'';
-    const m=text.match(/CPU\s*[×x:]?\s*(\d+)/i);return m?Math.max(1,Math.min(MAX_OPPONENT_SLOTS,Number(m[1]))):4;
+  const mobSnapshots=new Map();
+  function snapshotCard(card,index){
+    if(mobSnapshots.has(index))return;
+    mobSnapshots.set(index,{
+      name:card.querySelector('.cpu-name')?.value||`CPU-${index+1}`,
+      archetype:card.querySelector('.cpu-archetype')?.value||'',
+      stats:[...card.querySelectorAll('input[data-stat]')].map(el=>Number(el.value)),
+      main:[...card.querySelectorAll('select[data-hand="main"]')].map(el=>el.value),
+      sub:[...card.querySelectorAll('select[data-hand="sub"]')].map(el=>el.value),
+      summary:card.querySelector('.cpu-card-title')?.innerHTML||''
+    });
+  }
+  function setCardDisplay(card,index,agent){
+    snapshotCard(card,index);
+    const name=card.querySelector('.cpu-name');if(name)name.value=labelOf(agent);
+    const archetype=card.querySelector('.cpu-archetype'),wanted=ROLE_TO_ARCHETYPE[agent.role]||agent.role;
+    if(archetype&&[...archetype.options].some(o=>o.value===wanted))archetype.value=wanted;
+    const statKeys=['trion','technique','combat'];
+    statKeys.forEach((key,i)=>{const input=card.querySelector(`input[data-stat="${key}"]`);if(!input)return;input.max=String(Math.max(Number(input.max)||10,agent.stats[i]));input.value=String(agent.stats[i]);const output=input.closest('label')?.querySelector('output');if(output)output.value=String(agent.stats[i]);});
+    for(const hand of ['main','sub']) card.querySelectorAll(`select[data-hand="${hand}"]`).forEach((select,i)=>{const value=agent[hand][i]||'empty';if([...select.options].some(o=>o.value===value))select.value=value;});
+    const title=card.querySelector('.cpu-card-title');if(title)title.innerHTML=`<strong>${labelOf(agent)}</strong><span>${wanted} / T${agent.stats[0]} 技${agent.stats[1]} 戦${agent.stats[2]}</span>`;
+    card.dataset.namedAgent=agent.en;
+  }
+  function restoreMobDisplay(card,index){
+    const snap=mobSnapshots.get(index);if(!snap)return;
+    const name=card.querySelector('.cpu-name');if(name)name.value=snap.name;
+    const archetype=card.querySelector('.cpu-archetype');if(archetype)archetype.value=snap.archetype;
+    ['trion','technique','combat'].forEach((key,i)=>{const input=card.querySelector(`input[data-stat="${key}"]`);if(!input)return;input.value=String(snap.stats[i]??input.value);const output=input.closest('label')?.querySelector('output');if(output)output.value=String(snap.stats[i]??input.value);});
+    for(const hand of ['main','sub']) card.querySelectorAll(`select[data-hand="${hand}"]`).forEach((select,i)=>{const value=snap[hand][i];if(value&&[...select.options].some(o=>o.value===value))select.value=value;});
+    const title=card.querySelector('.cpu-card-title');if(title&&snap.summary)title.innerHTML=snap.summary;
+    delete card.dataset.namedAgent;
   }
   function mountRoster(){
-    if(rosterMounted)return;const setup=document.querySelector('#setupScreen');if(!setup)return;
-    const heading=[...setup.querySelectorAll('h2,h3,strong,summary,legend')].find(e=>/^\s*05\s*[:：]?\s*対戦隊員設定|対戦隊員設定|CPU Agent Settings/i.test(e.textContent||''));
-    const host=heading?.closest('section,fieldset,.setup-panel,.setup-card,details')||[...setup.querySelectorAll('section,div')].find(e=>/対戦隊員設定|CPU Agent Settings/i.test(e.textContent||''))||setup.querySelector('.setup-shell')||setup;
-    const box=document.createElement('section');box.className='v80-opponent-slots';box.innerHTML='<header><strong data-title></strong><small data-note></small></header><div data-slot-list></div>';
-    host.appendChild(box);rosterMounted=true;
-    const list=box.querySelector('[data-slot-list]');
-    const render=()=>{
-      const en=lang()==='en';box.querySelector('[data-title]').textContent=en?'Individual CPU Agent Setup':'CPUごとの対戦隊員設定';box.querySelector('[data-note]').textContent=en?'Set each CPU slot separately. MOB / RANDOM keeps the original opponent.':'各CPU枠を個別に設定します。モブ／ランダムは従来性能のままです。';
-      const count=guessedCpuCount();list.innerHTML='';
-      for(let i=0;i<MAX_OPPONENT_SLOTS;i++){
-        const slot=opponentSlots[i],row=document.createElement('div');row.className='v80-opponent-row';row.hidden=i>=count;
-        row.innerHTML=`<strong>${en?'CPU':'CPU'} ${i+1}</strong><label><span>${en?'Squad':'部隊'}</span><select data-squad></select></label><label><span>${en?'Agent':'隊員'}</span><select data-agent></select></label>`;
-        const squadSel=row.querySelector('[data-squad]'),agentSel=row.querySelector('[data-agent]');
-        squadSel.innerHTML=`<option value="mob">${en?'MOB / RANDOM':'モブ／ランダム'}</option>`+SQUADS.map(s=>`<option value="${s.id}">${en?s.en:s.ja}</option>`).join('');
-        squadSel.value=SQUADS.some(s=>s.id===slot.squad)?slot.squad:'mob';
-        const fillAgents=()=>{const squad=SQUADS.find(s=>s.id===squadSel.value);agentSel.disabled=!squad;if(!squad){agentSel.innerHTML=`<option value="">${en?'Original random CPU':'従来のランダムCPU'}</option>`;slot.squad='mob';slot.agent='';return;}agentSel.innerHTML=squad.agents.map(a=>`<option value="${a.en}">${labelOf(a)} / ${en?a.role:a.role}</option>`).join('');if(!squad.agents.some(a=>a.en===slot.agent))slot.agent=squad.agents[0]?.en||'';agentSel.value=slot.agent;};
-        squadSel.onchange=()=>{slot.squad=squadSel.value;slot.agent='';fillAgents();saveRoster();};agentSel.onchange=()=>{slot.agent=agentSel.value;saveRoster();};fillAgents();list.appendChild(row);
+    document.querySelectorAll('.v80-opponent-slots,.v78-named-roster').forEach(el=>el.remove());
+    const root=document.querySelector('#cpuConfigList');if(!root)return;
+    const cards=[...root.querySelectorAll('.cpu-card')];
+    cards.forEach((card,index)=>{
+      const grid=card.querySelector('.cpu-basic-grid');if(!grid)return;
+      let picker=grid.querySelector('.v81-card-agent-picker');
+      if(!picker){
+        picker=document.createElement('div');picker.className='v81-card-agent-picker';picker.innerHTML='<label><span data-squad-label></span><select data-squad></select></label><label><span data-agent-label></span><select data-agent></select></label>';
+        grid.prepend(picker);
       }
-    };
-    window.addEventListener('trion-language-change',render);setup.addEventListener('change',e=>{if(/cpu/i.test(`${e.target?.id||''} ${e.target?.name||''}`))setTimeout(render,0);});render();
+      const slot=opponentSlots[index]||{squad:'mob',agent:''},en=lang()==='en';
+      picker.querySelector('[data-squad-label]').textContent=en?'Squad / Type':'部隊／種別';
+      picker.querySelector('[data-agent-label]').textContent=en?'Agent':'隊員';
+      const squadSel=picker.querySelector('[data-squad]'),agentSel=picker.querySelector('[data-agent]');
+      squadSel.innerHTML=`<option value="mob">${en?'MOB / CUSTOM':'モブ／カスタム'}</option>`+SQUADS.map(s=>`<option value="${s.id}">${en?s.en:s.ja}</option>`).join('');
+      squadSel.value=SQUADS.some(s=>s.id===slot.squad)?slot.squad:'mob';
+      const fillAgents=()=>{
+        const squad=SQUADS.find(s=>s.id===squadSel.value);
+        agentSel.disabled=!squad;
+        if(!squad){agentSel.innerHTML=`<option value="">${en?'Use current custom settings':'現在のモブ設定を使用'}</option>`;slot.squad='mob';slot.agent='';restoreMobDisplay(card,index);return;}
+        agentSel.innerHTML=squad.agents.map(a=>`<option value="${a.en}">${labelOf(a)}</option>`).join('');
+        if(!squad.agents.some(a=>a.en===slot.agent))slot.agent=squad.agents[0]?.en||'';
+        agentSel.value=slot.agent;
+        const agent=squad.agents.find(a=>a.en===slot.agent);if(agent)setCardDisplay(card,index,agent);
+      };
+      squadSel.onchange=()=>{slot.squad=squadSel.value;slot.agent='';fillAgents();saveRoster();};
+      agentSel.onchange=()=>{slot.agent=agentSel.value;const squad=SQUADS.find(s=>s.id===slot.squad),agent=squad?.agents.find(a=>a.en===slot.agent);if(agent)setCardDisplay(card,index,agent);saveRoster();};
+      fillAgents();
+    });
+    rosterMounted=true;
   }
   function applyNamed(g){
     const cpus=(g.players||[]).filter(p=>!p.human);
     cpus.forEach((p,i)=>{
       const slot=opponentSlots[i];if(!slot||slot.squad==='mob'||!slot.agent)return;
       const squad=SQUADS.find(s=>s.id===slot.squad),a=squad?.agents.find(agent=>agent.en===slot.agent);if(!a)return;
-      p.name=labelOf(a);p.v78Named=a.en;p.v78Squad=slot.squad;p.v79BaseCombat=a.stats[2];p.v78Tetra=!!a.tetra;p.archetype=a.role;
+      p.name=labelOf(a);p.v78Named=a.en;p.v78Squad=slot.squad;p.v79BaseCombat=a.stats[2];p.v78Tetra=!!a.tetra;p.archetype=ROLE_TO_ARCHETYPE[a.role]||a.role;
       p.stats={...(p.stats||{}),trion:a.stats[0],technique:a.stats[1],combat:a.stats[2]};p.loadout={main:[...a.main],sub:[...a.sub]};p.selected={main:0,sub:0};
       if(p.maxTrion!=null){p.maxTrion=Math.max(p.maxTrion,a.stats[0]*12+40);p.trion=p.maxTrion;}
     });
@@ -194,6 +224,6 @@
   }
   window.addEventListener('keydown',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=true;if(e.repeat||e.code!=='KeyC'||!currentGame)return;const p=humanOf(currentGame);if(!p)return;const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])],hasBlade=all.includes('grasshopper')&&all.includes('scorpion'),hasPin=all.filter(x=>x==='grasshopper').length>=2&&['kogetsu','scorpion','raygust'].some(id=>all.includes(id));if(!hasBlade&&!hasPin)return;e.preventDefault();e.stopImmediatePropagation();setTimeout(()=>pinball(currentGame,hasBlade),0);},true);
   window.addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=false;},true);window.addEventListener('blur',()=>shiftHeld=false);
-  const timer=setInterval(()=>{mountRoster();const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=80;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 80');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
+  const timer=setInterval(()=>{mountRoster();const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=81;document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 81');document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
   window.addEventListener('beforeunload',()=>clearInterval(timer));
 })();

@@ -1,15 +1,6 @@
-/* v79: floating TRIGGER TUNING panel removed */
-.v77-trigger-panel{display:none!important}
+/* v81: named selection is integrated into each existing CPU card. */
+.v77-trigger-panel,.v80-opponent-slots,.v78-named-roster{display:none!important}
 .v77-skill-flash{position:fixed;left:50%;top:20%;z-index:1300;transform:translateX(-50%);font:700 24px system-ui;color:#c9fff0;text-shadow:0 0 14px #57ffc0;pointer-events:none;animation:v77flash .9s ease-out forwards}@keyframes v77flash{to{opacity:0;transform:translate(-50%,-28px) scale(1.12)}}
-.v78-named-roster{margin-top:14px;padding:14px;border:1px solid rgba(103,218,255,.38);background:rgba(6,24,36,.72);border-radius:10px}.v78-named-roster header{display:flex;justify-content:space-between;gap:12px;align-items:end;margin-bottom:10px}.v78-named-roster header strong{font-size:14px}.v78-named-roster header small{color:#8fb7c6;text-align:right}.v78-named-roster>label{display:grid;grid-template-columns:80px 1fr;gap:10px;align-items:center}.v78-named-roster select{width:100%;background:#102736;color:#e5faff;border:1px solid #3d7f98;padding:8px}.v78-named-roster [data-agents]{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px;margin-top:10px}.v78-named-roster .agent{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:7px;align-items:center;padding:7px 9px;background:rgba(12,42,58,.72);border:1px solid rgba(103,218,255,.2);border-radius:7px}.v78-named-roster .agent input{grid-row:1/3}.v78-named-roster .agent small{color:#8fb7c6}
-/* v80: per-CPU opponent selection inside 05: CPU Agent Settings */
-.v78-named-roster{display:none!important}
-.v80-opponent-slots{margin-top:14px;padding:14px;border:1px solid rgba(103,218,255,.38);background:rgba(6,24,36,.72);border-radius:10px}
-.v80-opponent-slots header{display:flex;justify-content:space-between;gap:12px;align-items:end;margin-bottom:10px}
-.v80-opponent-slots header strong{font-size:14px}.v80-opponent-slots header small{color:#8fb7c6;text-align:right}
-.v80-opponent-row{display:grid;grid-template-columns:minmax(72px,.55fr) minmax(180px,1.25fr) minmax(180px,1.25fr);gap:10px;align-items:end;padding:10px 0;border-top:1px solid rgba(103,218,255,.16)}
-.v80-opponent-row:first-child{border-top:0}.v80-opponent-row>strong{align-self:center;color:#c9f4ff}
-.v80-opponent-row label{display:grid;gap:5px}.v80-opponent-row label span{font-size:11px;color:#8fb7c6}
-.v80-opponent-row select{width:100%;background:#102736;color:#e5faff;border:1px solid #3d7f98;padding:8px;border-radius:5px}
-.v80-opponent-row select:disabled{opacity:.58}
-@media(max-width:720px){.v80-opponent-row{grid-template-columns:1fr}.v80-opponent-row>strong{padding-top:4px}}
+.v81-card-agent-picker{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;margin-bottom:4px;border:1px solid rgba(103,218,255,.3);background:rgba(7,31,44,.7)}
+.v81-card-agent-picker label{display:grid;gap:6px}.v81-card-agent-picker span{font-size:12px;color:#9dbdcc}.v81-card-agent-picker select{width:100%;min-height:42px;padding:8px 12px;background:#102b3a;color:#e8faff;border:1px solid #36748c}.v81-card-agent-picker select:disabled{opacity:.58}
+@media(max-width:720px){.v81-card-agent-picker{grid-template-columns:1fr}}
