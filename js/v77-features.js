@@ -316,10 +316,15 @@
   }
   function ensureUserSquadEditor(){
     if(!document.body)return;
-    if(!document.querySelector('#v96UserSquadOpen')){
-      const open=document.createElement('button');open.id='v96UserSquadOpen';open.className='title-sub v96-user-squad-open';open.type='button';open.textContent='自分の部隊';
-      const anchor=document.querySelector('#userOpenButton');if(anchor?.parentElement)anchor.insertAdjacentElement('afterend',open);else document.body.appendChild(open);
-    }
+    let open=document.querySelector('#v96UserSquadOpen');
+    if(!open){open=document.createElement('button');open.id='v96UserSquadOpen';open.className='v96-user-squad-open';open.type='button';}
+    open.textContent=lang()==='en'?'Edit My Squad':'自分の部隊を編集';
+    const squadBox=document.querySelector('#userPanel .squad-manage-box')||document.querySelector('#userSquadList')?.closest?.('.online-box');
+    if(squadBox){
+      let host=squadBox.querySelector('.v99-local-squad-tools');
+      if(!host){host=document.createElement('div');host.className='v99-local-squad-tools';host.innerHTML=`<div><strong>${lang()==='en'?'Local Battle Squad':'対戦用の自分の部隊'}</strong><small>${lang()==='en'?'Edit the captain, CPU members and vacant slots used in offline battles.':'オフライン対戦で使用する隊長・CPU隊員・空き枠を編集します。'}</small></div>`;const list=squadBox.querySelector('#userSquadList');if(list)list.insertAdjacentElement('afterend',host);else squadBox.appendChild(host);}
+      if(open.parentElement!==host)host.appendChild(open);open.hidden=false;const copy=host.querySelector('div');if(copy)copy.innerHTML=`<strong>${lang()==='en'?'Local Battle Squad':'対戦用の自分の部隊'}</strong><small>${lang()==='en'?'Edit the captain, CPU members and vacant slots used in offline battles.':'オフライン対戦で使用する隊長・CPU隊員・空き枠を編集します。'}</small>`;
+    }else if(!open.isConnected){document.body.appendChild(open);open.hidden=true;}
     if(!document.querySelector('#v96UserSquadModal')){
       const modal=document.createElement('section');modal.id='v96UserSquadModal';modal.className='v96-user-squad-modal hidden';modal.innerHTML=`<div class="v96-user-squad-card"><header><div><span>MY SQUAD</span><h2>自分の所属部隊</h2></div><button type="button" data-close>×</button></header><label class="v96-squad-name">部隊名<input data-squad-name maxlength="24"></label><p>隊長は自分です。空き枠へCPUまたは他のユーザーを追加できます。CPU枠のみ能力とトリガーを編集できます。</p><div data-member-list></div><footer><button type="button" data-reset>初期化</button><button type="button" data-save class="primary">部隊を保存</button></footer></div>`;document.body.appendChild(modal);
     }
@@ -337,15 +342,12 @@
   }
   function ensureFourthTeamCards(){
     const root=document.querySelector('#cpuConfigList');if(!root)return;
-    let cards=[...root.querySelectorAll('.cpu-card')];
-    cards.forEach((card,i)=>{if(i>=9){card.hidden=false;card.classList.remove('hidden');card.style.removeProperty('display');card.dataset.v96FourthTeam='true';}});
-    if(cards.length>=12||!cards.length)return;
-    const template=cards[cards.length-1];
-    while(cards.length<12){const index=cards.length,clone=template.cloneNode(true);clone.querySelectorAll('[id]').forEach(el=>el.removeAttribute('id'));clone.removeAttribute('id');clone.hidden=false;clone.classList.remove('hidden','v84-vacant-card');clone.style.removeProperty('display');clone.dataset.v96FourthTeam='true';clone.dataset.cpuIndex=String(index);clone.querySelectorAll('.v81-card-agent-picker').forEach(el=>el.remove());const name=clone.querySelector('.cpu-name');if(name)name.value=`CPU-${index+1}`;clone.querySelectorAll('input[data-stat]').forEach(input=>{input.value='6';const output=input.closest('label')?.querySelector('output');if(output)output.value='6';});const teamSelect=clone.querySelector('[data-team],.cpu-team,select[name*="team"]');if(teamSelect){const option=[...teamSelect.options].find(o=>String(o.value)==='3'||String(o.value)==='4'||/4/.test(o.textContent));if(option)teamSelect.value=option.value;}root.appendChild(clone);cards.push(clone);}
+    const cards=[...root.querySelectorAll('.cpu-card')],teamCount=Number(document.querySelector('#teamCount')?.value||0),teamSize=Math.max(1,Number(document.querySelector('#teamSize')?.value||3)),playerCombatant=(document.querySelector('#participationRole')?.value||'combatant')==='combatant',fourthStart=(teamSize-(playerCombatant?1:0))+teamSize*2;
+    cards.forEach((card,index)=>{card.hidden=false;card.classList.remove('hidden');card.style.removeProperty('display');card.dataset.cpuIndex=String(index);if(teamCount>=4&&index>=fourthStart)card.dataset.v99FourthTeam='true';else delete card.dataset.v99FourthTeam;delete card.dataset.v96FourthTeam;});
   }
 
   const ROSTER_STORAGE_KEY='trion-v81-card-opponents';
-  const MAX_OPPONENT_SLOTS=12;
+  const MAX_OPPONENT_SLOTS=16;
   const ROLE_TO_ARCHETYPE={ 'アタッカー':'攻撃手','シューター':'射手','ガンナー':'銃手','スナイパー':'狙撃手','万能手':'万能手','工作手':'工作手' };
   function loadOpponentSlots(){
     try{
@@ -468,10 +470,10 @@
   }
   function applyNamed(g){
     if(!g||g.simulationMode||!Array.isArray(g.players))return;
-    const cpus=g.players.filter(p=>!p.human);
+    const cpuEntries=g.players.filter(p=>!p.human&&!p.isDefenseEnemy).map((p,order)=>{const match=/^cpu-(\d+)$/.exec(String(p.id||''));return{p,index:match?Number(match[1]):order};}).sort((a,b)=>a.index-b.index);
     const vacant=new Set();
-    cpus.forEach((p,i)=>{
-      const slot=opponentSlots[i];
+    cpuEntries.forEach(({p,index})=>{
+      const slot=opponentSlots[index];
       if(slot?.squad==='vacant'){vacant.add(p);return;}
       if(!slot||slot.squad==='mob'||!slot.agent)return;
       const squad=allSquads().find(s=>s.id===slot.squad),a=squad?.agents.find(agent=>agent.en===slot.agent);if(!a)return;
@@ -616,18 +618,41 @@
     for(const pad of g.v94MobilityPads||[]){if(!pad||pad.ttl<=0)continue;const sp=screenPoint(g,pad.x,pad.y),color=g.teamColors?.[pad.team]||'#67f6ae',pulse=1+Math.sin(now*.007+(pad.v94PlacedAt||0))*.08;ctx.save();ctx.translate(sp.x,sp.y);ctx.rotate(Number(pad.launchAngle)||0);ctx.globalAlpha=.72;ctx.fillStyle=`${color}30`;ctx.strokeStyle=color;ctx.lineWidth=1.35;ctx.beginPath();ctx.moveTo(0,-22*pulse);ctx.lineTo(22*pulse,0);ctx.lineTo(0,22*pulse);ctx.lineTo(-22*pulse,0);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();drawRouteArrow(ctx,sp.x,sp.y,Number(pad.launchAngle)||0,14,color,.95);}
     for(const w of g.wires||[]){if(w?.mode!=='spring')continue;const a=screenPoint(g,w.x1,w.y1),b=screenPoint(g,w.x2,w.y2),geo=springWireGeometry(w),mid={x:(a.x+b.x)*.5,y:(a.y+b.y)*.5},normal=Math.atan2(geo.ny,geo.nx),color=g.teamColors?.[w.team]||'#ffd66d';drawRouteArrow(ctx,mid.x,mid.y,normal,10,color,.82);drawRouteArrow(ctx,mid.x,mid.y,normal+Math.PI,10,color,.82);}
     ctx.restore();}
+  function cpuActionReady(p,key,now=mobilityNow()){
+    p.v99ActionCooldowns=p.v99ActionCooldowns&&typeof p.v99ActionCooldowns==='object'?p.v99ActionCooldowns:{};
+    return now>=Number(p.v99ActionCooldowns[key]||0);
+  }
+  function lockCpuAction(p,key,seconds){p.v99ActionCooldowns=p.v99ActionCooldowns&&typeof p.v99ActionCooldowns==='object'?p.v99ActionCooldowns:{};p.v99ActionCooldowns[key]=mobilityNow()+Math.max(.1,Number(seconds)||.1)*1000;}
+  function cpuPlaceTripWire(g,p,target,d){
+    const own=(g.wires||[]).filter(w=>w?.ownerId===p.id&&w?.v96TripWire&&w.ttl>0).length;if(own>=2)return false;
+    const lead=clamp(d/620,.22,.68),tx=target.x+(target.vx||0)*lead,ty=target.y+(target.vy||0)*lead,to=Math.atan2(ty-p.y,tx-p.x),side=(String(p.id||'').split('').reduce((a,c)=>a+c.charCodeAt(0),0)%2?1:-1),wireAngle=to+side*(.58+Math.random()*.26),length=clamp(d*.72,155,285);
+    p.ai=p.ai||{};const previous=p.ai.placePoint;p.ai.placePoint={x:p.x+Math.cos(wireAngle)*length,y:p.y+Math.sin(wireAngle)*length};p.spiderMode=false;
+    const ok=tryNamedUse(g,p,'spider');if(previous)p.ai.placePoint=previous;else delete p.ai.placePoint;return ok;
+  }
+  function cpuRecentCombatActions(g,p,target,d,all,dt){
+    if(!p||p.human||p.dead||(p.v96Knockdown||0)>0)return false;
+    p.v99RecentThink=Math.max(0,(p.v99RecentThink||0)-dt);if(p.v99RecentThink>0)return false;p.v99RecentThink=.18+Math.random()*.16;
+    const now=mobilityNow();
+    if(p.v96KogetsuBranchReady&&now<Number(p.v96KogetsuBranchUntil||0)&&d<165&&cpuActionReady(p,'kogetsuBranch',now)){p.aim=Math.atan2(target.y-p.y,target.x-p.x);if(tryNamedUse(g,p,'kogetsu')){lockCpuAction(p,'kogetsuBranch',1.1);return true;}}
+    if(all.includes('scorpion')&&d<175&&cpuActionReady(p,'moleClaw',now)&&Math.random()<.55){if(moleClaw(g,p,true)){lockCpuAction(p,'moleClaw',2.3);return true;}}
+    const charging=Object.values(p.shooterCharges||{}).some(Boolean);
+    if(all.includes('shooter_viper')&&!charging&&d>180&&d<760&&cpuActionReady(p,'viperPlan',now)&&Math.random()<(.2+Math.min(.28,(p.stats?.technique||0)*.025))){p.aim=Math.atan2(target.y+(target.vy||0)*.34-p.y,target.x+(target.vx||0)*.34-p.x);const hand=selectTrigger(p,'shooter_viper');if(hand){makeViperPlan(g,p,target);let ok=false;try{ok=!!g.tryUseHand?.(p,hand);}catch{}if(ok){lockCpuAction(p,'viperPlan',2.2);return true;}}}
+    if(all.includes('spider')&&d>145&&d<520&&cpuActionReady(p,'tripWire',now)&&Math.random()<.22){if(cpuPlaceTripWire(g,p,target,d)){lockCpuAction(p,'tripWire',5.8+Math.random()*2.2);return true;}}
+    return false;
+  }
   function cpuAdvancedTechniques(g,p,dt){
     if(!p||p.human||p.dead||mobilityNow()<Number(p.ai?.v98HazardUntil||0))return;
-    p.v92AdvancedCd=Math.max(0,(p.v92AdvancedCd||0)-dt);if(p.v92AdvancedCd>0)return;
     const target=nearestEnemy(g,p,760);if(!target)return;
     const d=Math.hypot(target.x-p.x,target.y-p.y),all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])],grassCount=all.filter(x=>x==='grasshopper').length,hpRatio=(Number(p.hp)||1)/Math.max(1,Number(p.maxHp)||Number(p.hp)||1),tactical=d<180||d>390||hpRatio<.48;
-    if(d<250&&all.includes('grasshopper')&&all.includes('scorpion')&&Math.random()<.34){if(pinballFor(g,p,true,target,true)){p.v92AdvancedCd=3.1;return;}}
-    if(d<310&&grassCount>=2&&['kogetsu','scorpion','raygust'].some(id=>all.includes(id))&&Math.random()<.25){if(pinballFor(g,p,false,target,true)){p.v92AdvancedCd=3.5;return;}}
+    if(cpuRecentCombatActions(g,p,target,d,all,dt))return;
+    p.v92AdvancedCd=Math.max(0,(p.v92AdvancedCd||0)-dt);if(p.v92AdvancedCd>0)return;
+    if(d<250&&all.includes('grasshopper')&&all.includes('scorpion')&&Math.random()<.38){if(pinballFor(g,p,true,target,true)){p.v92AdvancedCd=3.1;return;}}
+    if(d<310&&grassCount>=2&&['kogetsu','scorpion','raygust'].some(id=>all.includes(id))&&Math.random()<.3){if(pinballFor(g,p,false,target,true)){p.v92AdvancedCd=3.5;return;}}
     const angle=tacticalMobilityAngle(g,p,target);
     const ownPads=(g.v94MobilityPads||[]).filter(item=>item?.ownerId===p.id&&item.ttl>0).length,ownSpringWires=(g.wires||[]).filter(item=>item?.ownerId===p.id&&item.mode==='spring'&&item.ttl>0).length,nearbyTeamPads=(g.v94MobilityPads||[]).filter(item=>item?.ttl>0&&mobilityAlly(g,item,p)&&Math.hypot(item.x-p.x,item.y-p.y)<280).length,nearbyTeamWires=(g.wires||[]).filter(item=>item?.mode==='spring'&&item.ttl>0&&mobilityAlly(g,item,p)&&segDist(item.x1,item.y1,item.x2,item.y2,p.x,p.y).d<220).length;
-    if(all.includes('grasshopper')&&tactical&&ownPads===0&&nearbyTeamPads===0&&Math.random()<.1){p.v94MobilityAngle=angle;p.v77PlaceGrasshopper=true;const ok=tryNamedUse(g,p,'grasshopper');p.v77PlaceGrasshopper=false;delete p.v94MobilityAngle;if(ok){p.v92AdvancedCd=8+Math.random()*2;return;}}
-    if(all.includes('spider')&&tactical&&ownSpringWires===0&&nearbyTeamWires===0&&Math.random()<.08){p.ai=p.ai||{};const oldPoint=p.ai.placePoint;p.v94MobilityAngle=angle;const wireAngle=angle+Math.PI/2;p.ai.placePoint={x:p.x+Math.cos(wireAngle)*190,y:p.y+Math.sin(wireAngle)*190};p.spiderMode=true;const ok=tryNamedUse(g,p,'spider');p.spiderMode=false;delete p.v94MobilityAngle;if(oldPoint)p.ai.placePoint=oldPoint;else delete p.ai.placePoint;if(ok){p.v92AdvancedCd=10+Math.random()*3;return;}}
-    p.v92AdvancedCd=.95+Math.random()*.85;
+    if(all.includes('grasshopper')&&tactical&&ownPads===0&&nearbyTeamPads===0&&Math.random()<.15){p.v94MobilityAngle=angle;p.v77PlaceGrasshopper=true;const ok=tryNamedUse(g,p,'grasshopper');p.v77PlaceGrasshopper=false;delete p.v94MobilityAngle;if(ok){p.v92AdvancedCd=7+Math.random()*2;return;}}
+    if(all.includes('spider')&&tactical&&ownSpringWires===0&&nearbyTeamWires===0&&Math.random()<.12){p.ai=p.ai||{};const oldPoint=p.ai.placePoint;p.v94MobilityAngle=angle;const wireAngle=angle+Math.PI/2;p.ai.placePoint={x:p.x+Math.cos(wireAngle)*190,y:p.y+Math.sin(wireAngle)*190};p.spiderMode=true;const ok=tryNamedUse(g,p,'spider');p.spiderMode=false;delete p.v94MobilityAngle;if(oldPoint)p.ai.placePoint=oldPoint;else delete p.ai.placePoint;if(ok){p.v92AdvancedCd=9+Math.random()*3;return;}}
+    p.v92AdvancedCd=.8+Math.random()*.7;
   }
   function selectedTriggerId(p,hand){return p?.loadout?.[hand]?.[p?.selected?.[hand]]||null;}
   function viperHand(p){for(const hand of ['main','sub']){const id=selectedTriggerId(p,hand),charge=p?.shooterCharges?.[hand];if(id==='shooter_viper'||charge?.bullet==='viper'||charge?.triggerId==='shooter_viper')return hand;}return null;}
@@ -850,18 +875,21 @@
     try{
       const desc=Object.getOwnPropertyDescriptor(window,'__TRION_GAME__');if(desc&&!desc.configurable)return;
       let value=window.__TRION_GAME__;
-      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{applyNamed(next);patchGame(next);}catch(error){console.error('[v98 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
+      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{applyNamed(next);patchGame(next);}catch(error){console.error('[v99 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
       if(value)patchGame(value);
     }catch(_){ }
   }
   document.addEventListener('click',event=>{const button=event.target?.closest?.('button');if(!button)return;const id=String(button.id||''),text=(button.textContent||'').replace(/\s+/g,' ').trim();if(/start|battle|deploy/i.test(id)||text.includes('出撃')||text.includes('対戦開始'))document.documentElement.classList.add('v96-spawning');},true);
   installImmediateGameCapture();
   mountRoster(true);ensureUserSquadEditor();
+  const scheduleRosterRefresh=()=>{setTimeout(()=>mountRoster(true),0);setTimeout(()=>mountRoster(true),80);};
+  for(const id of ['teamCount','teamSize','participationRole']){const el=document.querySelector(`#${id}`);if(el&&!el.dataset.v99RosterRefresh){el.dataset.v99RosterRefresh='true';el.addEventListener('input',scheduleRosterRefresh);el.addEventListener('change',scheduleRosterRefresh);}}
+  const modeSelector=document.querySelector('#modeSelector');if(modeSelector&&!modeSelector.dataset.v99RosterRefresh){modeSelector.dataset.v99RosterRefresh='true';modeSelector.addEventListener('click',scheduleRosterRefresh,true);}
   window.addEventListener('trion-language-change',()=>{mountRoster(true);ensureUserSquadEditor();});
   const rosterObserver=new MutationObserver(()=>mountRoster(false));
   const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
   function syncV96TriggerDocs(){const data=window.WT_DATA?.triggers;if(!data)return;if(data.shooter_viper){data.shooter_viper.controls='発動：キューブ展開／Shift＋発動：分割／R：固定弾道を事前計算／再発動：射撃';data.shooter_viper.description='Rで射出前に固定弾道を計算できる変化弾。計算後は敵を追尾せず、表示された経路を通ります。';}if(data.spider){data.spider.description='通常ワイヤーは接触した敵を転倒させます。ばねワイヤーは味方の移動ルートとして利用できます。';}if(data.switchbox){data.switchbox.description='強化された攻撃・転倒拘束・加速トラップを設置します。工作手CPUは撤退しながら進路へ罠を配置します。';}}
-  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=98;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 98';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 98');document.documentElement.dataset.gameVersion='98';}
+  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=99;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 99';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 99');document.documentElement.dataset.gameVersion='99';}
   syncVersionUI();
   let lastVersionSync=Date.now();
   const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);const now=Date.now();if(now-lastVersionSync>=1000){syncVersionUI();lastVersionSync=now;}document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
