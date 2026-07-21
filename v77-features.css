@@ -11,3 +11,15 @@
 .cpu-card.v84-vacant-card .cpu-loadout-grid,
 .cpu-card.v84-vacant-card .cpu-stat-grid { filter: grayscale(.85); }
 .cpu-card.v84-vacant-card .v81-card-agent-picker { opacity: 1; filter: none; }
+
+/* v96: own squad editor, fourth-team controls and spawn-flash guard */
+.v96-user-squad-open{min-width:110px}
+.v96-user-squad-modal{position:fixed;inset:0;z-index:1800;display:grid;place-items:center;padding:20px;background:rgba(2,10,17,.84);backdrop-filter:blur(8px)}
+.v96-user-squad-modal.hidden{display:none!important}
+.v96-user-squad-card{width:min(1040px,96vw);max-height:92vh;overflow:auto;padding:22px;border:1px solid rgba(89,225,255,.4);border-radius:16px;background:#081b27;color:#eafaff;box-shadow:0 24px 80px rgba(0,0,0,.55)}
+.v96-user-squad-card>header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}.v96-user-squad-card>header span{font-size:11px;letter-spacing:.18em;color:#7fdff5}.v96-user-squad-card>header h2{margin:2px 0 0}.v96-user-squad-card>header button{font-size:24px}
+.v96-squad-name{display:grid;gap:6px;max-width:420px;margin:12px 0 18px}.v96-squad-name input,.v96-user-squad-card input,.v96-user-squad-card select{min-height:38px;padding:7px 9px;border:1px solid #35667a;border-radius:6px;background:#102c3a;color:#f1fcff}
+.v96-user-squad-card [data-member-list]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.v96-squad-member{padding:14px;border:1px solid rgba(104,202,232,.24);border-radius:10px;background:rgba(12,42,57,.72)}.v96-squad-member>header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.v96-squad-member>label,.v96-cpu-editor>label{display:grid;gap:5px;margin:8px 0}.v96-cpu-editor.hidden{display:none}.v96-stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.v96-stat-row label{display:grid;gap:4px;font-size:12px}.v96-loadout-editor{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.v96-loadout-editor>div{display:grid;gap:5px}.v96-user-note{font-size:12px;color:#9ac4d2}.v96-user-squad-card>footer{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}.v96-user-squad-card button.primary{background:#47bed6;color:#03131a;font-weight:800}
+.cpu-card[data-v96-fourth-team="true"]{display:grid!important;visibility:visible!important;opacity:1!important}
+.v96-spawning #battleScreen canvas,.v96-spawning #gameScreen canvas,.v96-spawning #battleCanvas,.v96-spawning #gameCanvas{visibility:hidden!important}
+@media(max-width:760px){.v96-user-squad-card [data-member-list]{grid-template-columns:1fr}.v96-loadout-editor{grid-template-columns:1fr}.v96-stat-row{grid-template-columns:1fr 1fr 1fr}}
