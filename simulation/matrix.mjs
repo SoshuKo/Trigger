@@ -24,13 +24,14 @@ for (const scenario of leagueScenarios) {
 if (include.length > matrixLimit) {
   throw new Error(`GitHub Actions のマトリクス上限を超えました: ${include.length}/${matrixLimit}`);
 }
-process.stdout.write(JSON.stringify({
-  include,
-  meta: {
-    requestedShards,
-    regularShardCount,
-    regularScenarios: regularScenarios.length,
-    leagueScenarios: leagueScenarios.length,
-    jobs: include.length,
-  },
+
+// strategy.matrix に渡せるのは、配列の軸または include/exclude だけです。
+// 診断用メタデータは stderr へ出し、stdout には有効な matrix JSON のみを返します。
+console.error(JSON.stringify({
+  requestedShards,
+  regularShardCount,
+  regularScenarios: regularScenarios.length,
+  leagueScenarios: leagueScenarios.length,
+  jobs: include.length,
 }));
+process.stdout.write(JSON.stringify({ include }));
