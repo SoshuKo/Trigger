@@ -13,8 +13,8 @@ window.TRION_ONLINE_CONFIG = {
   snapshotHz: 6,
 };
 
-// v102 hotfix: keep CPU wall recovery inside the playable arena,
-// prevent boundary-wall attraction, and retain the sniper rifle damage buff.
+// v102 hotfix: remove wall-edge teleport recovery, preserve wall crawling,
+// keep CPU movement inside the arena, and retain the sniper rifle damage buff.
 (() => {
   'use strict';
 
@@ -137,7 +137,7 @@ window.TRION_ONLINE_CONFIG = {
     }
     const radius = Number(player?.radius) || 18;
     const soft = Math.max(150, radius + 112);
-    const hardMargin = radius + 24;
+    const hardMargin = radius + 0.5;
     const left = x - rect.minX;
     const right = rect.maxX - x;
     const top = y - rect.minY;
@@ -188,7 +188,7 @@ window.TRION_ONLINE_CONFIG = {
       const ratio = index / steps;
       const x = x1 + (x2 - x1) * ratio;
       const y = y1 + (y2 - y1) * ratio;
-      if (!pointInsideArena(inferArenaRect(game), x, y, radius + 12) || circleHitsWall(game, x, y, radius)) return true;
+      if (!pointInsideArena(inferArenaRect(game), x, y, radius + 0.5) || circleHitsWall(game, x, y, radius)) return true;
     }
     return false;
   }
@@ -221,13 +221,13 @@ window.TRION_ONLINE_CONFIG = {
   }
 
   function directionIsOpen(game, player, angle, distance) {
-    const radius = (Number(player.radius) || 18) + 6;
+    const radius = (Number(player.radius) || 18) + 0.75;
     const startX = Number(player.x);
     const startY = Number(player.y);
     const endX = startX + Math.cos(angle) * distance;
     const endY = startY + Math.sin(angle) * distance;
     const rect = inferArenaRect(game);
-    if (!pointInsideArena(rect, endX, endY, radius + 18)) return false;
+    if (!pointInsideArena(rect, endX, endY, radius + 0.5)) return false;
     return !pathTouchesWall(game, startX, startY, endX, endY, radius);
   }
 
@@ -243,13 +243,13 @@ window.TRION_ONLINE_CONFIG = {
     if (Number.isFinite(previousAngle)
       && directionIsOpen(game, player, previousAngle, 46)
       && directionIsOpen(game, player, previousAngle, 104)
-      && (!edge.near || projectedEdgeDistance(previousAngle) >= currentEdgeDistance + 4)) return previousAngle;
+      && (!edge.near || projectedEdgeDistance(previousAngle) >= currentEdgeDistance - 2)) return previousAngle;
 
     const normal = nearestWallNormal(game, Number(player.x), Number(player.y), (Number(player.radius) || 18) + 8);
     const tangentA = normal ? Math.atan2(normal.ny, normal.nx) + Math.PI / 2 : targetAngle + Math.PI / 2;
     const tangentB = tangentA + Math.PI;
     const candidates = [
-      ...(edge.near ? [edge.inwardAngle, edge.inwardAngle + 0.42, edge.inwardAngle - 0.42] : []),
+      ...(edge.outside ? [edge.inwardAngle, edge.inwardAngle + 0.42, edge.inwardAngle - 0.42] : []),
       tangentA,
       tangentB,
       targetAngle + Math.PI / 2,
@@ -258,20 +258,20 @@ window.TRION_ONLINE_CONFIG = {
       targetAngle - 0.92,
       targetAngle + Math.PI,
     ];
-    let selected = edge.near ? edge.inwardAngle : candidates[0];
+    let selected = edge.outside ? edge.inwardAngle : candidates[0];
     let selectedScore = Infinity;
     for (const angle of candidates) {
       const nearBlocked = !directionIsOpen(game, player, angle, 46);
       const farBlocked = !directionIsOpen(game, player, angle, 104);
       const nextEdge = projectedEdgeDistance(angle);
-      const edgeLoss = edge.near ? Math.max(0, currentEdgeDistance + 14 - nextEdge) : 0;
-      const inwardAlignment = edge.near ? Math.cos(angleDelta(angle, edge.inwardAngle)) : 0;
+      const edgeLoss = edge.near ? Math.max(0, currentEdgeDistance - 2 - nextEdge) : 0;
+      const inwardAlignment = edge.outside ? Math.cos(angleDelta(angle, edge.inwardAngle)) : 0;
       const score = (nearBlocked ? 12000 : 0)
         + (farBlocked ? 4600 : 0)
         + Math.abs(angleDelta(angle, targetAngle)) * 34
         + (Number.isFinite(previousAngle) ? Math.abs(angleDelta(angle, previousAngle)) * 12 : 0)
-        + edgeLoss * 42
-        - inwardAlignment * (edge.near ? 520 : 0);
+        + edgeLoss * 120
+        - inwardAlignment * (edge.outside ? 900 : 0);
       if (score < selectedScore) {
         selected = angle;
         selectedScore = score;
@@ -290,17 +290,82 @@ window.TRION_ONLINE_CONFIG = {
     delete player.v97MobilityRoute;
   }
 
-  function hasTeleportEffect(game, effectStart, fromX, fromY, toX, toY) {
-    return (game?.effects || []).slice(effectStart).some((effect) => {
-      if (!effect || !/teleport/i.test(String(effect.type || ''))) return false;
-      const x1 = Number(effect.x);
-      const y1 = Number(effect.y);
-      const x2 = Number(effect.x2);
-      const y2 = Number(effect.y2);
-      const forward = Math.hypot(x1 - fromX, y1 - fromY) < 48 && Math.hypot(x2 - toX, y2 - toY) < 48;
-      const reverse = Math.hypot(x2 - fromX, y2 - fromY) < 48 && Math.hypot(x1 - toX, y1 - toY) < 48;
-      return forward || reverse;
-    });
+  function overlappingWallContact(game, player) {
+    const radius = Number(player?.radius) || 18;
+    let best = null;
+    for (const wall of activeWalls(game)) {
+      const left = Number(wall.x);
+      const top = Number(wall.y);
+      const right = left + Number(wall.w);
+      const bottom = top + Number(wall.h);
+      const x = Number(player.x);
+      const y = Number(player.y);
+      const closestX = clamp(x, left, right);
+      const closestY = clamp(y, top, bottom);
+      let dx = x - closestX;
+      let dy = y - closestY;
+      let distance = Math.hypot(dx, dy);
+      let penetration;
+      if (distance > 0.001) {
+        penetration = radius - distance;
+        if (penetration <= 0) continue;
+        dx /= distance;
+        dy /= distance;
+      } else {
+        const exits = [
+          { depth: Math.abs(x - left), nx: -1, ny: 0 },
+          { depth: Math.abs(right - x), nx: 1, ny: 0 },
+          { depth: Math.abs(y - top), nx: 0, ny: -1 },
+          { depth: Math.abs(bottom - y), nx: 0, ny: 1 },
+        ].sort((a, b) => a.depth - b.depth);
+        dx = exits[0].nx;
+        dy = exits[0].ny;
+        penetration = exits[0].depth + radius;
+        distance = 0;
+      }
+      const contact = { nx: dx, ny: dy, penetration, wall, distance };
+      if (!best || contact.penetration > best.penetration) best = contact;
+    }
+    return best;
+  }
+
+  function separateFromWalls(game, player) {
+    if (!player || player.dead) return false;
+    let moved = false;
+    let lastNormal = null;
+    for (let pass = 0; pass < 8; pass += 1) {
+      const contact = overlappingWallContact(game, player);
+      if (!contact) break;
+      const correction = Math.max(0.75, contact.penetration + 0.75);
+      player.x = Number(player.x) + contact.nx * correction;
+      player.y = Number(player.y) + contact.ny * correction;
+      lastNormal = contact;
+      moved = true;
+    }
+    if (!moved || !lastNormal) return false;
+
+    const vx = Number(player.vx) || 0;
+    const vy = Number(player.vy) || 0;
+    const inward = vx * lastNormal.nx + vy * lastNormal.ny;
+    if (inward < 0) {
+      player.vx = vx - inward * lastNormal.nx;
+      player.vy = vy - inward * lastNormal.ny;
+    }
+    const tangentSpeed = Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0);
+    if (tangentSpeed < 18) {
+      const tangentA = Math.atan2(lastNormal.ny, lastNormal.nx) + Math.PI / 2;
+      const tangentB = tangentA + Math.PI;
+      const desired = Number(player.aim) || tangentA;
+      const tangent = Math.abs(angleDelta(tangentA, desired)) <= Math.abs(angleDelta(tangentB, desired)) ? tangentA : tangentB;
+      player.vx = Math.cos(tangent) * 22 + lastNormal.nx * 4;
+      player.vy = Math.sin(tangent) * 22 + lastNormal.ny * 4;
+    } else {
+      player.vx = (Number(player.vx) || 0) + lastNormal.nx * 4;
+      player.vy = (Number(player.vy) || 0) + lastNormal.ny * 4;
+    }
+    player.v102WallContactNormal = { x: lastNormal.nx, y: lastNormal.ny };
+    player.v102WallContactAt = clock();
+    return true;
   }
 
   function applyWallSlide(game, player, targetAngle, time, force = false) {
@@ -308,14 +373,14 @@ window.TRION_ONLINE_CONFIG = {
     const previous = time < Number(player.v102WallSlideUntil || 0)
       ? Number(player.v102WallSlideAngle)
       : null;
-    const requestedAngle = edge.near ? edge.inwardAngle : targetAngle;
+    const requestedAngle = edge.outside ? edge.inwardAngle : targetAngle;
     const angle = chooseSlideAngle(game, player, requestedAngle, previous);
-    const speed = Math.max(edge.near ? 136 : 122, (Number(player.speed) || 150) * (edge.near ? 0.9 : 0.82));
+    const speed = Math.max(edge.outside ? 138 : 118, (Number(player.speed) || 150) * (edge.outside ? 0.9 : 0.78));
     if (!force && !directionIsOpen(game, player, angle, 42)) return false;
     player.vx = Math.cos(angle) * speed;
     player.vy = Math.sin(angle) * speed;
     player.v102WallSlideAngle = angle;
-    player.v102WallSlideUntil = time + (edge.near ? 920 : 720);
+    player.v102WallSlideUntil = time + (edge.outside ? 760 : 620);
     clearNavigation(player);
     return true;
   }
@@ -323,57 +388,41 @@ window.TRION_ONLINE_CONFIG = {
   function patchGame(game) {
     if (!game || !Array.isArray(game.players)) return false;
     const prototype = Object.getPrototypeOf(game);
-    const originalUpdate = prototype?.update;
-    if (!prototype || prototype.v102ArenaBoundaryHotfix || typeof originalUpdate !== 'function') {
-      return Boolean(prototype?.v102ArenaBoundaryHotfix);
+    if (!prototype) return false;
+
+    if (!prototype.v102WallCrawlCollisionPatched) {
+      const originalResolveWallCollision = prototype.resolveWallCollision;
+      prototype.resolveWallCollision = function wallCrawlCollision(player) {
+        const result = typeof originalResolveWallCollision === 'function'
+          ? originalResolveWallCollision.call(this, player)
+          : undefined;
+        separateFromWalls(this, player);
+        return result;
+      };
+      prototype.v102WallCrawlCollisionPatched = true;
+    }
+
+    const originalUpdate = prototype.update;
+    if (prototype.v102WallCrawlHotfix || typeof originalUpdate !== 'function') {
+      return Boolean(prototype.v102WallCrawlHotfix);
     }
     if (!String(originalUpdate).includes('updateStallRecovery')) return false;
 
-    prototype.update = function arenaBoundarySafeUpdate(dt) {
-      const effectStart = (this.effects || []).length;
-      const snapshots = (this.players || []).map((player) => ({
-        player,
-        x: Number(player.x),
-        y: Number(player.y),
-        vx: Number(player.vx) || 0,
-        vy: Number(player.vy) || 0,
-        radius: Number(player.radius) || 18,
-      }));
+    prototype.update = function wallCrawlSafeUpdate(dt) {
       const result = originalUpdate.call(this, dt);
       const time = clock();
 
-      for (const snapshot of snapshots) {
-        const player = snapshot.player;
+      for (const player of this.players || []) {
         if (!player || player.dead || !Number.isFinite(Number(player.x)) || !Number.isFinite(Number(player.y))) continue;
-        const dx = Number(player.x) - snapshot.x;
-        const dy = Number(player.y) - snapshot.y;
-        const displacement = Math.hypot(dx, dy);
-        const speedAfter = Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0);
-        const seconds = clamp(Number(dt) || 1 / 60, 1 / 240, 0.1);
-        const allowed = Math.max(34, (Math.max(Math.hypot(snapshot.vx, snapshot.vy), speedAfter) * seconds * 3.2) + 24);
         const pinball = time < Number(player.v101PinballActiveUntil || 0);
-        const intentionalTeleport = hasTeleportEffect(this, effectStart, snapshot.x, snapshot.y, Number(player.x), Number(player.y));
-        const wallRelated = circleHitsWall(this, snapshot.x, snapshot.y, snapshot.radius + 5)
-          || circleHitsWall(this, Number(player.x), Number(player.y), snapshot.radius + 5)
-          || pathTouchesWall(this, snapshot.x, snapshot.y, Number(player.x), Number(player.y), snapshot.radius + 3);
-
-        if (!pinball && !intentionalTeleport && wallRelated && displacement > allowed) {
-          player.x = snapshot.x;
-          player.y = snapshot.y;
-          this.resolveWallCollision?.(player);
-          const target = !player.human ? (this.resolveAITarget?.(player) || null) : null;
-          const targetAngle = target
-            ? Math.atan2(Number(target.y) - Number(player.y), Number(target.x) - Number(player.x))
-            : (Number(player.aim) || Math.atan2(snapshot.vy, snapshot.vx) || 0);
-          applyWallSlide(this, player, targetAngle, time, true);
-          player.v102WallWarpPreventedAt = time;
-        }
+        if (!pinball) this.resolveWallCollision?.(player);
 
         if (player.human || Number(player.v96Knockdown) > 0 || Number(player.v100Restrained) > 0 || pinball) continue;
+        const speedAfter = Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0);
         const edge = arenaEdgeState(this, player);
-        const velocityLength = Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) || 1;
-        const outwardMotion = edge.near
-          && ((Number(player.vx) || 0) / velocityLength * edge.ix + (Number(player.vy) || 0) / velocityLength * edge.iy) < 0.18;
+        const velocityLength = speedAfter || 1;
+        const outwardDot = ((Number(player.vx) || 0) / velocityLength * edge.ix)
+          + ((Number(player.vy) || 0) / velocityLength * edge.iy);
 
         player.v102WallMotion = player.v102WallMotion && typeof player.v102WallMotion === 'object'
           ? player.v102WallMotion
@@ -385,21 +434,24 @@ window.TRION_ONLINE_CONFIG = {
           motion.y = Number(player.y);
           motion.movedAt = time;
         }
+
         const target = this.resolveAITarget?.(player) || (this.players || [])
           .filter((candidate) => candidate !== player && !candidate.dead && this.canDamage?.(player, candidate))
           .sort((a, b) => Math.hypot(a.x - player.x, a.y - player.y) - Math.hypot(b.x - player.x, b.y - player.y))[0];
         if (!target) continue;
+
         const targetAngle = Math.atan2(Number(target.y) - Number(player.y), Number(target.x) - Number(player.x));
-        const radius = (Number(player.radius) || 18) + 7;
-        const wallAhead = !directionIsOpen(this, player, targetAngle, 92)
-          || circleHitsWall(this, Number(player.x) + Math.cos(targetAngle) * 48, Number(player.y) + Math.sin(targetAngle) * 48, radius);
+        const contact = nearestWallNormal(this, Number(player.x), Number(player.y), (Number(player.radius) || 18) + 8);
+        const touchingWall = Boolean(contact && contact.gap <= 12);
+        const wallAhead = !directionIsOpen(this, player, targetAngle, 92);
         const stalled = Math.hypot(Number(target.x) - Number(player.x), Number(target.y) - Number(player.y)) > 110
           && time - Number(motion.movedAt || time) > 820;
         const continuingSlide = time < Number(player.v102WallSlideUntil || 0);
+        const genuinelyOutward = edge.near && outwardDot < -0.12;
 
-        if (edge.outside || (edge.distance < 110 && outwardMotion)) {
+        if (edge.outside || (edge.distance < 54 && genuinelyOutward)) {
           applyWallSlide(this, player, edge.inwardAngle, time, true);
-        } else if (wallAhead || stalled || continuingSlide) {
+        } else if (touchingWall || wallAhead || stalled || continuingSlide) {
           applyWallSlide(this, player, targetAngle, time, wallAhead || stalled);
         } else if (!edge.near) {
           player.v102WallSlideUntil = 0;
@@ -407,7 +459,7 @@ window.TRION_ONLINE_CONFIG = {
       }
       return result;
     };
-    prototype.v102ArenaBoundaryHotfix = true;
+    prototype.v102WallCrawlHotfix = true;
     return true;
   }
 
