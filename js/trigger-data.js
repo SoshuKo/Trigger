@@ -91,19 +91,19 @@
 
     egret: {
       id: 'egret', name: 'イーグレット', short: 'EGR', category: 'sniper', kind: 'sniper',
-      cost: 17, cooldown: 2.2, damage: 49, speed: 1280, optimalMin: 500, optimalMax: 1900, magazine: 5, reload: 2.25,
+      cost: 17, cooldown: 2.2, damage: 58, speed: 1280, optimalMin: 500, optimalMax: 1900, magazine: 5, reload: 2.25,
       description: '射程を重視した万能型狙撃銃。適正距離は650～1600で、Rキーのスコープから遠方を確認できます。',
       controls: '発動：狙撃／Shift＋発動：手動リロード／R：スコープ',
     },
     lightning: {
       id: 'lightning', name: 'ライトニング', short: 'LTN', category: 'sniper', kind: 'sniper',
-      cost: 12, cooldown: 1.18, damage: 27, speed: 1750, optimalMin: 420, optimalMax: 1750, magazine: 8, reload: 1.65,
+      cost: 12, cooldown: 1.18, damage: 33, speed: 1750, optimalMin: 420, optimalMax: 1750, magazine: 8, reload: 1.65,
       description: '軽量で弾速が高く当てやすい狙撃銃。適正距離は520～1450で、Rキーのスコープから遠方を確認できます。',
       controls: '発動：高速狙撃／Shift＋発動：手動リロード／R：スコープ',
     },
     ibis: {
       id: 'ibis', name: 'アイビス', short: 'IBIS', category: 'sniper', kind: 'sniper',
-      cost: 25, cooldown: 3.15, damage: 72, speed: 820, optimalMin: 380, optimalMax: 1250, magazine: 3, reload: 2.8,
+      cost: 25, cooldown: 3.15, damage: 84, speed: 820, optimalMin: 380, optimalMax: 1250, magazine: 3, reload: 2.8,
       description: '威力特化の重量級狙撃銃。適正距離は480～1000で、Rキーのスコープから遠方を確認できます。',
       controls: '発動：重狙撃／Shift＋発動：手動リロード／R：スコープ',
     },

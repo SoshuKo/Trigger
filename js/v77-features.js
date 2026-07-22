@@ -680,13 +680,23 @@
   const mobilityNow=()=>typeof performance!=='undefined'&&typeof performance.now==='function'?performance.now():Date.now();
   const angleDelta=(to,from)=>Math.atan2(Math.sin(to-from),Math.cos(to-from));
   function pointBlocked(g,x,y,r=22){return (g.walls||[]).some(w=>w&&Number.isFinite(w.x)&&Number.isFinite(w.y)&&Number.isFinite(w.w)&&Number.isFinite(w.h)&&x+r>w.x&&x-r<w.x+w.w&&y+r>w.y&&y-r<w.y+w.h);}
-  function chooseOpenMobilityAngle(g,p,base,distance=210){
-    const worldW=Number(g.world?.w)||1920,worldH=Number(g.world?.h)||1080;
-    for(const offset of [0,.38,-.38,.76,-.76,1.16,-1.16,Math.PI]){
-      const a=base+offset,x=clamp(p.x+Math.cos(a)*distance,p.radius+8,worldW-p.radius-8),y=clamp(p.y+Math.sin(a)*distance,p.radius+8,worldH-p.radius-8);
-      if(!pointBlocked(g,x,y,p.radius+10))return a;
+  function mobilityPathOpen(g,p,angle,distance){
+    const r=Math.max(6,(Number(p.radius)||18)-.75),worldW=Number(g.world?.w)||1920,worldH=Number(g.world?.h)||1080,steps=Math.max(2,Math.min(7,Math.ceil(distance/24)));
+    for(let i=1;i<=steps;i++){
+      const d=distance*i/steps,x=p.x+Math.cos(angle)*d,y=p.y+Math.sin(angle)*d;
+      if(x<r||x>worldW-r||y<r||y>worldH-r||pointBlocked(g,x,y,r))return false;
     }
-    return base;
+    return true;
+  }
+  function chooseOpenMobilityAngle(g,p,base,distance=210){
+    let best=base,bestScore=Infinity;
+    for(const offset of [0,.28,-.28,.52,-.52,.82,-.82,1.16,-1.16,Math.PI/2,-Math.PI/2,Math.PI]){
+      const a=base+offset,nearOpen=mobilityPathOpen(g,p,a,Math.min(54,distance)),farOpen=nearOpen&&mobilityPathOpen(g,p,a,distance);
+      if(!nearOpen)continue;
+      const score=(farOpen?0:360)+Math.abs(offset)*42;
+      if(score<bestScore){bestScore=score;best=a;}
+    }
+    return best;
   }
   function tacticalMobilityAngle(g,p,target){
     const toTarget=Math.atan2(target.y-p.y,target.x-p.x),d=Math.hypot(target.x-p.x,target.y-p.y),hpRatio=(Number(p.hp)||1)/Math.max(1,Number(p.maxHp)||Number(p.hp)||1),side=(String(p.id||'').split('').reduce((sum,ch)=>sum+ch.charCodeAt(0),0)%2?1:-1);
@@ -863,13 +873,41 @@
     if(!Number.isFinite(Number(p.v96Knockdown))||Number(p.v96Knockdown)>6)p.v96Knockdown=0;if(!Number.isFinite(Number(p.v100Restrained))||Number(p.v100Restrained)>6)p.v100Restrained=0;
   }
   function offensiveIdsFor(p,d){const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])];const close=['kogetsu','scorpion','raygust','senku','gun_shotgun_asteroid','gun_handgun_asteroid','gun_handgun_viper'],far=['shooter_asteroid','shooter_hound','shooter_viper','shooter_meteor','gun_assault_asteroid','gun_assault_hound','gun_assault_meteor','gun_grenade_asteroid','gun_grenade_meteor','egret','lightning','ibis'];return(d<190?[...close,...far]:[...far,...close]).filter((id,index,list)=>all.includes(id)&&list.indexOf(id)===index);}
-  function recoverEmbeddedPlayer(g,p){if(!p||p.dead||!pointBlocked(g,p.x,p.y,(Number(p.radius)||18)+2))return false;g.resolveWallCollision?.(p);if(!pointBlocked(g,p.x,p.y,(Number(p.radius)||18)+2))return true;const target=nearestEnemy(g,p,900),base=target?Math.atan2(target.y-p.y,target.x-p.x):Number(p.aim)||0,open=openPointNear(g,p.x,p.y,(Number(p.radius)||18)+3,base,220);if(!open)return false;p.x=open.x;p.y=open.y;p.vx=0;p.vy=0;return true;}
+  function embeddedWallContact(g,p,r){
+    let best=null;
+    for(const w of g.walls||[]){
+      if(!w||!Number.isFinite(w.x)||!Number.isFinite(w.y)||!Number.isFinite(w.w)||!Number.isFinite(w.h))continue;
+      const cx=clamp(p.x,w.x,w.x+w.w),cy=clamp(p.y,w.y,w.y+w.h),dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy);
+      if(d>=r)continue;
+      if(d>.001){const penetration=r-d,c={nx:dx/d,ny:dy/d,penetration};if(!best||penetration>best.penetration)best=c;continue;}
+      const exits=[{depth:Math.abs(p.x-w.x),nx:-1,ny:0},{depth:Math.abs(p.x-(w.x+w.w)),nx:1,ny:0},{depth:Math.abs(p.y-w.y),nx:0,ny:-1},{depth:Math.abs(p.y-(w.y+w.h)),nx:0,ny:1}].sort((a,b)=>a.depth-b.depth),c={nx:exits[0].nx,ny:exits[0].ny,penetration:exits[0].depth+r};
+      if(!best||c.penetration>best.penetration)best=c;
+    }
+    return best;
+  }
+  function recoverEmbeddedPlayer(g,p,now=mobilityNow()){
+    if(!p||p.dead||now<Number(p.v102EmbeddedCheckAt||0))return false;
+    p.v102EmbeddedCheckAt=now+140;
+    const r=Math.max(5,(Number(p.radius)||18)-.35),contact=embeddedWallContact(g,p,r);
+    if(!contact)return false;
+    g.resolveWallCollision?.(p);
+    const remaining=embeddedWallContact(g,p,r);
+    if(!remaining)return true;
+    const vx=Number(p.vx)||0,vy=Number(p.vy)||0,into=vx*remaining.nx+vy*remaining.ny;
+    if(into<0){p.vx=vx-into*remaining.nx;p.vy=vy-into*remaining.ny;}
+    if(!p.human){
+      const target=g.resolveAITarget?.(p)||nearestEnemy(g,p,900),base=target?Math.atan2(target.y-p.y,target.x-p.x):Number(p.aim)||0,tangentA=Math.atan2(remaining.ny,remaining.nx)+Math.PI/2,tangentB=tangentA+Math.PI,tangent=Math.abs(angleDelta(tangentA,base))<=Math.abs(angleDelta(tangentB,base))?tangentA:tangentB;
+      if(Math.hypot(Number(p.vx)||0,Number(p.vy)||0)<24){p.vx=Math.cos(tangent)*34+remaining.nx*3;p.vy=Math.sin(tangent)*34+remaining.ny*3;}
+      p.ai=p.ai&&typeof p.ai==='object'?p.ai:{};p.ai.navPath=[];p.ai.navPathIndex=0;delete p.v97MobilityRoute;
+    }
+    return true;
+  }
   function updateStallRecovery(g,p,dt){
-    if(!p||p.dead)return;normalizeFiniteTimers(p);recoverEmbeddedPlayer(g,p);const now=mobilityNow();p.v101Stall=p.v101Stall&&typeof p.v101Stall==='object'?p.v101Stall:{x:p.x,y:p.y,movedAt:now,lastActionAt:now,lastRecoveryAt:0,routeX:p.x,routeY:p.y,routeAt:now};const state=p.v101Stall,move=Math.hypot(p.x-state.x,p.y-state.y),speed=Math.hypot(Number(p.vx)||0,Number(p.vy)||0);
-    if(move>5||speed>34){state.x=p.x;state.y=p.y;state.movedAt=now;}
+    if(!p||p.dead)return;normalizeFiniteTimers(p);const now=mobilityNow();recoverEmbeddedPlayer(g,p,now);p.v101Stall=p.v101Stall&&typeof p.v101Stall==='object'?p.v101Stall:{x:p.x,y:p.y,movedAt:now,lastActionAt:now,lastRecoveryAt:0,routeX:p.x,routeY:p.y,routeAt:now};const state=p.v101Stall,move=Math.hypot(p.x-state.x,p.y-state.y);
+    if(move>4.5){state.x=p.x;state.y=p.y;state.movedAt=now;}
     if(p.v97MobilityRoute){const routeMove=Math.hypot(p.x-state.routeX,p.y-state.routeY);if(routeMove>8){state.routeX=p.x;state.routeY=p.y;state.routeAt=now;}else if(now-state.routeAt>1500){delete p.v97MobilityRoute;state.routeAt=now;}}else{state.routeX=p.x;state.routeY=p.y;state.routeAt=now;}
     if(p.human||Number(p.v96Knockdown)>0||Number(p.v100Restrained)>0||now<Number(p.v101PinballActiveUntil||0))return;const target=g.resolveAITarget?.(p)||nearestEnemy(g,p,950);if(!target)return;const d=Math.hypot(target.x-p.x,target.y-p.y);
-    if(d>120&&now-state.movedAt>2300&&now-state.lastRecoveryAt>900){const desired=chooseOpenMobilityAngle(g,p,Math.atan2(target.y-p.y,target.x-p.x),135),impulse=Math.max(115,(Number(p.speed)||150)*.82);p.vx=Math.cos(desired)*impulse;p.vy=Math.sin(desired)*impulse;p.ai.navPath=[];p.ai.navPathIndex=0;delete p.v97MobilityRoute;delete p.ai.v98HazardAngle;p.ai.v98HazardUntil=0;p.ai.dangerEscapeTimer=0;state.x=p.x;state.y=p.y;state.movedAt=now;state.lastRecoveryAt=now;}
+    if(d>120&&now-state.movedAt>1350&&now-state.lastRecoveryAt>700){const desired=chooseOpenMobilityAngle(g,p,Math.atan2(target.y-p.y,target.x-p.x),96),impulse=Math.max(76,(Number(p.speed)||150)*.54),blend=.64;p.vx=(Number(p.vx)||0)*(1-blend)+Math.cos(desired)*impulse*blend;p.vy=(Number(p.vy)||0)*(1-blend)+Math.sin(desired)*impulse*blend;p.ai.navPath=[];p.ai.navPathIndex=0;delete p.v97MobilityRoute;delete p.ai.v98HazardAngle;p.ai.v98HazardUntil=0;p.ai.dangerEscapeTimer=0;state.x=p.x;state.y=p.y;state.movedAt=now;state.lastRecoveryAt=now;}
     const actionAt=Math.max(Number(state.lastActionAt)||0,Number(p.v101LastActionAt)||0);if(d<920&&now-actionAt>4800&&now-state.lastRecoveryAt>700){p.ai.attackTimer=0;let used=false;for(const id of offensiveIdsFor(p,d)){p.aim=Math.atan2(target.y-p.y,target.x-p.x);if(tryNamedUse(g,p,id)){used=true;break;}}if(!used){for(const hand of ['main','sub']){if(p.shooterCharges?.[hand]){try{used=!!g.tryUseHand?.(p,hand);}catch{}if(!used){p.shooterCharges[hand]=null;if(p.shooterHandLock)p.shooterHandLock[hand]=0;}}}}state.lastActionAt=used?now:now-2800;state.lastRecoveryAt=now;}
   }
   function updateEngineerTraps(g,dt){
