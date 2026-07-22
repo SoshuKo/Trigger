@@ -1,0 +1,59 @@
+name: Package v103 Wall Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/package-v103-wall-fix.yml'
+
+permissions:
+  contents: write
+
+env:
+  PACKAGE_NAME: world-trigger-arena-v103-swept-wall-collision-fix.zip
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Build overwrite package
+        run: |
+          rm -rf package
+          mkdir -p package/world-trigger-arena/js
+          cp index.html package/world-trigger-arena/index.html
+          cp js/game.js package/world-trigger-arena/js/game.js
+          cp js/v77-features.js package/world-trigger-arena/js/v77-features.js
+          cp js/i18n.js package/world-trigger-arena/js/i18n.js
+          cp js/trigger-data.js package/world-trigger-arena/js/trigger-data.js
+          cat > package/world-trigger-arena/V103_WALL_COLLISION_FIX.txt <<'EOF'
+          VERSION 103
+          - Swept X/Y wall collision prevents thin-wall crossing.
+          - Wall contact preserves tangent movement.
+          - Deep overlap correction is capped to prevent visible warps.
+          - Extra feature-layer wall recovery scans were removed.
+          - Narrow-passage navigation margins were reduced.
+          - Sniper damage remains Egret 58 / Lightning 33 / Ibis 84.
+          EOF
+          cd package
+          zip -qr "../${PACKAGE_NAME}" world-trigger-arena
+          cd ..
+          sha256sum "${PACKAGE_NAME}" > "${PACKAGE_NAME}.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v103-wall-fix-package
+          path: |
+            ${{ env.PACKAGE_NAME }}
+            ${{ env.PACKAGE_NAME }}.sha256
+          retention-days: 7
+      - name: Publish run id and remove temporary workflow
+        run: |
+          printf '%s\n' "${GITHUB_RUN_ID}" > .github/v103-package-run-id.txt
+          rm -f .github/workflows/package-v103-wall-fix.yml
+          git config user.name 'SoshuKo'
+          git config user.email '178671009+SoshuKo@users.noreply.github.com'
+          git add .github/v103-package-run-id.txt .github/workflows/package-v103-wall-fix.yml
+          git commit -m 'Record v103 package artifact run'
+          git push origin HEAD:main
