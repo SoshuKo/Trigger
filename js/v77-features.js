@@ -125,24 +125,47 @@
     TOMOE:{style:'formationRush',preferredRange:140,aggression:.86,defense:.76,special:'formation'}
   };
   const NAMED_TUNING_OVERRIDES={
-    NINOMIYA:{offense:1.2,defense:1.12,cooldown:.78,reaction:.76,aim:.68,hp:1.08,trion:1.22},
-    KUGA:{offense:1.18,defense:1.04,cooldown:.72,reaction:.68,aim:.78,speed:1.18,hp:1.03},
-    KAGEURA:{offense:1.22,defense:1.06,cooldown:.74,reaction:.65,speed:1.13,hp:1.08},
-    AMATORI:{offense:1.3,defense:1.02,cooldown:.88,aim:.62,trion:1.42,hp:.96},
-    HYUSE:{offense:1.15,defense:1.12,cooldown:.78,reaction:.72,aim:.7,trion:1.18},
-    IKOMA:{offense:1.2,defense:1.04,cooldown:.8,reaction:.76,speed:1.05},
-    AZUMA:{offense:1.16,defense:1.16,cooldown:.76,reaction:.62,aim:.5,hp:1.04},
-    NASU:{offense:1.17,defense:1.04,cooldown:.74,reaction:.7,aim:.56,speed:1.06},
-    YUBA:{offense:1.24,defense:1.04,cooldown:.62,reaction:.58,aim:.6,speed:1.1},
-    MURAKAMI:{offense:1.1,defense:1.28,cooldown:.78,reaction:.72,hp:1.25,speed:.98},
-    KATORI:{offense:1.18,defense:1,cooldown:.7,reaction:.68,speed:1.14},
-    ARAFUNE:{offense:1.12,defense:1.1,cooldown:.8,aim:.62},
-    HANZAKI:{offense:1.16,cooldown:.82,aim:.48},
-    OJI:{offense:1.13,defense:1.09,cooldown:.76,reaction:.7,speed:1.08},
-    MIKUMO:{offense:.96,defense:1.06,cooldown:.76,reaction:.72,aim:.68,trion:.98},
-    SUWA:{offense:1.16,defense:1.06,cooldown:.72,speed:1.08},
-    TSUTSUMI:{offense:1.12,defense:1.08,cooldown:.76},
-    KAKIZAKI:{offense:1.04,defense:1.18,cooldown:.82,hp:1.14}
+    NINOMIYA:{offense:1.24,defense:1.15,cooldown:.74,reaction:.7,aim:.58,hp:1.08,trion:1.34,speed:.99},
+    INUKAI:{offense:1.10,defense:1.08,cooldown:.79,reaction:.74,aim:.72,hp:1.04,trion:1.10,speed:1.04},
+    TSUJI:{offense:1.10,defense:1.18,cooldown:.78,reaction:.7,aim:.78,hp:1.13,trion:1.03,speed:1.04},
+    MIKUMO:{offense:.94,defense:1.07,cooldown:.72,reaction:.65,aim:.63,hp:.98,trion:.9,speed:1.00},
+    KUGA:{offense:1.23,defense:1.08,cooldown:.66,reaction:.57,aim:.68,speed:1.22,hp:1.06,trion:1.04},
+    AMATORI:{offense:1.36,defense:1.09,cooldown:.84,reaction:.7,aim:.54,trion:1.55,hp:.97,speed:.97},
+    HYUSE:{offense:1.18,defense:1.15,cooldown:.73,reaction:.64,aim:.61,trion:1.30,hp:1.08,speed:1.06},
+    KAGEURA:{offense:1.27,defense:1.11,cooldown:.68,reaction:.54,aim:.74,speed:1.17,hp:1.10,trion:1.03},
+    KITAZOE:{offense:1.14,defense:1.08,cooldown:.82,reaction:.78,aim:.74,hp:1.10,trion:1.18,speed:.98},
+    EMA:{offense:1.16,defense:1.05,cooldown:.76,reaction:.64,aim:.52,hp:1.00,trion:1.06,speed:1.02},
+    IKOMA:{offense:1.25,defense:1.08,cooldown:.74,reaction:.69,aim:.68,speed:1.07,hp:1.08,trion:1.04},
+    MIZUKAMI:{offense:1.08,defense:1.10,cooldown:.69,reaction:.57,aim:.57,hp:1.02,trion:1.00,speed:1.00},
+    OKI:{offense:1.10,defense:1.04,cooldown:.73,reaction:.64,aim:.58,hp:1.00,trion:1.08,speed:1.12},
+    MINAMISAWA:{offense:1.20,defense:.98,cooldown:.68,reaction:.66,aim:.78,hp:1.08,trion:1.00,speed:1.18},
+    OJI:{offense:1.17,defense:1.12,cooldown:.70,reaction:.61,aim:.63,speed:1.12,hp:1.05,trion:1.04},
+    KURAUCHI:{offense:1.11,defense:1.09,cooldown:.69,reaction:.62,aim:.58,hp:1.02,trion:1.07,speed:1.01},
+    KASHIO:{offense:1.16,defense:1.05,cooldown:.69,reaction:.64,aim:.70,hp:1.06,trion:1.00,speed:1.15},
+    AZUMA:{offense:1.20,defense:1.19,cooldown:.70,reaction:.53,aim:.42,hp:1.06,trion:1.08,speed:1.03},
+    KOARAI:{offense:1.17,defense:1.06,cooldown:.69,reaction:.66,aim:.76,hp:1.08,trion:1.00,speed:1.14},
+    OKUDERA:{offense:1.12,defense:1.15,cooldown:.72,reaction:.63,aim:.72,hp:1.10,trion:1.00,speed:1.09},
+    NASU:{offense:1.21,defense:1.07,cooldown:.67,reaction:.58,aim:.47,speed:1.10,hp:.99,trion:1.13},
+    KUMAGAI:{offense:1.12,defense:1.17,cooldown:.74,reaction:.66,aim:.72,hp:1.12,trion:1.00,speed:1.07},
+    HIURA:{offense:1.12,defense:1.04,cooldown:.75,reaction:.65,aim:.54,hp:1.01,trion:1.00,speed:1.04},
+    YUBA:{offense:1.29,defense:1.07,cooldown:.55,reaction:.48,aim:.50,speed:1.14,hp:1.07,trion:1.05},
+    OBISHIMA:{offense:1.13,defense:1.08,cooldown:.72,reaction:.69,aim:.67,speed:1.13,hp:1.06,trion:1.00},
+    TONOOKA:{offense:1.13,defense:1.10,cooldown:.75,reaction:.58,aim:.46,speed:1.04,hp:1.00,trion:1.04},
+    KURUMA:{offense:1.10,defense:1.14,cooldown:.74,reaction:.66,aim:.66,hp:1.09,trion:1.04,speed:1.00},
+    MURAKAMI:{offense:1.15,defense:1.23,cooldown:.71,reaction:.60,aim:.68,hp:1.22,trion:1.05,speed:1.02},
+    BETSUYAKU:{offense:1.07,defense:1.06,cooldown:.74,reaction:.67,aim:.56,hp:1.03,trion:1.00,speed:1.05},
+    ARAFUNE:{offense:1.16,defense:1.12,cooldown:.72,reaction:.61,aim:.52,hp:1.08,trion:1.04,speed:1.06},
+    HOKARI:{offense:1.11,defense:1.05,cooldown:.76,reaction:.68,aim:.57,hp:1.04,trion:1.04,speed:1.06},
+    HANZAKI:{offense:1.19,defense:1.04,cooldown:.75,reaction:.58,aim:.39,hp:1.00,trion:1.00,speed:.99},
+    KATORI:{offense:1.22,defense:1.02,cooldown:.63,reaction:.56,aim:.65,speed:1.18,hp:1.05,trion:1.05},
+    MIURA:{offense:1.13,defense:1.18,cooldown:.71,reaction:.64,aim:.71,hp:1.11,trion:1.00,speed:1.07},
+    WAKAMURA:{offense:1.06,defense:1.12,cooldown:.76,reaction:.75,aim:.68,hp:1.06,trion:1.04,speed:1.00},
+    SUWA:{offense:1.21,defense:1.09,cooldown:.65,reaction:.62,aim:.72,speed:1.11,hp:1.09,trion:1.04},
+    TSUTSUMI:{offense:1.16,defense:1.12,cooldown:.69,reaction:.62,aim:.67,hp:1.08,trion:1.04,speed:1.05},
+    SASAMORI:{offense:1.15,defense:1.03,cooldown:.68,reaction:.60,aim:.73,hp:1.08,trion:1.00,speed:1.14},
+    KAKIZAKI:{offense:1.08,defense:1.20,cooldown:.76,reaction:.66,aim:.66,hp:1.15,trion:1.04,speed:1.00},
+    TERUYA:{offense:1.13,defense:1.13,cooldown:.70,reaction:.58,aim:.59,hp:1.08,trion:1.04,speed:1.07},
+    TOMOE:{offense:1.15,defense:1.06,cooldown:.68,reaction:.63,aim:.67,hp:1.06,trion:1.00,speed:1.14}
   };
   function namedAgentData(name){for(const squad of SQUADS){const agent=squad.agents.find(a=>a.en===name);if(agent)return agent;}return null;}
   function namedTuningFor(name){
@@ -223,52 +246,147 @@
   function nudgeAway(p,x,y,amount){const a=Math.atan2(p.y-y,p.x-x);p.vx=(p.vx||0)+Math.cos(a)*amount;p.vy=(p.vy||0)+Math.sin(a)*amount;}
   function selectTrigger(p,id){p.selected=p.selected&&typeof p.selected==='object'?p.selected:{main:0,sub:0};for(const hand of ['main','sub']){const i=(p.loadout?.[hand]||[]).indexOf(id);if(i>=0){p.selected[hand]=i;return hand;}}return null;}
   function tryNamedUse(g,p,id){const hand=selectTrigger(p,id);if(!hand)return false;try{return !!g.tryUseHand?.(p,hand)}catch{return false}}
+  const NAMED_CAPTAINS=new Set(['NINOMIYA','MIKUMO','KAGEURA','IKOMA','OJI','AZUMA','NASU','YUBA','KURUMA','ARAFUNE','KATORI','SUWA','KAKIZAKI']);
+  function namedState(p){return p.v100NamedState||(p.v100NamedState={cooldowns:{},cycle:0,shots:0,lastX:p.x,lastY:p.y,lastMoveAt:0});}
+  function stableSide(p){return String(p?.id||p?.v78Named||'').split('').reduce((n,c)=>n+c.charCodeAt(0),0)%2?1:-1;}
+  function ratio(p){return Math.max(0,Math.min(1,(Number(p?.hp)||0)/Math.max(1,Number(p?.maxHp)||Number(p?.hp)||1)));}
+  function ready(state,key,seconds){const now=mobilityNow(),until=Number(state.cooldowns[key]||0);if(now<until)return false;state.cooldowns[key]=now+seconds*1000;return true;}
+  function findMember(list,name){return list.find(a=>a?.v78Named===name&&!a.dead)||null;}
+  function targetThreatening(g,ally,enemies){if(!ally)return null;return enemies.map(t=>({t,score:(t.ai?.target===ally.id?500:0)-Math.hypot(t.x-ally.x,t.y-ally.y)})).sort((a,b)=>b.score-a.score)[0]?.t||null;}
+  function clusterTarget(enemies){return enemies.map(t=>({t,score:enemies.filter(e=>e!==t&&Math.hypot(e.x-t.x,e.y-t.y)<170).length})).sort((a,b)=>b.score-a.score)[0]?.t||enemies[0]||null;}
+  function selectedId(p,hand){return p?.loadout?.[hand]?.[p?.selected?.[hand]??0]||'empty';}
+  function useNamedTrigger(g,p,id,options={}){const hand=selectTrigger(p,id);if(!hand)return false;try{return !!g.tryUseHand?.(p,hand,options);}catch(_){return false;}}
+  function useShooterCycle(g,p,id,division=1){const hand=selectTrigger(p,id);if(!hand)return false;p.shooterCharges=p.shooterCharges||{main:null,sub:null};const charge=p.shooterCharges[hand];try{
+      if(!charge)return !!g.tryUseHand?.(p,hand);
+      if(!charge.ready)return false;
+      let guard=0;while((charge.division||1)<division&&guard++<6){if(!g.tryUseHand?.(p,hand,{shift:true}))break;}
+      return !!g.tryUseHand?.(p,hand);
+    }catch(_){return false;}}
+  function findTriggerSlot(p,id,hand){const index=(p?.loadout?.[hand]||[]).indexOf(id);return index>=0?{hand,index}:null;}
+  function tryNamedComposite(g,p,idA,idB){let a=findTriggerSlot(p,idA,'main'),b=findTriggerSlot(p,idB,'sub');if(!a||!b){a=findTriggerSlot(p,idB,'main');b=findTriggerSlot(p,idA,'sub');}if(!a||!b||typeof g.tryCombo!=='function')return false;p.selected=p.selected||{main:0,sub:0};p.selected.main=a.index;p.selected.sub=b.index;try{g.tryCombo(p);return Boolean(p.pendingComposite);}catch(_){return false;}}
+  function useBoth(g,p,idMain,idSub=idMain){let a=findTriggerSlot(p,idMain,'main'),b=findTriggerSlot(p,idSub,'sub');if(!a||!b){const swappedA=findTriggerSlot(p,idSub,'main'),swappedB=findTriggerSlot(p,idMain,'sub');if(swappedA&&swappedB){a=swappedA;b=swappedB;}}let used=false;if(a){p.selected.main=a.index;used=Boolean(g.tryUseHand?.(p,'main'))||used;}if(b){p.selected.sub=b.index;used=Boolean(g.tryUseHand?.(p,'sub'))||used;}return used;}
+  function directSlash(g,p,target,{range=110,damage=24,arc=.7,name='変則斬撃',sourceKey='namedSlash',knock=110}={}){if(!target||target.dead||Math.hypot(target.x-p.x,target.y-p.y)>range+(target.radius||18))return false;p.aim=Math.atan2(target.y-p.y,target.x-p.x);g.effects?.push({type:'slash',x:p.x,y:p.y,angle:p.aim,range,arc,style:sourceKey,ttl:.24,maxTtl:.24});const hit=g.damagePlayer?.(target,damage*(.82+(p.stats?.combat||0)*.045),p,{x:p.x,y:p.y,type:'melee',name,sourceKey});if(hit){target.vx=(target.vx||0)+Math.cos(p.aim)*knock;target.vy=(target.vy||0)+Math.sin(p.aim)*knock;}return Boolean(hit);}
+  function placeMeteorMine(g,p,target){if(!g||!p||!target)return false;g.mines=Array.isArray(g.mines)?g.mines:[];const own=g.mines.filter(m=>m?.ownerId===p.id&&m?.sourceKey==='meteorMine');if(own.length>=2)return false;const lead=.38,x=target.x+(target.vx||0)*lead,y=target.y+(target.vy||0)*lead;g.mines.push({x,y,radius:11,team:p.team,ownerId:p.id,damage:48+(p.stats?.trion||0)*2.4,explosionRadius:132,hp:10,ttl:35,sourceName:'設置メテオラ',sourceKey:'meteorMine'});g.effects?.push({type:'bind',x,y,ttl:.35,maxTtl:.35,v100Mine:true});return true;}
+  function squadOrders(g){return g.v100SquadOrders||(g.v100SquadOrders={});}
+  function orderTarget(g,p,target,ttl=2200){if(!target)return;squadOrders(g)[p.team]={targetId:target.id,until:mobilityNow()+ttl,issuer:p.v78Named};}
+  function orderedTarget(g,p,enemies){const order=squadOrders(g)[p.team];if(!order||mobilityNow()>order.until)return null;return enemies.find(e=>e.id===order.targetId)||null;}
+  function hasWallBetween(g,a,b){for(const w of g.walls||[]){if(!w||!Number.isFinite(w.x)||!Number.isFinite(w.w))continue;const cx=w.x+w.w/2,cy=w.y+w.h/2,r=Math.hypot(w.w,w.h)*.42;if(segDist(a.x,a.y,b.x,b.y,cx,cy).d<r)return true;}return false;}
+  function projectileThreatFor(g,p,horizon=.9){let best=null;for(const q of g.projectiles||[]){if(q.ownerId===p.id||(q.team===p.team&&(g.config?.mode==='team'||g.isDefenseMode)))continue;const rx=q.x-p.x,ry=q.y-p.y,rvx=(q.vx||0)-(p.vx||0),rvy=(q.vy||0)-(p.vy||0),vv=rvx*rvx+rvy*rvy;if(vv<1)continue;const t=-(rx*rvx+ry*rvy)/vv;if(t<0||t>horizon)continue;const miss=Math.hypot(rx+rvx*t,ry+rvy*t);if(miss>(p.radius||18)+(q.radius||5)+24)continue;if(!best||t<best.t)best={q,t,angle:Math.atan2(-rvy,-rvx)};}return best;}
+  function strafe(p,target,amount,side=stableSide(p)){const a=Math.atan2(target.y-p.y,target.x-p.x)+side*Math.PI/2;p.vx=(p.vx||0)+Math.cos(a)*amount;p.vy=(p.vy||0)+Math.sin(a)*amount;}
+  function maintainRange(p,target,desired,b,dt){const d=Math.hypot(target.x-p.x,target.y-p.y);if(d>desired*1.13)nudgeToward(p,target.x,target.y,(b.aggression||.7)*36*dt);else if(d<desired*.78)nudgeAway(p,target.x,target.y,(b.defense||.7)*42*dt);else strafe(p,target,18*dt);return d;}
+  function setAimLead(p,target,lead=.3){p.aim=Math.atan2(target.y+(target.vy||0)*lead-p.y,target.x+(target.vx||0)*lead-p.x);}
+  function markShotProfile(p,profile){p.v100ShotProfile=profile;}
+  function activateGuard(g,p){if(hasTrigger(p,'shield'))return useNamedTrigger(g,p,'shield');if(hasTrigger(p,'raygust'))return useNamedTrigger(g,p,'raygust',{shift:true});return false;}
+  function updateNamedStatus(g,dt){for(const p of g.players||[]){if((p.v100Restrained||0)>0){p.v100Restrained=Math.max(0,p.v100Restrained-dt);p.vx=(p.vx||0)*Math.max(0,1-dt*8);p.vy=(p.vy||0)*Math.max(0,1-dt*8);p.ai=p.ai||{};p.ai.attackTimer=Math.max(p.ai.attackTimer||0,p.v100Restrained+.15);}if(p.v78Named==='MURAKAMI'){delete p.v79DefenseScale;}if(p.v78Squad==='kakizaki'){const near=(g.players||[]).filter(a=>a!==p&&!a.dead&&a.team===p.team&&a.v78Squad==='kakizaki'&&Math.hypot(a.x-p.x,a.y-p.y)<230).length;p.v100FormationDefense=near>=2?1.10:near?1.05:1;}else p.v100FormationDefense=1;}}
+  function tagCanonicalProjectiles(g,p,before){const profile=p?.v100ShotProfile;if(!profile)return;for(const key of ['projectiles','bullets','shots']){const arr=g[key];if(!Array.isArray(arr))continue;for(let i=before[key]||0;i<arr.length;i++){const q=arr[i],owner=q?.ownerId??q?.playerId??q?.sourceId??q?.owner?.id;if(owner!==p.id&&q?.owner!==p&&q?.source!==p)continue;if(profile.kind==='ninomiyaSmall'){q.radius=Math.max(2,(q.radius||6)*.64);q.damage=(q.damage||10)*.72;q.vx*=1.24;q.vy*=1.24;q.speed=(q.speed||Math.hypot(q.vx||0,q.vy||0))*1.24;}
+        if(profile.kind==='ninomiyaLarge'){q.radius=(q.radius||6)*1.52;q.damage=(q.damage||10)*1.38;q.vx*=.76;q.vy*=.76;q.speed=(q.speed||Math.hypot(q.vx||0,q.vy||0))*.76;}
+        if(profile.kind==='mikumoSlow'){q.damage=(q.damage||10)*1.18;q.vx*=.30;q.vy*=.30;q.speed=(q.speed||Math.hypot(q.vx||0,q.vy||0))*.30;q.life=(q.life||1)*2.1;q.v100PlacedShot=true;}
+        if(profile.kind==='chikaLead'){q.lead=true;q.shieldPierce=true;q.leadWeight=3+Math.floor((p.stats?.trion||0)/5);q.damage=0;q.vx*=.86;q.vy*=.86;q.speed=(q.speed||Math.hypot(q.vx||0,q.vy||0))*.86;}
+        if(profile.kind==='tonookaWatch'){q.damage=(q.damage||10)*1.18;q.vx*=1.08;q.vy*=1.08;}
+      }}delete p.v100ShotProfile;}
+  function namedDamageAdjustment(target,amount,source,meta){const key=String(meta?.sourceKey||meta?.name||meta?.type||'unknown');if(target?.v78Named==='MURAKAMI'){target.v100LearnedSources=target.v100LearnedSources||{};const seen=Number(target.v100LearnedSources[key]||0);amount*=Math.max(.68,1-seen*.065);target.v100LearnedSources[key]=Math.min(5,seen+1);}if(target?.v78Named==='KUGA'){target.v100ObservedSources=target.v100ObservedSources||{};const seen=Number(target.v100ObservedSources[key]||0);amount*=Math.max(.84,1-seen*.035);target.v100ObservedSources[key]=Math.min(4,seen+1);}if(target?.v78Named==='KAGEURA'&&source&&meta?.type!=='hazard'&&meta?.type!=='explosion')amount*=.88;if(target?.v100FormationDefense)amount/=target.v100FormationDefense;return amount;}
   function applyNamedBehavior(g,p,dt){
     const b=NAMED_BEHAVIORS[p.v78Named];if(!b||p.dead||p.human)return;
-    p.v79Behavior=b;p.ai=p.ai||{};if(mobilityNow()<Number(p.ai.v98HazardUntil||0))return;p.v79SpecialCd=Math.max(0,(p.v79SpecialCd||0)-dt);p.v79Think=Math.max(0,(p.v79Think||0)-dt);
+    p.v79Behavior=b;p.ai=p.ai||{};if(mobilityNow()<Number(p.ai.v98HazardUntil||0))return;const state=namedState(p);p.v79Think=Math.max(0,(p.v79Think||0)-dt);
     const enemies=enemiesOf(g,p),allies=alliesOf(g,p);if(!enemies.length)return;
-    let target=nearest(enemies,p)?.t;
-    if(b.special==='leaderHunter'){const leaders=enemies.filter(t=>['MIKUMO','NINOMIYA','KAGEURA','IKOMA','OJI','AZUMA','NASU','YUBA','KURUMA','ARAFUNE','KATORI','SUWA','KAKIZAKI'].includes(t.v78Named));target=nearest(leaders,p)?.t||target;}
+    let target=orderedTarget(g,p,enemies)||nearest(enemies,p)?.t;
+    if(b.special==='leaderHunter'){const leaders=enemies.filter(t=>NAMED_CAPTAINS.has(t.v78Named));target=nearest(leaders,p)?.t||target;}
     if(b.special==='priorityWatch'){const priority=enemies.filter(t=>['AMATORI','NINOMIYA','NASU','AZUMA'].includes(t.v78Named));target=nearest(priority,p)?.t||target;}
-    setAiTarget(p,target);if(!target)return;
-    const d=Math.hypot(target.x-p.x,target.y-p.y);p.aim=Math.atan2(target.y-p.y,target.x-p.x);
-    const desired=b.preferredRange||240;if(d>desired*1.2)nudgeToward(p,target.x,target.y,(b.aggression||.7)*28*dt);if(d<desired*.65)nudgeAway(p,target.x,target.y,(b.defense||.7)*26*dt);
-    if(p.v79Think>0)return;p.v79Think=(.13+Math.random()*.13)*(p.v96Tuning?.reaction||1);
-    const leader=allies.find(a=>a.v78Named===squadLeaderName[p.v78Squad]);
-    if(['guardLeader','bodyguard'].includes(b.special)&&leader){const ld=Math.hypot(leader.x-p.x,leader.y-p.y);if(ld>140)nudgeToward(p,leader.x,leader.y,95);const threat=nearest(enemies,leader)?.t;if(threat)setAiTarget(p,threat);}
-    if(b.special==='pair'){const mate=allies.find(a=>['KOARAI','OKUDERA'].includes(a.v78Named));if(mate){const md=Math.hypot(mate.x-p.x,mate.y-p.y);if(md>150)nudgeToward(p,mate.x,mate.y,75);else{p.stats=p.stats&&typeof p.stats==='object'?p.stats:{trion:0,technique:0,combat:0};p.stats.combat=Math.max(Number(p.stats.combat)||0,p.v79BaseCombat?p.v79BaseCombat+1.2:Number(p.stats.combat)||0);}}}
-    if(b.special==='formation'){const mates=allies.filter(a=>['KAKIZAKI','TERUYA','TOMOE'].includes(a.v78Named));const far=mates.find(a=>Math.hypot(a.x-p.x,a.y-p.y)>210);if(far)nudgeToward(p,far.x,far.y,70);else{p.v79FormationBonus=1;p.hp=Math.min(p.maxHp||p.hp,p.hp+dt*.3);}}
-    if(b.special==='ninomiya'&&p.v79SpecialCd<=0&&d<560){tryNamedUse(g,p,'shooter_hound');battleTimeout(g,p,()=>tryNamedUse(g,p,'shooter_asteroid'),90);p.v79SpecialCd=2.4;}
-    if(b.special==='wireField'&&p.v79SpecialCd<=0&&d<430){p.ai.placePoint={x:p.x+Math.cos(p.aim+1.25)*160,y:p.y+Math.sin(p.aim+1.25)*160};tryNamedUse(g,p,'spider');p.v79SpecialCd=2.1;}
-    if(b.special==='kuga'&&p.v79SpecialCd<=0&&d<230){if(hasTrigger(p,'grasshopper'))tryNamedUse(g,p,'grasshopper');if(d<120)tryNamedUse(g,p,'scorpion');p.v79SpecialCd=.9;}
-    if(b.special==='chika'&&p.v79SpecialCd<=0&&d>340){const id=d>650?'ibis':(hasTrigger(p,'shooter_meteor')?'shooter_meteor':'lightning');tryNamedUse(g,p,id);p.v79SpecialCd=2.8;}
-    if(b.special==='hyuse'&&p.v79SpecialCd<=0){if(d<210)tryNamedUse(g,p,'escudo');else tryNamedUse(g,p,'shooter_viper');p.v79SpecialCd=1.7;}
-    if(b.special==='hostilitySense'){p.v79ThreatSense=1;p.ai.dodgeTimer=Math.max(p.ai.dodgeTimer||0,.22);}
-    if(b.special==='areaBombard'&&p.v79SpecialCd<=0&&d<650){tryNamedUse(g,p,hasTrigger(p,'gun_grenade_meteor')?'gun_grenade_meteor':'shooter_meteor');p.v79SpecialCd=2.3;}
-    if(b.special==='ikomaSenku'&&p.v79SpecialCd<=0&&d>150&&d<500){p.v79IkomaSenku=true;tryNamedUse(g,p,'senku');p.v79IkomaSenku=false;p.v79SpecialCd=2.2;}
-    if(b.special==='mobileSnipe'&&p.v79SpecialCd<=0){if(d<450)tryNamedUse(g,p,'grasshopper');else tryNamedUse(g,p,'egret');p.v79SpecialCd=1.6;}
-    if(b.special==='birdcage'&&p.v79SpecialCd<=0&&d<560){for(let i=0;i<3;i++)battleTimeout(g,p,()=>{p.aim+=i?-.28:.56;tryNamedUse(g,p,'shooter_viper')},i*120);p.v79SpecialCd=2.8;}
-    if(b.special==='quickdraw'&&p.v79SpecialCd<=0&&d<230){p.v79QuickdrawUntil=performance.now()+420;tryNamedUse(g,p,hasTrigger(p,'gun_handgun_asteroid')?'gun_handgun_asteroid':'gun_handgun_viper');p.v79SpecialCd=.55;}
-    if(b.special==='fullAttackWithMurakami'){const m=allies.find(a=>a.v78Named==='MURAKAMI'&&Math.hypot(a.x-p.x,a.y-p.y)<180);if(m&&p.v79SpecialCd<=0){tryNamedUse(g,p,'gun_assault_asteroid');battleTimeout(g,p,()=>tryNamedUse(g,p,'gun_assault_asteroid'),80);p.v79SpecialCd=.8;}}
-    if(b.special==='learningGuard'){p.v79GuardLearn=(p.v79GuardLearn||0)+dt;p.v79DefenseScale=1+Math.min(.22,p.v79GuardLearn/120);if(d<150&&p.v79SpecialCd<=0){tryNamedUse(g,p,'raygust');p.v79SpecialCd=.7;}}
-    if(b.special==='hybrid'){if(d<240)tryNamedUse(g,p,'kogetsu');else if(p.v79SpecialCd<=0){tryNamedUse(g,p,'egret');p.v79SpecialCd=1.4;}}
-    if(b.special==='adaptive'){p.v79Adaptive=(p.v79Adaptive||0)+dt;if(d<180)tryNamedUse(g,p,'scorpion');else tryNamedUse(g,p,'gun_handgun_asteroid');}
-    if(b.special==='shotgun'&&p.v79SpecialCd<=0&&d<220){tryNamedUse(g,p,'gun_shotgun_asteroid');p.v79SpecialCd=.65;}
-    if(b.special==='alternatingShotgun'&&p.v79SpecialCd<=0&&d<260){const suwa=allies.find(a=>a.v78Named==='SUWA');if(!suwa||!(suwa.v79SpecialCd>0)){tryNamedUse(g,p,'gun_shotgun_asteroid');p.v79SpecialCd=.8;}}
-    if(b.special==='chameleonGrab'&&p.v79SpecialCd<=0&&d<260){if(d>90)tryNamedUse(g,p,'chameleon');else tryNamedUse(g,p,'kogetsu');p.v79SpecialCd=1.2;}
-    if(b.special==='herd'&&p.v79SpecialCd<=0){const leader=allies.find(a=>a.v78Named==='NINOMIYA');const flank=p.aim+(p.id%2?1:-1)*.55;if(d>250)nudgeToward(p,target.x+Math.cos(flank)*90,target.y+Math.sin(flank)*90,115);if(d<420)tryNamedUse(g,p,'gun_assault_hound');if(leader&&Math.hypot(leader.x-p.x,leader.y-p.y)>260)nudgeToward(p,leader.x,leader.y,85);p.v79SpecialCd=.8;}
-    if(b.special==='tactician'&&p.v79SpecialCd<=0){const cluster=enemies.slice().sort((x,y)=>alliesOf(g,x).length-alliesOf(g,y).length)[0]||target;setAiTarget(p,cluster);if(d<520)tryNamedUse(g,p,'shooter_meteor');p.v79SpecialCd=1.45;}
-    if(b.special==='compositeControl'&&p.v79SpecialCd<=0&&d<520){tryNamedUse(g,p,'shooter_hound');battleTimeout(g,p,()=>tryNamedUse(g,p,'shooter_meteor'),70,target);p.v79SpecialCd=1.65;}
-    if(b.special==='pincer'){const mate=allies.find(a=>a.v78Named==='OJI'||a.v78Named==='KURAUCHI');if(mate){const side=Math.atan2(target.y-mate.y,target.x-mate.x)+(p.id%2?1:-1)*Math.PI/2;nudgeToward(p,target.x+Math.cos(side)*120,target.y+Math.sin(side)*120,105);}if(p.v79SpecialCd<=0&&d<190){tryNamedUse(g,p,'kogetsu');p.v79SpecialCd=.72;}}
-    if(b.special==='prediction'){const lead=.42+(p.stats?.technique||0)*.025;p.aim=Math.atan2(target.y+(target.vy||0)*lead-p.y,target.x+(target.vx||0)*lead-p.x);if(p.v79SpecialCd<=0&&d>380){tryNamedUse(g,p,d>720?'egret':'lightning');p.v79SpecialCd=1.05;}}
-    if(b.special==='terrainShot'&&p.v79SpecialCd<=0&&d>330){tryNamedUse(g,p,hasTrigger(p,'ibis')?'ibis':'egret');p.v79SpecialCd=1.35;}
-    if(b.special==='yubaSetup'){const yuba=allies.find(a=>a.v78Named==='YUBA');if(yuba){const yd=Math.hypot(yuba.x-p.x,yuba.y-p.y);if(yd>230)nudgeToward(p,yuba.x,yuba.y,78);}if(p.v79SpecialCd<=0){if(d<160)tryNamedUse(g,p,'kogetsu');else tryNamedUse(g,p,'gun_assault_hound');p.v79SpecialCd=.9;}}
-    if(b.special==='escudoTerrain'&&p.v79SpecialCd<=0){if(d<330)tryNamedUse(g,p,'escudo');else tryNamedUse(g,p,'egret');p.v79SpecialCd=1.7;}
-    if(b.special==='spreadSnipe'&&p.v79SpecialCd<=0&&d>300){for(const off of [-.07,.07])battleTimeout(g,p,()=>{p.aim+=off;tryNamedUse(g,p,'egret');},Math.abs(off)*800,target);p.v79SpecialCd=1.65;}
-    if(b.special==='precision'&&p.v79SpecialCd<=0&&d>420){const lead=.5;p.aim=Math.atan2(target.y+(target.vy||0)*lead-p.y,target.x+(target.vx||0)*lead-p.x);tryNamedUse(g,p,'egret');p.v79SpecialCd=1.1;}
-    if(b.special==='support'){const pressured=allies.slice().sort((a,c)=>(a.hp/a.maxHp)-(c.hp/c.maxHp))[0];if(pressured&&pressured.hp/pressured.maxHp<.58)nudgeToward(p,pressured.x,pressured.y,88);if(p.v79SpecialCd<=0&&d<480){tryNamedUse(g,p,'gun_assault_hound');p.v79SpecialCd=1.05;}}
-    if(b.special==='coverSnipe'&&p.v79SpecialCd<=0){const ally=allies.slice().sort((a,c)=>(a.hp/a.maxHp)-(c.hp/c.maxHp))[0],threat=ally?nearest(enemies,ally)?.t:target;if(threat){setAiTarget(p,threat);p.aim=Math.atan2(threat.y-p.y,threat.x-p.x);tryNamedUse(g,p,Math.hypot(threat.x-p.x,threat.y-p.y)>620?'egret':'lightning');p.v79SpecialCd=1.15;}}
-    if(b.special==='rush'&&p.v79SpecialCd<=0){if(d>115&&hasTrigger(p,'grasshopper'))tryNamedUse(g,p,'grasshopper');if(d<190)tryNamedUse(g,p,'kogetsu');p.v79SpecialCd=.62;}
+    const leader=findMember(allies,squadLeaderName[p.v78Squad]);
+    if(['guardLeader','bodyguard'].includes(b.special)&&leader)target=targetThreatening(g,leader,enemies)||target;
+    setAiTarget(p,target);if(!target)return;setAimLead(p,target,.08+(p.stats?.technique||0)*.018);
+    let d=maintainRange(p,target,b.preferredRange||240,b,dt);
+    if(p.v79Think>0)return;p.v79Think=(.12+Math.random()*.12)*(p.v96Tuning?.reaction||1);
+    const now=mobilityNow(),side=stableSide(p),name=p.v78Named;
+    switch(name){
+      case 'NINOMIYA':{
+        const shielded=Boolean(target.shields?.main||target.shields?.sub),mode=state.cycle++%4;
+        if(mode===0){markShotProfile(p,{kind:'ninomiyaSmall'});useShooterCycle(g,p,'shooter_hound',4);}
+        else if(mode===1){markShotProfile(p,{kind:'ninomiyaLarge'});useShooterCycle(g,p,'shooter_asteroid',1);}
+        else if(mode===2&&tryNamedComposite(g,p,'shooter_asteroid','shooter_asteroid')){}
+        else {markShotProfile(p,{kind:shielded?'ninomiyaLarge':'ninomiyaSmall'});useBoth(g,p,'shooter_asteroid','shooter_hound');}
+        break;}
+      case 'INUKAI':{
+        const n=findMember(allies,'NINOMIYA'),anchor=n||leader;if(anchor){const a=Math.atan2(target.y-anchor.y,target.x-anchor.x)+Math.PI;nudgeToward(p,target.x+Math.cos(a)*150,target.y+Math.sin(a)*150,90);}if(d<115)useNamedTrigger(g,p,'scorpion');else{useNamedTrigger(g,p,'gun_assault_hound');const old=p.aim;p.aim+=side*.62;useShooterCycle(g,p,'shooter_hound',3);p.aim=old;}break;}
+      case 'TSUJI':{
+        const n=findMember(allies,'NINOMIYA');if(n){const threat=targetThreatening(g,n,enemies);if(threat){target=threat;setAiTarget(p,target);d=Math.hypot(target.x-p.x,target.y-p.y);setAimLead(p,target,.05);}if(Math.hypot(n.x-p.x,n.y-p.y)>135)nudgeToward(p,n.x,n.y,120);}if(projectileThreatFor(g,p,.55))activateGuard(g,p);if(d<115)useNamedTrigger(g,p,'kogetsu');else if(d<310)useNamedTrigger(g,p,'senku');break;}
+      case 'MIKUMO':{
+        const kuga=findMember(allies,'KUGA'),wireCenter=kuga||p;if(ready(state,'wire',1.65)){p.spiderMode=0;p.ai.placePoint={x:target.x+(target.vx||0)*.55+Math.cos(p.aim+side*1.15)*95,y:target.y+(target.vy||0)*.55+Math.sin(p.aim+side*1.15)*95};useNamedTrigger(g,p,'spider');}
+        if(ready(state,'slowShot',2.1)){markShotProfile(p,{kind:'mikumoSlow'});useShooterCycle(g,p,'shooter_asteroid',3);}if(d<125){useNamedTrigger(g,p,'raygust',{shift:true});useNamedTrigger(g,p,'thruster');}if(kuga&&Math.hypot(wireCenter.x-p.x,wireCenter.y-p.y)>260)nudgeToward(p,wireCenter.x,wireCenter.y,65);break;}
+      case 'KUGA':{
+        const threat=projectileThreatFor(g,p,.48);if(threat){const a=threat.angle+side*Math.PI/2;p.vx+=Math.cos(a)*180;p.vy+=Math.sin(a)*180;}
+        const nearbyWires=(g.wires||[]).filter(w=>w.ownerId!==p.id&&w.team===p.team&&Math.hypot((w.x1+w.x2)/2-p.x,(w.y1+w.y2)/2-p.y)<300);if(nearbyWires.length&&d<320&&ready(state,'wirePin',2.5))pinballFor(g,p,true,target,true);else if(d>150&&ready(state,'hop',.65))useNamedTrigger(g,p,'grasshopper');if(d<260&&hasTrigger(p,'scorpion')&&ready(state,'mantis',1.45))tryNamedComposite(g,p,'scorpion','scorpion');if(d<115)useNamedTrigger(g,p,'scorpion');if(ready(state,'mole',1.8))moleClaw(g,p,true);break;}
+      case 'AMATORI':{
+        const close=nearest(enemies,p);if(close&&close.d<260){p.ai.dodgeTimer=Math.max(p.ai.dodgeTimer||0,.5);nudgeAway(p,close.t.x,close.t.y,220);activateGuard(g,p);break;}if(Math.hypot(p.vx||0,p.vy||0)<35&&d>520)useNamedTrigger(g,p,'bagworm');if(ready(state,'chikaShot',1.8)){if(Math.hypot(target.vx||0,target.vy||0)>120){markShotProfile(p,{kind:'chikaLead'});useNamedTrigger(g,p,'lightning');}else if(hasWallBetween(g,p,target))useNamedTrigger(g,p,'ibis');else if(enemies.filter(e=>Math.hypot(e.x-target.x,e.y-target.y)<150).length>1)useShooterCycle(g,p,'shooter_meteor',2);else useNamedTrigger(g,p,d>680?'ibis':'egret');}break;}
+      case 'HYUSE':{
+        const reveal=(Number(g.elapsed)||0)>18||ratio(p)<.68||NAMED_CAPTAINS.has(target.v78Named);if(d<230&&ready(state,'escudo',1.15)){for(const off of [-.42,.42]){const old=p.aim;p.aim+=off;useNamedTrigger(g,p,'escudo');p.aim=old;}}if(reveal&&d>160){makeViperPlan(g,p,target);useShooterCycle(g,p,'shooter_viper',3);}else if(d<310)useNamedTrigger(g,p,d<120?'kogetsu':'senku');break;}
+      case 'KAGEURA':{
+        const threat=projectileThreatFor(g,p,.75);if(threat){const a=threat.angle+side*Math.PI/2;p.vx+=Math.cos(a)*250;p.vy+=Math.sin(a)*250;p.ai.dodgeTimer=Math.max(p.ai.dodgeTimer||0,.35);}if(d<260&&ready(state,'mantis',1.15))tryNamedComposite(g,p,'scorpion','scorpion');if(d<120)useNamedTrigger(g,p,'scorpion');break;}
+      case 'KITAZOE':{
+        target=clusterTarget(enemies)||target;setAiTarget(p,target);const escape=Math.atan2(target.vy||0,target.vx||0);p.aim=Number.isFinite(escape)&&Math.hypot(target.vx||0,target.vy||0)>30?escape:p.aim;if(ready(state,'bomb',1.65))useNamedTrigger(g,p,hasTrigger(p,'gun_grenade_meteor')?'gun_grenade_meteor':'shooter_meteor');break;}
+      case 'EMA':{
+        const k=findMember(allies,'KAGEURA'),z=findMember(allies,'KITAZOE'),threat=targetThreatening(g,k||z,enemies);if(threat)target=threat;setAiTarget(p,target);setAimLead(p,target,.38);useNamedTrigger(g,p,Math.hypot(target.x-p.x,target.y-p.y)>620?'egret':'lightning');break;}
+      case 'IKOMA': if(d>145&&d<540){p.v79IkomaSenku=true;useNamedTrigger(g,p,'senku');p.v79IkomaSenku=false;}else if(d<135)useNamedTrigger(g,p,'kogetsu');break;
+      case 'MIZUKAMI':{
+        const iko=findMember(allies,'IKOMA'),candidate=enemies.slice().sort((a,c)=>Math.abs(Math.hypot(a.x-(iko?.x||p.x),a.y-(iko?.y||p.y))-300)-Math.abs(Math.hypot(c.x-(iko?.x||p.x),c.y-(iko?.y||p.y))-300))[0]||target;target=candidate;orderTarget(g,p,target,2400);setAiTarget(p,target);if(d<520)useShooterCycle(g,p,enemies.filter(e=>Math.hypot(e.x-target.x,e.y-target.y)<150).length>1?'shooter_meteor':'shooter_asteroid',3);break;}
+      case 'OKI':{
+        const moved=Math.hypot(p.x-state.lastX,p.y-state.lastY);if(moved<35&&state.shots>0&&ready(state,'relocate',1.2)){p.aim+=side*1.2;useNamedTrigger(g,p,'grasshopper');state.lastX=p.x;state.lastY=p.y;}else{setAimLead(p,target,.34);if(useNamedTrigger(g,p,d>680?'egret':'lightning'))state.shots++;}break;}
+      case 'MINAMISAWA':{
+        const water=findMember(allies,'MIZUKAMI'),order=orderedTarget(g,p,enemies);if(water&&!order&&d>130){nudgeToward(p,water.x,water.y,70);break;}if(d>125)useNamedTrigger(g,p,'grasshopper');if(d<320)useNamedTrigger(g,p,d<130?'kogetsu':'senku');break;}
+      case 'OJI':{
+        const leaders=enemies.filter(e=>NAMED_CAPTAINS.has(e.v78Named)),isolated=enemies.slice().sort((a,c)=>enemies.filter(e=>e!==a&&Math.hypot(e.x-a.x,e.y-a.y)<260).length-enemies.filter(e=>e!==c&&Math.hypot(e.x-c.x,e.y-c.y)<260).length)[0];target=nearest(leaders,p)?.t||isolated||target;orderTarget(g,p,target,2600);setAiTarget(p,target);if(d>170)useNamedTrigger(g,p,'shooter_hound');if(d>130&&d<360)useNamedTrigger(g,p,'grasshopper');if(d<210)useNamedTrigger(g,p,d<105?'scorpion':'kogetsu');break;}
+      case 'KURAUCHI':{
+        target=orderedTarget(g,p,enemies)||target;setAiTarget(p,target);const fast=Math.hypot(target.vx||0,target.vy||0)>150;if(fast)tryNamedComposite(g,p,'shooter_hound','shooter_hound');else if(hasWallBetween(g,p,target)||enemies.filter(e=>Math.hypot(e.x-target.x,e.y-target.y)<150).length>1)tryNamedComposite(g,p,'shooter_hound','shooter_meteor');else useShooterCycle(g,p,'shooter_hound',3);break;}
+      case 'KASHIO':{
+        target=orderedTarget(g,p,enemies)||target;const oji=findMember(allies,'OJI');if(oji){const a=Math.atan2(target.y-oji.y,target.x-oji.x)+side*Math.PI/2;nudgeToward(p,target.x+Math.cos(a)*120,target.y+Math.sin(a)*120,125);}if(d>135)useShooterCycle(g,p,'shooter_hound',2);if(d>115)useNamedTrigger(g,p,'grasshopper');if(d<220)useNamedTrigger(g,p,d<110?'kogetsu':'senku');break;}
+      case 'AZUMA':{
+        if(ready(state,'beacon',4.2)){const old=p.aim;p.aim+=side*1.3;useNamedTrigger(g,p,'dummyBeacon');p.aim=old;}setAimLead(p,target,.65+(p.stats?.technique||0)*.02);if(d>360&&ready(state,'snipe',.85)){useNamedTrigger(g,p,hasWallBetween(g,p,target)?'ibis':d>720?'egret':'lightning');state.postShot=now+700;}if(now<Number(state.postShot||0))nudgeAway(p,target.x,target.y,145);break;}
+      case 'KOARAI':{
+        const mate=findMember(allies,'OKUDERA'),order=orderedTarget(g,p,enemies);if(!order&&findMember(allies,'AZUMA')&&mate&&Math.hypot(mate.x-p.x,mate.y-p.y)>180){nudgeToward(p,mate.x,mate.y,100);break;}target=order||target;if(mate){const a=Math.atan2(target.y-mate.y,target.x-mate.x)+side*Math.PI/2;nudgeToward(p,target.x+Math.cos(a)*90,target.y+Math.sin(a)*90,120);}if(d>135)useNamedTrigger(g,p,'grasshopper');if(d<250)useNamedTrigger(g,p,d<115?'kogetsu':'senku');break;}
+      case 'OKUDERA':{
+        const mate=findMember(allies,'KOARAI');if(mate&&Math.hypot(mate.x-p.x,mate.y-p.y)>155)nudgeToward(p,mate.x,mate.y,115);const az=findMember(allies,'AZUMA');if(az){const line=Math.atan2(target.y-az.y,target.x-az.x);nudgeToward(p,target.x-Math.cos(line)*105,target.y-Math.sin(line)*105,80);}if(projectileThreatFor(g,mate||p,.55))activateGuard(g,p);if(d<130)useNamedTrigger(g,p,'kogetsu');else if(d<300)useNamedTrigger(g,p,'senku');break;}
+      case 'NASU':{
+        const fast=Math.hypot(target.vx||0,target.vy||0)>120;if(ready(state,'tomahawk',3.1)&&enemies.filter(e=>Math.hypot(e.x-target.x,e.y-target.y)<145).length>1)tryNamedComposite(g,p,'shooter_viper','shooter_meteor');else{makeViperPlan(g,p,target);useShooterCycle(g,p,'shooter_viper',fast?4:3);}strafe(p,target,45,side);break;}
+      case 'KUMAGAI':{
+        const nasu=findMember(allies,'NASU');if(nasu&&Math.hypot(nasu.x-p.x,nasu.y-p.y)>150)nudgeToward(p,nasu.x,nasu.y,120);if(ready(state,'mine',4.2))placeMeteorMine(g,p,target);if(ratio(p)<.24&&d<120&&ready(state,'trade',99)){g.explode?.(p.x,p.y,145,64+(p.stats?.trion||0)*2,p.id,p.team,null,'相打ちメテオラ',{sourceKey:'meteorMine'});}if(d<135)useNamedTrigger(g,p,'kogetsu');else if(d<300)useNamedTrigger(g,p,'senku');break;}
+      case 'HIURA':{
+        if(hasWallBetween(g,p,target)&&ready(state,'terrain',2.6))useShooterCycle(g,p,'shooter_meteor',2);else useNamedTrigger(g,p,d>650?'ibis':d>440?'egret':'lightning');if(ready(state,'move',1.8)){strafe(p,target,190,side);state.lastX=p.x;state.lastY=p.y;}break;}
+      case 'YUBA':{
+        if(d>245)nudgeToward(p,target.x,target.y,160);if(d<245&&ready(state,'quickdraw',.46)){p.v79QuickdrawUntil=now+430;useBoth(g,p,'gun_handgun_asteroid','gun_handgun_viper');battleTimeout(g,p,()=>useBoth(g,p,'gun_handgun_viper','gun_handgun_asteroid'),95,target);}break;}
+      case 'OBISHIMA':{
+        const yuba=findMember(allies,'YUBA');if(yuba){const a=Math.atan2(target.y-yuba.y,target.x-yuba.x)+Math.PI;nudgeToward(p,target.x+Math.cos(a)*120,target.y+Math.sin(a)*120,115);}if(d>190)useNamedTrigger(g,p,'gun_assault_hound');if(d>125&&d<340)useNamedTrigger(g,p,'grasshopper');if(d<180)useNamedTrigger(g,p,d<105?'kogetsu':'senku');break;}
+      case 'TONOOKA':{
+        const valuable=target.shooterCharges?.main||target.shooterCharges?.sub||target.pendingComposite||Math.hypot(target.vx||0,target.vy||0)<35||ratio(target)<.45;if(valuable&&ready(state,'watchShot',1.05)){markShotProfile(p,{kind:'tonookaWatch'});setAimLead(p,target,.52);useNamedTrigger(g,p,d>650?'egret':'lightning');}else{p.vx*=.96;p.vy*=.96;}break;}
+      case 'KURUMA':{
+        const mura=findMember(allies,'MURAKAMI'),protectedNow=mura&&Math.hypot(mura.x-p.x,mura.y-p.y)<175;if(protectedNow&&d<480){useBoth(g,p,'gun_assault_asteroid','gun_assault_hound');}else{activateGuard(g,p);if(d<400)useNamedTrigger(g,p,'gun_assault_asteroid');if(mura&&Math.hypot(mura.x-p.x,mura.y-p.y)>220)nudgeToward(p,mura.x,mura.y,90);}break;}
+      case 'MURAKAMI':{
+        const kuruma=findMember(allies,'KURUMA'),threat=targetThreatening(g,kuruma,enemies);if(threat)target=threat;if(kuruma&&Math.hypot(kuruma.x-p.x,kuruma.y-p.y)>100)nudgeToward(p,kuruma.x,kuruma.y,125);if(projectileThreatFor(g,kuruma||p,.75))useNamedTrigger(g,p,'raygust',{shift:true});if(d<170&&ready(state,'thruster',1.15))useNamedTrigger(g,p,'thruster');if(d<130)useNamedTrigger(g,p,'kogetsu');else if(d<320)useNamedTrigger(g,p,'senku');break;}
+      case 'BETSUYAKU':{
+        const kuruma=findMember(allies,'KURUMA');if(ready(state,'terrain',2.1)){const old=p.aim;if(kuruma&&ratio(kuruma)<.7)p.aim=Math.atan2(target.y-kuruma.y,target.x-kuruma.x);else p.aim+=side*.8;useNamedTrigger(g,p,'escudo');p.aim=old;}if(d>430)useNamedTrigger(g,p,d>700?'egret':'lightning');break;}
+      case 'ARAFUNE': if(d<180)useNamedTrigger(g,p,'kogetsu');else if(d<330)useNamedTrigger(g,p,'senku');else useNamedTrigger(g,p,'egret');break;
+      case 'HOKARI':{
+        const mates=allies.filter(a=>['ARAFUNE','HANZAKI'].includes(a.v78Named));if(mates.length){const center=mates.reduce((o,a)=>({x:o.x+a.x/mates.length,y:o.y+a.y/mates.length}),{x:0,y:0});if(Math.hypot(center.x-p.x,center.y-p.y)<180)strafe(p,target,180,side);}setAimLead(p,target,.32);useNamedTrigger(g,p,'egret');break;}
+      case 'HANZAKI':{
+        const moving=Math.hypot(p.vx||0,p.vy||0);if(moving>45){p.vx*=.82;p.vy*=.82;break;}setAimLead(p,target,.22);if(!hasWallBetween(g,p,target)||d>700)useNamedTrigger(g,p,'egret');break;}
+      case 'KATORI':{
+        const wounded=ratio(p)<.55,allyDown=(g.players||[]).some(a=>a.dead&&a.team===p.team&&a.v78Squad==='katori');if(d>220&&!p.toggles?.chameleon&&ready(state,'cloak',2.2))useNamedTrigger(g,p,'chameleon');if(d<180&&p.toggles?.chameleon)useNamedTrigger(g,p,'chameleon');if(d<165){useNamedTrigger(g,p,'scorpion');if(wounded||allyDown)battleTimeout(g,p,()=>useNamedTrigger(g,p,'scorpion'),85,target);}else useNamedTrigger(g,p,Math.hypot(target.vx||0,target.vy||0)>100?'gun_handgun_hound':'gun_handgun_asteroid');break;}
+      case 'MIURA':{
+        const katori=findMember(allies,'KATORI');if(katori){const threat=targetThreatening(g,katori,enemies);if(threat)target=threat;if(Math.hypot(katori.x-p.x,katori.y-p.y)>125)nudgeToward(p,katori.x,katori.y,130);}if(d<170&&(target.shields?.main||target.shields?.sub)&&ready(state,'genyo',1.25))directSlash(g,p,target,{range:172,damage:27,arc:.32,name:'幻踊・曲刀',sourceKey:'genyo',knock:70});else if(d<130)useNamedTrigger(g,p,'kogetsu');else if(d<290)useNamedTrigger(g,p,'senku');break;}
+      case 'WAKAMURA':{
+        const katori=findMember(allies,'KATORI');if(katori&&Math.hypot(katori.x-p.x,katori.y-p.y)>260){nudgeToward(p,katori.x,katori.y,90);p.v79Think+=.12;}if(d<150)nudgeAway(p,target.x,target.y,100);if(d<500)useNamedTrigger(g,p,Math.hypot(target.vx||0,target.vy||0)>100?'gun_assault_hound':'gun_assault_asteroid');if(ratio(p)<.45&&!p.toggles?.chameleon)useNamedTrigger(g,p,'chameleon');break;}
+      case 'SUWA':{
+        g.v100SuwaVolley=g.v100SuwaVolley||{};const slot=g.v100SuwaVolley[p.team]||0;if(now>=slot&&d<250){useBoth(g,p,'gun_shotgun_asteroid');g.v100SuwaVolley[p.team]=now+360;}if(target.toggles?.bagworm||target.toggles?.chameleon)useNamedTrigger(g,p,'starmaker');break;}
+      case 'TSUTSUMI':{
+        g.v100SuwaVolley=g.v100SuwaVolley||{};const suwa=findMember(allies,'SUWA'),restrained=(target.v100Restrained||0)>0;if((!suwa||now>=Number(g.v100SuwaVolley[p.team]||0)||restrained)&&d<285){useBoth(g,p,'gun_shotgun_asteroid');g.v100SuwaVolley[p.team]=now+360;}break;}
+      case 'SASAMORI':{
+        if(d>105&&!p.toggles?.chameleon)useNamedTrigger(g,p,'chameleon');if(d<105){if(p.toggles?.chameleon)useNamedTrigger(g,p,'chameleon');if(ready(state,'grapple',2.6)){target.v100Restrained=Math.max(target.v100Restrained||0,.82);target.vx*=.08;target.vy*=.08;orderTarget(g,p,target,1200);g.effects?.push({type:'bind',x:target.x,y:target.y,ttl:.7,maxTtl:.7,v100Grapple:true});directSlash(g,p,target,{range:90,damage:9,arc:1.3,name:'カメレオン拘束',sourceKey:'sasamoriGrapple',knock:0});}else useNamedTrigger(g,p,'kogetsu');}break;}
+      case 'KAKIZAKI':{
+        const weak=allies.slice().sort((a,c)=>ratio(a)-ratio(c))[0];if(weak&&ratio(weak)<.62){nudgeToward(p,weak.x,weak.y,120);target=targetThreatening(g,weak,enemies)||target;activateGuard(g,p);}else if(d<180)useNamedTrigger(g,p,'kogetsu');else useNamedTrigger(g,p,enemies.filter(e=>Math.hypot(e.x-target.x,e.y-target.y)<150).length>1?'gun_assault_meteor':'gun_assault_asteroid');break;}
+      case 'TERUYA':{
+        const kaki=findMember(allies,'KAKIZAKI');if(kaki&&Math.hypot(kaki.vx||0,kaki.vy||0)<25&&d>260)nudgeToward(p,target.x,target.y,130);if(d>185)useNamedTrigger(g,p,'gun_assault_hound');else if(d<120)useNamedTrigger(g,p,'kogetsu');else useNamedTrigger(g,p,'senku');break;}
+      case 'TOMOE':{
+        const kaki=findMember(allies,'KAKIZAKI');if(kaki&&Math.hypot(kaki.x-p.x,kaki.y-p.y)>310)nudgeToward(p,kaki.x,kaki.y,100);else if(d>135&&ready(state,'ambush',1.25))useNamedTrigger(g,p,'grasshopper');if(d<190)useNamedTrigger(g,p,d<95?'kogetsu':Math.hypot(target.vx||0,target.vy||0)>100?'gun_handgun_hound':'gun_handgun_asteroid');break;}
+    }
   }
 
   const USER_SQUAD_KEY='trion-v96-user-squad';
@@ -469,7 +587,7 @@
     rosterMounted=true;
   }
   function applyNamed(g){
-    if(!g||g.simulationMode||!Array.isArray(g.players))return;
+    if(!g||!Array.isArray(g.players))return;
     const cpuEntries=g.players.filter(p=>!p.human&&!p.isDefenseEnemy).map((p,order)=>{const match=/^cpu-(\d+)$/.exec(String(p.id||''));return{p,index:match?Number(match[1]):order};}).sort((a,b)=>a.index-b.index);
     const vacant=new Set();
     cpuEntries.forEach(({p,index})=>{
@@ -490,32 +608,51 @@
   function flash(text){if(!document?.body?.appendChild)return;const e=document.createElement('div');e.className='v77-skill-flash';e.textContent=text;document.body.appendChild(e);setTimeout(()=>e.remove?.(),950);}
   function segDist(x1,y1,x2,y2,px,py){const dx=x2-x1,dy=y2-y1,l=dx*dx+dy*dy||1,t=clamp(((px-x1)*dx+(py-y1)*dy)/l,0,1);return{d:Math.hypot(px-(x1+dx*t),py-(y1+dy*t)),t};}
   function moleClaw(g,p=humanOf(g),quiet=false){if(!p||!hasTrigger(p,'scorpion'))return false;const walls=(g.walls||[]).filter(w=>{const cx=clamp(p.x,w.x,w.x+w.w),cy=clamp(p.y,w.y,w.y+w.h);return Math.hypot(p.x-cx,p.y-cy)<p.radius+26;});if(!walls.length)return false;const wall=walls[0];const target=(g.players||[]).filter(t=>g.canDamage?.(p,t)&&!t.dead).map(t=>({t,d:Math.hypot(t.x-clamp(t.x,wall.x,wall.x+wall.w),t.y-clamp(t.y,wall.y,wall.y+wall.h))})).filter(x=>x.d<x.t.radius+30).sort((a,b)=>a.d-b.d)[0]?.t;if(!target||!g.consumeTrion?.(p,4))return false;g.effects?.push({type:'slash',x:target.x,y:target.y,angle:Math.atan2(target.y-p.y,target.x-p.x),range:42,arc:6.1,style:'moleClaw',ttl:.28,maxTtl:.28});g.damagePlayer?.(target,28*(.82+(p.stats?.combat||0)*.05),p,{x:target.x,y:target.y,type:'melee',name:'モールクロー',sourceKey:'moleClaw'});if(!quiet)flash('モールクロー');return true;}
-  function computePinballRoute(g,p,count=8){
-    const worldW=Number(g.world?.w)||1920,worldH=Number(g.world?.h)||1080,margin=(Number(p.radius)||18)+8;
-    let x=p.x,y=p.y,angle=Number.isFinite(p.aim)?p.aim:0;const route=[];
-    for(let i=0;i<count;i++){
-      const step=120+i*4;let nx=x+Math.cos(angle)*step,ny=y+Math.sin(angle)*step,bounced=false;
-      if(nx<margin||nx>worldW-margin){angle=Math.PI-angle;nx=clamp(x+Math.cos(angle)*step,margin,worldW-margin);bounced=true;}
-      if(ny<margin||ny>worldH-margin){angle=-angle;ny=clamp(y+Math.sin(angle)*step,margin,worldH-margin);bounced=true;}
-      if(pointBlocked(g,nx,ny,Number(p.radius)||18)){angle+=((i+String(p.id||'').length)%2?1:-1)*(Math.PI*.58);nx=clamp(x+Math.cos(angle)*step*.72,margin,worldW-margin);ny=clamp(y+Math.sin(angle)*step*.72,margin,worldH-margin);bounced=true;}
-      route.push({x:nx,y:ny,angle,bounced});x=nx;y=ny;angle+=((i%2)?-.31:.31);
+  function openPointNear(g,x,y,r,preferredAngle=0,maxRadius=170){
+    const worldW=Number(g.world?.w)||1920,worldH=Number(g.world?.h)||1080,margin=r+7;
+    const cx=clamp(x,margin,worldW-margin),cy=clamp(y,margin,worldH-margin);
+    if(!pointBlocked(g,cx,cy,r))return{x:cx,y:cy};
+    for(const radius of [28,44,64,88,118,maxRadius])for(const offset of [0,.45,-.45,.9,-.9,1.35,-1.35,Math.PI]){
+      const a=preferredAngle+offset,nx=clamp(cx+Math.cos(a)*radius,margin,worldW-margin),ny=clamp(cy+Math.sin(a)*radius,margin,worldH-margin);
+      if(!pointBlocked(g,nx,ny,r))return{x:nx,y:ny};
     }
-    return route;
+    return null;
+  }
+  function computePinballRoute(g,p,target,count=8){
+    const radius=clamp(82+(Number(p.stats?.combat)||0)*3.2,88,124),bodyRadius=Number(p.radius)||18;
+    const rawCenter=target&&!target.dead?{x:Number(target.x)||p.x,y:Number(target.y)||p.y}:{x:p.x+Math.cos(Number(p.aim)||0)*130,y:p.y+Math.sin(Number(p.aim)||0)*130};
+    const center=openPointNear(g,rawCenter.x,rawCenter.y,bodyRadius+8,Number(p.aim)||0,120)||rawCenter;
+    const base=Math.atan2(p.y-center.y,p.x-center.x)||((Number(p.aim)||0)+Math.PI),route=[];let orbitAngle=base;
+    for(let i=0;i<count;i++){
+      if(i>0)orbitAngle+=Math.PI+(i%2?.28:-.28);
+      const angle=orbitAngle,preferred={x:center.x+Math.cos(angle)*radius,y:center.y+Math.sin(angle)*radius};
+      const point=openPointNear(g,preferred.x,preferred.y,bodyRadius+5,angle,radius*.55);
+      if(!point)continue;
+      route.push({x:point.x,y:point.y,angle:Math.atan2(center.y-point.y,center.x-point.x),centerX:center.x,centerY:center.y,bounced:true});
+    }
+    return{center,route};
   }
   function pinballFor(g,p,blade,target,quiet=false){
     if(!p||p.dead)return false;
     const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])];
     if(blade){if(!all.includes('grasshopper')||!all.includes('scorpion'))return false;}
     else{if(all.filter(x=>x==='grasshopper').length<2||!['kogetsu','scorpion','raygust'].some(id=>all.includes(id)))return false;}
-    if((p.v77PinballUntil||0)>performance.now())return false;
+    const now=mobilityNow();if((p.v77PinballUntil||0)>now)return false;
     const cost=blade?15:12;if(!g.consumeTrion?.(p,cost))return false;
-    p.v77PinballUntil=performance.now()+2600;
+    const plan=computePinballRoute(g,p,target,8);if(!plan.route.length)return false;
+    p.v77PinballUntil=now+2600;p.v101PinballActiveUntil=now+plan.route.length*115+260;p.v96PinballRoute=plan.route.map(pt=>({...pt}));
     if(!quiet)flash(blade?'ブレード乱反射':'乱反射');
-    const route=computePinballRoute(g,p,8);p.v96PinballRoute=route.map(pt=>({...pt}));
-    route.forEach((pt,i)=>battleTimeout(g,p,()=>{
-      if(p.dead)return;const ox=p.x,oy=p.y;p.x=pt.x;p.y=pt.y;p.aim=pt.angle;p.vx=Math.cos(pt.angle)*430;p.vy=Math.sin(pt.angle)*430;
-      g.effects?.push({type:'grasshopper',x:p.x,y:p.y,angle:p.aim,ttl:.35,maxTtl:.35});
-      for(const enemy of enemiesOf(g,p)){const hit=segDist(ox,oy,p.x,p.y,enemy.x,enemy.y);if(hit.d>(enemy.radius||18)+(blade?34:25))continue;g.damagePlayer?.(enemy,(blade?10:7)*(.9+(p.stats?.combat||0)*.035),p,{x:p.x,y:p.y,type:'melee',name:blade?'ブレード乱反射':'乱反射',sourceKey:blade?'bladePinball':'pinball'});}
+    g.effects?.push({type:'grasshopper',x:plan.center.x,y:plan.center.y,angle:0,ttl:.52,maxTtl:.52,v101PinballAnchor:true});
+    plan.route.forEach((pt,i)=>battleTimeout(g,p,()=>{
+      if(p.dead||mobilityNow()>Number(p.v101PinballActiveUntil||0)+300)return;
+      const ox=p.x,oy=p.y;p.x=pt.x;p.y=pt.y;p.aim=pt.angle;p.vx=0;p.vy=0;
+      g.resolveWallCollision?.(p);g.effects?.push({type:'grasshopper',x:p.x,y:p.y,angle:p.aim,ttl:.32,maxTtl:.32,v101Pinball:true});
+      for(const enemy of enemiesOf(g,p)){
+        const through=segDist(ox,oy,p.x,p.y,enemy.x,enemy.y),anchorDistance=Math.hypot(enemy.x-plan.center.x,enemy.y-plan.center.y);
+        if(through.d>(enemy.radius||18)+(blade?31:23)&&anchorDistance>(enemy.radius||18)+34)continue;
+        g.damagePlayer?.(enemy,(blade?10:7)*(.9+(p.stats?.combat||0)*.035),p,{x:p.x,y:p.y,type:'melee',name:blade?'ブレード乱反射':'乱反射',sourceKey:blade?'bladePinball':'pinball'});
+      }
+      if(i===plan.route.length-1){delete p.v101PinballActiveUntil;const out=Math.atan2(p.y-plan.center.y,p.x-plan.center.x);p.vx=Math.cos(out)*145;p.vy=Math.sin(out)*145;}
     },i*110));
     return true;
   }
@@ -685,12 +822,42 @@
     if(!p||p.human||p.dead||!isEngineer(p)||mobilityNow()<Number(p.ai?.v98HazardUntil||0))return;const target=nearestEnemy(g,p,820);if(!target)return;p.v96EngineerCd=Math.max(0,(p.v96EngineerCd||0)-dt);const d=Math.hypot(target.x-p.x,target.y-p.y),a=Math.atan2(target.y-p.y,target.x-p.x),side=(String(p.id).length%2?1:-1);if(d<410)nudgeAway(p,target.x,target.y,170*dt);p.vx=(p.vx||0)+Math.cos(a+side*Math.PI/2)*75*dt;p.vy=(p.vy||0)+Math.sin(a+side*Math.PI/2)*75*dt;
     if(p.v96EngineerCd>0)return;const own=(g.traps||[]).filter(t=>t.ownerId===p.id&&t.ttl>0);if(own.length>=3){p.v96EngineerCd=1.1;return;}const lead=clamp(d/520,.25,.8),tx=target.x+(target.vx||0)*lead,ty=target.y+(target.vy||0)*lead;p.ai=p.ai||{};p.ai.placePoint={x:tx+Math.cos(a+Math.PI)*55,y:ty+Math.sin(a+Math.PI)*55};p.trapMode=d<220?1:(own.length%3===0?0:1);if(tryNamedUse(g,p,'switchbox'))p.v96EngineerCd=3.2+Math.random()*1.8;else p.v96EngineerCd=.8;
   }
+  function trapDisguiseSeed(trap){return String(trap?.id||trap?.ownerId||'trap').split('').reduce((sum,ch)=>sum+ch.charCodeAt(0),0)+(Math.floor(Number(trap?.x)||0)*3)+(Math.floor(Number(trap?.y)||0)*5);}
+  function ensureTrapDisguise(g,trap){
+    if(!trap?.v96EngineerTrap||trap.v101Disguised)return trap;
+    const seed=trapDisguiseSeed(trap),smallWalls=(g.walls||[]).filter(w=>w&&Number.isFinite(w.x)&&Number.isFinite(w.y)&&Number.isFinite(w.w)&&Number.isFinite(w.h)&&w.w>8&&w.h>8&&Math.max(w.w,w.h)<=104&&w.w*w.h<=5600&&!['escudo','building','buildingWall','fortressWall','bridge','templeWall','shrineStone'].includes(w.type));
+    const pickups=(g.pickups||[]).filter(item=>item&&item.active!==false&&Number.isFinite(item.x)&&Number.isFinite(item.y));
+    const usePickup=pickups.length&&(seed%5<2||!smallWalls.length);
+    if(usePickup){const source=pickups[seed%pickups.length];trap.v101Disguise={kind:'pickup',template:{radius:Number(source.radius)||9,value:Number(source.value)||3,scoreValue:Number(source.scoreValue)||0,team:source.team??null}};trap.v101TriggerRadius=36;}
+    else if(smallWalls.length){const source=smallWalls[seed%smallWalls.length];trap.v101Disguise={kind:'wall',template:{type:source.type||'barricade',w:clamp(Number(source.w)||28,14,104),h:clamp(Number(source.h)||28,14,104)}};trap.v101TriggerRadius=clamp(Math.max(Number(source.w)||28,Number(source.h)||28)*.5+24,42,82);}
+    else{trap.v101Disguise={kind:'pickup',template:{radius:9,value:3,scoreValue:0,team:null}};trap.v101TriggerRadius=36;}
+    trap.v101Disguised=true;trap.v101DisguiseAt=mobilityNow();return trap;
+  }
+  function trapDisguiseRenderLists(g){
+    const walls=[],pickups=[];for(const trap of g.traps||[]){if(!trap?.v101Disguised||trap.ttl<=0||trap.hp<=0)continue;const d=trap.v101Disguise||{};if(d.kind==='wall'){const t=d.template||{},w=Number(t.w)||28,h=Number(t.h)||28;walls.push({id:`v101-disguise-wall-${trap.ownerId}-${trap.x}-${trap.y}`,x:trap.x-w/2,y:trap.y-h/2,w,h,type:t.type||'barricade',ttl:Infinity,v101TrapDisguise:true});}else{const t=d.template||{};pickups.push({id:`v101-disguise-pickup-${trap.ownerId}-${trap.x}-${trap.y}`,x:trap.x,y:trap.y,radius:Number(t.radius)||9,value:Number(t.value)||3,scoreValue:Number(t.scoreValue)||0,team:t.team??null,active:true,temporary:false,pulse:(mobilityNow()*.002)%6.28,v101TrapDisguise:true});}}return{walls,pickups};
+  }
+  function drawFriendlyTrapHints(g){const ctx=g?.ctx||g?.context,human=humanOf(g);if(!ctx||!human)return;ctx.save();for(const trap of g.traps||[]){if(!trap?.v101Disguised||trap.ttl<=0||trap.hp<=0)continue;const friendly=g.config?.mode==='solo'&&!g.isDefenseMode?trap.ownerId===human.id:trap.team===human.team;if(!friendly)continue;const sp=screenPoint(g,trap.x,trap.y);ctx.globalAlpha=.72;ctx.fillStyle=g.teamColors?.[trap.team]||'#8be6ff';ctx.beginPath();ctx.arc(sp.x,sp.y,2.2,0,Math.PI*2);ctx.fill();}ctx.restore();}
+  function normalizeFiniteTimers(p){
+    if(!p)return;p.ai=p.ai&&typeof p.ai==='object'?p.ai:{};for(const key of ['attackTimer','dodgeTimer','dangerEscapeTimer'])if(!Number.isFinite(Number(p.ai[key]))||Number(p.ai[key])>30)p.ai[key]=0;
+    for(const bucket of [p.cooldowns,p.cooldownMax,p.shooterHandLock])if(bucket&&typeof bucket==='object')for(const key of Object.keys(bucket))if(!Number.isFinite(Number(bucket[key]))||Number(bucket[key])>30)bucket[key]=0;
+    if(!Number.isFinite(Number(p.v96Knockdown))||Number(p.v96Knockdown)>6)p.v96Knockdown=0;if(!Number.isFinite(Number(p.v100Restrained))||Number(p.v100Restrained)>6)p.v100Restrained=0;
+  }
+  function offensiveIdsFor(p,d){const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])];const close=['kogetsu','scorpion','raygust','senku','gun_shotgun_asteroid','gun_handgun_asteroid','gun_handgun_viper'],far=['shooter_asteroid','shooter_hound','shooter_viper','shooter_meteor','gun_assault_asteroid','gun_assault_hound','gun_assault_meteor','gun_grenade_asteroid','gun_grenade_meteor','egret','lightning','ibis'];return(d<190?[...close,...far]:[...far,...close]).filter((id,index,list)=>all.includes(id)&&list.indexOf(id)===index);}
+  function recoverEmbeddedPlayer(g,p){if(!p||p.dead||!pointBlocked(g,p.x,p.y,(Number(p.radius)||18)+2))return false;g.resolveWallCollision?.(p);if(!pointBlocked(g,p.x,p.y,(Number(p.radius)||18)+2))return true;const target=nearestEnemy(g,p,900),base=target?Math.atan2(target.y-p.y,target.x-p.x):Number(p.aim)||0,open=openPointNear(g,p.x,p.y,(Number(p.radius)||18)+3,base,220);if(!open)return false;p.x=open.x;p.y=open.y;p.vx=0;p.vy=0;return true;}
+  function updateStallRecovery(g,p,dt){
+    if(!p||p.dead)return;normalizeFiniteTimers(p);recoverEmbeddedPlayer(g,p);const now=mobilityNow();p.v101Stall=p.v101Stall&&typeof p.v101Stall==='object'?p.v101Stall:{x:p.x,y:p.y,movedAt:now,lastActionAt:now,lastRecoveryAt:0,routeX:p.x,routeY:p.y,routeAt:now};const state=p.v101Stall,move=Math.hypot(p.x-state.x,p.y-state.y),speed=Math.hypot(Number(p.vx)||0,Number(p.vy)||0);
+    if(move>5||speed>34){state.x=p.x;state.y=p.y;state.movedAt=now;}
+    if(p.v97MobilityRoute){const routeMove=Math.hypot(p.x-state.routeX,p.y-state.routeY);if(routeMove>8){state.routeX=p.x;state.routeY=p.y;state.routeAt=now;}else if(now-state.routeAt>1500){delete p.v97MobilityRoute;state.routeAt=now;}}else{state.routeX=p.x;state.routeY=p.y;state.routeAt=now;}
+    if(p.human||Number(p.v96Knockdown)>0||Number(p.v100Restrained)>0||now<Number(p.v101PinballActiveUntil||0))return;const target=g.resolveAITarget?.(p)||nearestEnemy(g,p,950);if(!target)return;const d=Math.hypot(target.x-p.x,target.y-p.y);
+    if(d>120&&now-state.movedAt>2300&&now-state.lastRecoveryAt>900){const desired=chooseOpenMobilityAngle(g,p,Math.atan2(target.y-p.y,target.x-p.x),135),impulse=Math.max(115,(Number(p.speed)||150)*.82);p.vx=Math.cos(desired)*impulse;p.vy=Math.sin(desired)*impulse;p.ai.navPath=[];p.ai.navPathIndex=0;delete p.v97MobilityRoute;delete p.ai.v98HazardAngle;p.ai.v98HazardUntil=0;p.ai.dangerEscapeTimer=0;state.x=p.x;state.y=p.y;state.movedAt=now;state.lastRecoveryAt=now;}
+    const actionAt=Math.max(Number(state.lastActionAt)||0,Number(p.v101LastActionAt)||0);if(d<920&&now-actionAt>4800&&now-state.lastRecoveryAt>700){p.ai.attackTimer=0;let used=false;for(const id of offensiveIdsFor(p,d)){p.aim=Math.atan2(target.y-p.y,target.x-p.x);if(tryNamedUse(g,p,id)){used=true;break;}}if(!used){for(const hand of ['main','sub']){if(p.shooterCharges?.[hand]){try{used=!!g.tryUseHand?.(p,hand);}catch{}if(!used){p.shooterCharges[hand]=null;if(p.shooterHandLock)p.shooterHandLock[hand]=0;}}}}state.lastActionAt=used?now:now-2800;state.lastRecoveryAt=now;}
+  }
   function updateEngineerTraps(g,dt){
     if(!Array.isArray(g.traps))return;
-    for(let i=g.traps.length-1;i>=0;i--){const trap=g.traps[i];if(!trap?.v96EngineerTrap)continue;trap.ttl=(Number(trap.ttl)||0)-dt;trap.armed=(Number(trap.armed)||0)-dt;if(trap.ttl<=0||trap.hp<=0){g.traps.splice(i,1);continue;}if(trap.armed>0)continue;const owner=(g.players||[]).find(p=>p.id===trap.ownerId&&!p.dead);if(!owner)continue;const hostile=(p)=>!p.dead&&p.id!==owner.id&&g.canDamage?.(owner,p),ally=(p)=>!p.dead&&(g.config?.mode==='solo'?!p.human&&p.id===owner.id:p.team===owner.team);
-      if(trap.type===0){const target=(g.players||[]).find(p=>hostile(p)&&Math.hypot(p.x-trap.x,p.y-trap.y)<105+(p.radius||18));if(target){g.explode?.(trap.x,trap.y,155,62+(owner.stats?.technique||0)*1.8,owner.id,owner.team,null,'強化攻撃トラップ',{sourceKey:'switchboxAttack'});g.traps.splice(i,1);}}
-      else if(trap.type===1){const target=(g.players||[]).find(p=>hostile(p)&&Math.hypot(p.x-trap.x,p.y-trap.y)<100+(p.radius||18));if(target){target.v96Knockdown=Math.max(target.v96Knockdown||0,1.05+(owner.stats?.technique||0)*.025);target.vx*=.18;target.vy*=.18;(g.effects||=[]).push({type:'bind',x:target.x,y:target.y,ttl:.8,maxTtl:.8});g.traps.splice(i,1);}}
-      else if(trap.type===2){const target=(g.players||[]).find(p=>ally(p)&&Math.hypot(p.x-trap.x,p.y-trap.y)<92+(p.radius||18));if(target){mobilityBoost(g,target,target.aim,730+(owner.stats?.technique||0)*20,'engineerBoostTrap');g.traps.splice(i,1);}}
+    for(let i=g.traps.length-1;i>=0;i--){const trap=g.traps[i];if(!trap?.v96EngineerTrap)continue;ensureTrapDisguise(g,trap);trap.ttl=(Number(trap.ttl)||0)-dt;trap.armed=(Number(trap.armed)||0)-dt;if(trap.ttl<=0||trap.hp<=0){g.traps.splice(i,1);continue;}if(trap.armed>0)continue;const owner=(g.players||[]).find(p=>p.id===trap.ownerId&&!p.dead);if(!owner)continue;const hostile=(p)=>!p.dead&&p.id!==owner.id&&g.canDamage?.(owner,p),ally=(p)=>!p.dead&&(g.config?.mode==='solo'?!p.human&&p.id===owner.id:p.team===owner.team);
+      if(trap.type===0){const target=(g.players||[]).find(p=>hostile(p)&&Math.hypot(p.x-trap.x,p.y-trap.y)<(Number(trap.v101TriggerRadius)||55)+(p.radius||18));if(target){g.explode?.(trap.x,trap.y,155,62+(owner.stats?.technique||0)*1.8,owner.id,owner.team,null,'強化攻撃トラップ',{sourceKey:'switchboxAttack'});g.traps.splice(i,1);}}
+      else if(trap.type===1){const target=(g.players||[]).find(p=>hostile(p)&&Math.hypot(p.x-trap.x,p.y-trap.y)<(Number(trap.v101TriggerRadius)||52)+(p.radius||18));if(target){target.v96Knockdown=Math.max(target.v96Knockdown||0,1.05+(owner.stats?.technique||0)*.025);target.vx*=.18;target.vy*=.18;(g.effects||=[]).push({type:'bind',x:target.x,y:target.y,ttl:.8,maxTtl:.8});g.traps.splice(i,1);}}
+      else if(trap.type===2){const target=(g.players||[]).find(p=>ally(p)&&Math.hypot(p.x-trap.x,p.y-trap.y)<(Number(trap.v101TriggerRadius)||48)+(p.radius||18));if(target){mobilityBoost(g,target,target.aim,730+(owner.stats?.technique||0)*20,'engineerBoostTrap');g.traps.splice(i,1);}}
     }
   }
   function updateEngineerTrapEffects(g){
@@ -714,7 +881,7 @@
   function collectPlacedHazards(g,p){
     const snapshot=g.v98HazardSnapshot||{},seen=new Set(),hazards=[];
     const addWire=w=>{if(!w||seen.has(w)||!w.v96TripWire||w.mode==='spring'||Number(w.ttl)<=0||Number(w.hp)<=0||!hazardIsHostile(g,w,p))return;seen.add(w);hazards.push({kind:'wire',item:w});};
-    const addTrap=t=>{if(!t||seen.has(t)||Number(t.ttl)<=0||Number(t.hp)<=0||Number(t.type)===2||!hazardIsHostile(g,t,p))return;seen.add(t);hazards.push({kind:'trap',item:t});};
+    const addTrap=t=>{if(!t||seen.has(t)||t.v101Disguised||Number(t.ttl)<=0||Number(t.hp)<=0||Number(t.type)===2||!hazardIsHostile(g,t,p))return;seen.add(t);hazards.push({kind:'trap',item:t});};
     for(const w of snapshot.wires||[])addWire(w);for(const w of g.wires||[])addWire(w);
     for(const t of snapshot.traps||[])addTrap(t);for(const t of g.traps||[])addTrap(t);
     return hazards;
@@ -838,18 +1005,32 @@
     const oldSlash=proto.performSlash;proto.performSlash=function(p,range,damage,arc,style){const before=this.effects?.length||0,result=typeof oldSlash==='function'?oldSlash.call(this,p,range,damage,arc,style):false;if(style==='kogetsu'&&this.effects?.length>before){const e=this.effects[this.effects.length-1],speed=clamp(.42-(p.stats?.combat||0)*.028,.12,.38);e.ttl=e.maxTtl=speed;e.v77Draw=true;}return result;};
     const oldWire=proto.placeWire;proto.placeWire=function(p,hand,trigger){const ok=typeof oldWire==='function'?oldWire.call(this,p,hand,trigger):false;if(ok){const wires=Array.isArray(this.wires)?this.wires:[];const w=wires[wires.length-1];if(w&&p.spiderMode){const now=mobilityNow();w.mode='spring';w.v94MobilityWire=true;w.v94PlacedAt=now;w.v94ArmedAt=now+(p.human?130:70);w.v94Inside={};w.v97CooldownUntil={};w.springPower=700+(p.stats?.combat||0)*29;w.hp=Math.max(w.hp||0,48);w.ttl=p.human?Math.min(Math.max(Number(w.ttl)||30,10),36):Math.min(Math.max(Number(w.ttl)||8,4),9);w.preferredLaunchAngle=Number.isFinite(p.v94MobilityAngle)?p.v94MobilityAngle:null;capOwnerDevices(wires,p.id,p.human?4:1,item=>item?.mode==='spring');}else if(w){w.v96TripWire=true;w.mode='normal';w.hp=Math.max(Number(w.hp)||0,34+(p.stats?.technique||0)*2);w.ttl=Math.min(Math.max(Number(w.ttl)||28,12),36);w.v96TripHits={};}}return ok;};
     const oldGrass=proto.grasshopper;proto.grasshopper=function(p,hand,trigger){if(p.human&&shiftHeld){settings.grasshopperMode=settings.grasshopperMode==='placed'?'instant':'placed';save();flash(`グラスホッパー：${settings.grasshopperMode==='placed'?'設置':'即時使用'}`);return true;}if((p.human&&settings.grasshopperMode==='placed')||p.v77PlaceGrasshopper){if(!this.consumeTrion?.(p,Number(trigger?.cost)||0))return false;const aimed=p.human?this.getHumanAimPoint?.(p,210):null,intended=Number.isFinite(p.v94MobilityAngle)?p.v94MobilityAngle:null,target=aimed&&Number.isFinite(aimed.x)&&Number.isFinite(aimed.y)?aimed:{x:p.x+Math.cos(intended??p.aim)*120,y:p.y+Math.sin(intended??p.aim)*120},dx=target.x-p.x,dy=target.y-p.y,d=Math.hypot(dx,dy)||1,angle=intended??Math.atan2(dy,dx),travel=p.human?Math.min(Math.max(d,78),250):Math.min(Math.max(d,82),125),x=p.x+dx/d*travel,y=p.y+dy/d*travel,now=mobilityNow();this.v94MobilityPads=Array.isArray(this.v94MobilityPads)?this.v94MobilityPads:[];this.v94MobilityPads.push({id:`v97-pad-${now}-${Math.random()}`,x,y,radius:24,team:p.team,ownerId:p.id,ttl:p.human?6:3.6,armedAt:now+(p.human?160:90),hp:38,v94MobilityPad:true,v94PlacedAt:now,launchAngle:angle,power:710+(p.stats?.combat||0)*30,uses:1,v94Inside:{},v97CooldownUntil:{}});capOwnerDevices(this.v94MobilityPads,p.id,p.human?2:1);(this.effects||=[]).push({type:'grasshopper',x,y,angle,ttl:.62,maxTtl:.62,v94Route:true});this.setCooldown?.(p,hand,Math.max(.38,(Number(trigger?.cooldown)||.56)*.8));return true;}if(!this.consumeTrion?.(p,Number(trigger?.cost)||0))return false;const power=650+(p.stats?.combat||0)*34;mobilityBoost(this,p,Number(p.aim)||0,power,'instantGrasshopper',{forwardCarry:.28,tangentCarry:.5});this.setCooldown?.(p,hand,Math.max(.32,(Number(trigger?.cooldown)||.56)*.68));return true;};
-    const oldUpdate=proto.update;proto.update=function(dt){convertLegacyGrassPads(this);for(const p of this.players||[]){sanitizeAiState(p);p.v97PrevX=Number(p.x)||0;p.v97PrevY=Number(p.y)||0;if((p.v96Knockdown||0)>0){p.ai=p.ai||{};p.ai.attackTimer=Math.max(p.ai.attackTimer||0,p.v96Knockdown+.2);}}const specialWires=(this.wires||[]).filter(w=>w?.v96TripWire||w?.mode==='spring'),coreWires=(this.wires||[]).filter(w=>!w?.v96TripWire&&w?.mode!=='spring'),engineerTraps=(this.traps||[]).filter(t=>t?.v96EngineerTrap),coreTraps=(this.traps||[]).filter(t=>!t?.v96EngineerTrap);this.v98HazardSnapshot={wires:specialWires.filter(w=>w?.v96TripWire),traps:engineerTraps};this.wires=coreWires;this.traps=coreTraps;let out;try{out=typeof oldUpdate==='function'?oldUpdate.call(this,dt):undefined;}finally{this.wires=[...(this.wires||[]),...specialWires];this.traps=[...(this.traps||[]),...engineerTraps];delete this.v98HazardSnapshot;}updateEngineerTraps(this,dt);updateMobilityRoutes(this,dt);updateViperRoutes(this,dt);updateTripWires(this,dt);updateEngineerTrapEffects(this);for(const p of this.players||[]){applyNamedTuning(p);if(p.v96NamedSpeed&&Number.isFinite(p.speed))p.speed=Math.max(p.speed,p.v96NamedSpeed);for(const hand of ['main','sub']){const sh=p.shields?.[hand];if(!sh)continue;const coverage=clamp(settings.shieldCoverage,.15,1),thickness=1/coverage;sh.v77Coverage=coverage;sh.arc=(sh.baseArc||sh.arc||1.3)*(.55+coverage*.8);sh.radius=(sh.baseRadius||sh.radius||70)*(.65+coverage*.75);sh.hp=Math.max(sh.hp||0,(sh.maxHp||80)*(.65+thickness*.65));}applyNamedBehavior(this,p,dt);cpuAdvancedTechniques(this,p,dt);engineerTactics(this,p,dt);updateKogetsuBranch(this,p,dt);}return out;};
-    const oldFireShooter=proto.fireShooter;if(oldFireShooter)proto.fireShooter=function(p,...args){const before={projectiles:Array.isArray(this.projectiles)?this.projectiles.length:0,bullets:Array.isArray(this.bullets)?this.bullets.length:0,shots:Array.isArray(this.shots)?this.shots.length:0};const out=oldFireShooter.call(this,p,...args);tagNewNinomiyaProjectiles(this,p,before);tagViperProjectiles(this,p,before);return out;};
-    const oldBeginShooterCharge=proto.beginShooterCharge;if(oldBeginShooterCharge)proto.beginShooterCharge=function(p,hand,trigger){if(trigger?.bullet==='viper'&&!p.human&&!p.v96ViperPlan)makeViperPlan(this,p,nearestEnemy(this,p,820));const out=oldBeginShooterCharge.call(this,p,hand,trigger);if(p?.v78Named==='NINOMIYA'&&p.shooterCharges?.[hand]){p.shooterCharges[hand].v86Tetra=true;p.shooterCharges[hand].v88SpinSeed??=Math.random()*Math.PI*2;}return out;};
-    const oldDamage=proto.damagePlayer;if(oldDamage)proto.damagePlayer=function(target,amount,source,meta){if(target?.v79DefenseScale)amount/=target.v79DefenseScale;if(source?.v96Tuning)amount*=source.v96Tuning.offense||1;if(target?.v96Tuning)amount/=target.v96Tuning.defense||1;if(source?.v78Named==='NINOMIYA'&&meta?.sourceKey?.includes('asteroid'))amount*=1.12;if(source?.v78Named==='YUBA'&&performance.now()<(source.v79QuickdrawUntil||0))amount*=1.18;if(source?.v78Named==='HANZAKI'&&meta?.type==='sniper')amount*=1.15;if(isEngineer(source)&&['switchboxAttack','fixedTrap','switchbox'].includes(meta?.sourceKey))amount*=1.42;return oldDamage.call(this,target,amount,source,meta);};
+    const oldUpdate=proto.update;proto.update=function(dt){convertLegacyGrassPads(this);for(const p of this.players||[]){sanitizeAiState(p);p.v97PrevX=Number(p.x)||0;p.v97PrevY=Number(p.y)||0;if((p.v96Knockdown||0)>0){p.ai=p.ai||{};p.ai.attackTimer=Math.max(p.ai.attackTimer||0,p.v96Knockdown+.2);}}const specialWires=(this.wires||[]).filter(w=>w?.v96TripWire||w?.mode==='spring'),coreWires=(this.wires||[]).filter(w=>!w?.v96TripWire&&w?.mode!=='spring'),engineerTraps=(this.traps||[]).filter(t=>t?.v96EngineerTrap),coreTraps=(this.traps||[]).filter(t=>!t?.v96EngineerTrap);this.v98HazardSnapshot={wires:specialWires.filter(w=>w?.v96TripWire),traps:engineerTraps};this.wires=coreWires;this.traps=coreTraps;let out;try{out=typeof oldUpdate==='function'?oldUpdate.call(this,dt):undefined;}finally{this.wires=[...(this.wires||[]),...specialWires];this.traps=[...(this.traps||[]),...engineerTraps];delete this.v98HazardSnapshot;}updateEngineerTraps(this,dt);updateMobilityRoutes(this,dt);updateViperRoutes(this,dt);updateTripWires(this,dt);updateEngineerTrapEffects(this);updateNamedStatus(this,dt);for(const p of this.players||[]){applyNamedTuning(p);if(p.v96NamedSpeed&&Number.isFinite(p.speed))p.speed=Math.max(p.speed,p.v96NamedSpeed);for(const hand of ['main','sub']){const sh=p.shields?.[hand];if(!sh)continue;const coverage=clamp(settings.shieldCoverage,.15,1),thickness=1/coverage;sh.v77Coverage=coverage;sh.arc=(sh.baseArc||sh.arc||1.3)*(.55+coverage*.8);sh.radius=(sh.baseRadius||sh.radius||70)*(.65+coverage*.75);sh.hp=Math.max(sh.hp||0,(sh.maxHp||80)*(.65+thickness*.65));}applyNamedBehavior(this,p,dt);cpuAdvancedTechniques(this,p,dt);engineerTactics(this,p,dt);updateKogetsuBranch(this,p,dt);updateStallRecovery(this,p,dt);}return out;};
+    const oldFireShooter=proto.fireShooter;if(oldFireShooter)proto.fireShooter=function(p,...args){const before={projectiles:Array.isArray(this.projectiles)?this.projectiles.length:0,bullets:Array.isArray(this.bullets)?this.bullets.length:0,shots:Array.isArray(this.shots)?this.shots.length:0};const out=oldFireShooter.call(this,p,...args);tagNewNinomiyaProjectiles(this,p,before);tagViperProjectiles(this,p,before);tagCanonicalProjectiles(this,p,before);return out;};
+    const oldFireSniper=proto.fireSniper;if(oldFireSniper)proto.fireSniper=function(p,...args){const before={projectiles:Array.isArray(this.projectiles)?this.projectiles.length:0,bullets:Array.isArray(this.bullets)?this.bullets.length:0,shots:Array.isArray(this.shots)?this.shots.length:0};const out=oldFireSniper.call(this,p,...args);tagCanonicalProjectiles(this,p,before);return out;};
+    const oldBeginShooterCharge=proto.beginShooterCharge;if(oldBeginShooterCharge)proto.beginShooterCharge=function(p,hand,trigger){if(trigger?.bullet==='viper'&&!p.human&&!p.v96ViperPlan)makeViperPlan(this,p,nearestEnemy(this,p,820));const out=oldBeginShooterCharge.call(this,p,hand,trigger);if(p?.shooterCharges?.[hand])p.shooterCharges[hand].v101StartedAt??=mobilityNow();if(p?.v78Named==='NINOMIYA'&&p.shooterCharges?.[hand]){p.shooterCharges[hand].v86Tetra=true;p.shooterCharges[hand].v88SpinSeed??=Math.random()*Math.PI*2;}return out;};
+    const oldDamage=proto.damagePlayer;if(oldDamage)proto.damagePlayer=function(target,amount,source,meta){
+      amount=namedDamageAdjustment(target,amount,source,meta||{});
+      if(target?.v79DefenseScale&&target?.v78Named!=='MURAKAMI')amount/=target.v79DefenseScale;
+      if(source?.v96Tuning)amount*=source.v96Tuning.offense||1;
+      if(target?.v96Tuning)amount/=target.v96Tuning.defense||1;
+      if(source?.v78Named==='NINOMIYA'&&meta?.sourceKey?.includes('asteroid'))amount*=1.12;
+      if(source?.v78Named==='YUBA'&&performance.now()<(source.v79QuickdrawUntil||0))amount*=1.18;
+      if(source?.v78Named==='HANZAKI'&&meta?.type==='sniper')amount*=1.15;
+      if(source?.v78Named==='KATORI'&&ratio(source)<.5)amount*=1.10;
+      if(isEngineer(source)&&['switchboxAttack','fixedTrap','switchbox'].includes(meta?.sourceKey))amount*=1.42;
+      const out=oldDamage.call(this,target,amount,source,meta);
+      if(out&&target){target.v100LastHit={at:mobilityNow(),sourceId:source?.id||null,sourceKey:meta?.sourceKey||meta?.name||meta?.type||'unknown',amount};}
+      return out;
+    };
     const oldSetCooldown=proto.setCooldown;if(oldSetCooldown)proto.setCooldown=function(p,hand,seconds){return oldSetCooldown.call(this,p,hand,seconds*(p?.v96Tuning?.cooldown||1));};
     const oldSetCooldownIndex=proto.setCooldownForHandIndex;if(oldSetCooldownIndex)proto.setCooldownForHandIndex=function(p,hand,index,seconds){return oldSetCooldownIndex.call(this,p,hand,index,seconds*(p?.v96Tuning?.cooldown||1));};
     const oldTargetLock=proto.getTargetLockDuration;if(oldTargetLock)proto.getTargetLockDuration=function(p,...args){return oldTargetLock.call(this,p,...args)*(p?.v96Tuning?.reaction||1);};
-    const oldTryUseHand=proto.tryUseHand;if(oldTryUseHand)proto.tryUseHand=function(p,...args){if((p?.v96Knockdown||0)>0)return false;return oldTryUseHand.call(this,p,...args);};
+    const oldTryUseHand=proto.tryUseHand;if(oldTryUseHand)proto.tryUseHand=function(p,...args){if((p?.v96Knockdown||0)>0)return false;const out=oldTryUseHand.call(this,p,...args);if(out&&p){p.v101LastActionAt=mobilityNow();p.v101Stall=p.v101Stall&&typeof p.v101Stall==='object'?p.v101Stall:{};p.v101Stall.lastActionAt=p.v101LastActionAt;}return out;};
     const oldToggleScope=proto.toggleScope;if(oldToggleScope)proto.toggleScope=function(...args){const p=humanOf(this);if(p&&viperHand(p)){makeViperPlan(this,p);return true;}return oldToggleScope.apply(this,args);};
     const oldTryJustCut=proto.tryJustCut;if(oldTryJustCut)proto.tryJustCut=function(target,...args){const out=oldTryJustCut.call(this,target,...args);if(out&&hasTrigger(target,'kogetsu')){target.v96KogetsuBranchReady=true;target.v96KogetsuBranchUntil=mobilityNow()+850;if(target.human)flash('JUST CUT：弧月派生可能');}return out;};
-    const oldPlaceTrap=proto.placeTrap;if(oldPlaceTrap)proto.placeTrap=function(p,hand,trigger){const before=Array.isArray(this.traps)?this.traps.length:0,out=oldPlaceTrap.call(this,p,hand,trigger);if(out&&isEngineer(p)&&Array.isArray(this.traps)&&this.traps.length>before){const trap=this.traps[this.traps.length-1];trap.v96EngineerTrap=true;trap.radius=Math.max(Number(trap.radius)||14,22);trap.hp=Math.max(Number(trap.hp)||18,42+(p.stats?.technique||0)*3);trap.ttl=Math.max(Number(trap.ttl)||48,65);trap.v96OwnerTechnique=p.stats?.technique||0;}return out;};
-    const oldRender=proto.render;if(oldRender)proto.render=function(...args){const restore=hideNinomiyaNativeCubes(this);let out;try{out=oldRender.apply(this,args);}finally{restore();}drawMobilityRoutes(this);drawViperPlan(this);drawNinomiyaTetrahedrons(this);return out;};
+    const oldPlaceTrap=proto.placeTrap;if(oldPlaceTrap)proto.placeTrap=function(p,hand,trigger){const before=Array.isArray(this.traps)?this.traps.length:0,out=oldPlaceTrap.call(this,p,hand,trigger);if(out&&isEngineer(p)&&Array.isArray(this.traps)&&this.traps.length>before){const trap=this.traps[this.traps.length-1];trap.id??=`v101-trap-${mobilityNow()}-${Math.random()}`;trap.v96EngineerTrap=true;trap.radius=Math.max(Number(trap.radius)||14,22);trap.hp=Math.max(Number(trap.hp)||18,42+(p.stats?.technique||0)*3);trap.ttl=Math.max(Number(trap.ttl)||48,65);trap.v96OwnerTechnique=p.stats?.technique||0;ensureTrapDisguise(this,trap);}return out;};
+    const oldRender=proto.render;if(oldRender)proto.render=function(...args){const restore=hideNinomiyaNativeCubes(this),originalTraps=this.traps,originalWalls=this.walls,originalPickups=this.pickups,disguises=trapDisguiseRenderLists(this);this.traps=(this.traps||[]).filter(trap=>!trap?.v101Disguised);this.walls=[...(this.walls||[]),...disguises.walls];this.pickups=[...(this.pickups||[]),...disguises.pickups];let out;try{out=oldRender.apply(this,args);}finally{this.traps=originalTraps;this.walls=originalWalls;this.pickups=originalPickups;restore();}drawMobilityRoutes(this);drawViperPlan(this);drawNinomiyaTetrahedrons(this);drawFriendlyTrapHints(this);return out;};
   }
   window.addEventListener('keydown',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=true;if(e.repeat||e.code!=='KeyC'||!currentGame)return;const p=humanOf(currentGame);if(!p)return;const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])],hasBlade=all.includes('grasshopper')&&all.includes('scorpion'),hasPin=all.filter(x=>x==='grasshopper').length>=2&&['kogetsu','scorpion','raygust'].some(id=>all.includes(id));if(!hasBlade&&!hasPin)return;e.preventDefault();e.stopImmediatePropagation();setTimeout(()=>pinball(currentGame,hasBlade),0);},true);
   window.addEventListener('keyup',e=>{if(e.code==='ShiftLeft'||e.code==='ShiftRight')shiftHeld=false;},true);window.addEventListener('blur',()=>shiftHeld=false);
@@ -875,7 +1056,7 @@
     try{
       const desc=Object.getOwnPropertyDescriptor(window,'__TRION_GAME__');if(desc&&!desc.configurable)return;
       let value=window.__TRION_GAME__;
-      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{applyNamed(next);patchGame(next);}catch(error){console.error('[v99 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
+      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{applyNamed(next);patchGame(next);}catch(error){console.error('[v101 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
       if(value)patchGame(value);
     }catch(_){ }
   }
@@ -889,7 +1070,8 @@
   const rosterObserver=new MutationObserver(()=>mountRoster(false));
   const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
   function syncV96TriggerDocs(){const data=window.WT_DATA?.triggers;if(!data)return;if(data.shooter_viper){data.shooter_viper.controls='発動：キューブ展開／Shift＋発動：分割／R：固定弾道を事前計算／再発動：射撃';data.shooter_viper.description='Rで射出前に固定弾道を計算できる変化弾。計算後は敵を追尾せず、表示された経路を通ります。';}if(data.spider){data.spider.description='通常ワイヤーは接触した敵を転倒させます。ばねワイヤーは味方の移動ルートとして利用できます。';}if(data.switchbox){data.switchbox.description='強化された攻撃・転倒拘束・加速トラップを設置します。工作手CPUは撤退しながら進路へ罠を配置します。';}}
-  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=99;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 99';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 99');document.documentElement.dataset.gameVersion='99';}
+  window.TRION_NAMED_AUDIT={version:100,agents:Object.keys(NAMED_BEHAVIORS),tunedAgents:Object.keys(NAMED_TUNING_OVERRIDES),count:Object.keys(NAMED_BEHAVIORS).length,allExplicitlyTuned:Object.keys(NAMED_BEHAVIORS).every(name=>Boolean(NAMED_TUNING_OVERRIDES[name]))};
+  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=101;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 101';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 101');document.documentElement.dataset.gameVersion='101';}
   syncVersionUI();
   let lastVersionSync=Date.now();
   const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);const now=Date.now();if(now-lastVersionSync>=1000){syncVersionUI();lastVersionSync=now;}document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
