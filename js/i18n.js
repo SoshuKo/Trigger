@@ -105,3 +105,107 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true}); else initialize();
   window.TRION_I18N={setLanguage,getLanguage:()=>language,translateText};
 })();
+
+// v102 wall-collision hotfix: prevent the stall recovery from replacing a player's
+// position with a distant open point when merely touching or entering a wall.
+(() => {
+  'use strict';
+  const now = () => (typeof performance !== 'undefined' && typeof performance.now === 'function') ? performance.now() : Date.now();
+  const clampValue = (value, min, max) => Math.max(min, Math.min(max, value));
+  const blockingWalls = (game) => (game?.walls || []).filter((wall) => wall && wall.hp > 0 && !wall.nonBlocking && Number.isFinite(wall.x) && Number.isFinite(wall.y) && Number.isFinite(wall.w) && Number.isFinite(wall.h));
+  const overlapsWall = (game, x, y, radius) => blockingWalls(game).some((wall) => x + radius > wall.x && x - radius < wall.x + wall.w && y + radius > wall.y && y - radius < wall.y + wall.h);
+  function wallEscapeVector(game, x, y, radius) {
+    let nx = 0, ny = 0, contacts = 0;
+    for (const wall of blockingWalls(game)) {
+      const closestX = clampValue(x, wall.x, wall.x + wall.w), closestY = clampValue(y, wall.y, wall.y + wall.h);
+      let dx = x - closestX, dy = y - closestY, length = Math.hypot(dx, dy);
+      if (length < .001) {
+        const distances = [Math.abs(x - wall.x), Math.abs(x - (wall.x + wall.w)), Math.abs(y - wall.y), Math.abs(y - (wall.y + wall.h))];
+        const minimum = Math.min(...distances);
+        if (minimum === distances[0]) { dx = -1; dy = 0; }
+        else if (minimum === distances[1]) { dx = 1; dy = 0; }
+        else if (minimum === distances[2]) { dx = 0; dy = -1; }
+        else { dx = 0; dy = 1; }
+        length = 1;
+      }
+      const penetration = radius - length;
+      if (penetration <= 0) continue;
+      nx += dx / length * Math.max(1, penetration);
+      ny += dy / length * Math.max(1, penetration);
+      contacts += 1;
+    }
+    if (!contacts) return null;
+    const length = Math.hypot(nx, ny) || 1;
+    return { x: nx / length, y: ny / length };
+  }
+  function isIntentionalTeleport(game, effectsStart, fromX, fromY, toX, toY) {
+    return (game?.effects || []).slice(effectsStart).some((effect) => {
+      if (!effect || !/teleport/i.test(String(effect.type || ''))) return false;
+      const forward = Math.hypot(Number(effect.x) - fromX, Number(effect.y) - fromY) < 42 && Math.hypot(Number(effect.x2) - toX, Number(effect.y2) - toY) < 42;
+      const reverse = Math.hypot(Number(effect.x2) - fromX, Number(effect.y2) - fromY) < 42 && Math.hypot(Number(effect.x) - toX, Number(effect.y) - toY) < 42;
+      return forward || reverse;
+    });
+  }
+  function patchWallWarp(game) {
+    if (!game || !Array.isArray(game.players)) return false;
+    const prototype = Object.getPrototypeOf(game), currentUpdate = prototype?.update;
+    if (!prototype || prototype.v102WallWarpHotfix || typeof currentUpdate !== 'function') return Boolean(prototype?.v102WallWarpHotfix);
+    if (!String(currentUpdate).includes('updateStallRecovery')) return false;
+    prototype.update = function wallWarpSafeUpdate(dt) {
+      const effectsStart = (this.effects || []).length;
+      const snapshots = (this.players || []).map((player) => ({
+        player,
+        x: Number(player.x), y: Number(player.y),
+        vx: Number(player.vx) || 0, vy: Number(player.vy) || 0,
+        radius: Number(player.radius) || 18,
+      }));
+      const result = currentUpdate.call(this, dt);
+      const time = now();
+      for (const snapshot of snapshots) {
+        const player = snapshot.player;
+        if (!player || player.dead || !Number.isFinite(player.x) || !Number.isFinite(player.y)) continue;
+        if (time < Number(player.v101PinballActiveUntil || 0)) continue;
+        const dx = player.x - snapshot.x, dy = player.y - snapshot.y, displacement = Math.hypot(dx, dy);
+        const afterSpeed = Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0);
+        const threshold = Math.max(26, snapshot.radius + 8);
+        if (displacement <= threshold || (afterSpeed >= 45 && displacement <= 120)) continue;
+        if (!overlapsWall(this, snapshot.x, snapshot.y, snapshot.radius + 3)) continue;
+        if (isIntentionalTeleport(this, effectsStart, snapshot.x, snapshot.y, player.x, player.y)) continue;
+        const escape = wallEscapeVector(this, snapshot.x, snapshot.y, snapshot.radius + 1);
+        player.x = snapshot.x;
+        player.y = snapshot.y;
+        this.resolveWallCollision?.(player);
+        if (escape) {
+          const outward = Math.max(0, snapshot.vx * escape.x + snapshot.vy * escape.y);
+          const impulse = Math.max(88, (Number(player.speed) || 150) * .58, outward);
+          player.vx = escape.x * impulse + snapshot.vx * .16;
+          player.vy = escape.y * impulse + snapshot.vy * .16;
+        } else {
+          player.vx = snapshot.vx * .25;
+          player.vy = snapshot.vy * .25;
+        }
+        if (!player.human && player.ai) {
+          player.ai.navPath = [];
+          player.ai.navPathIndex = 0;
+          delete player.v97MobilityRoute;
+        }
+        player.v102WallWarpPreventedAt = time;
+      }
+      return result;
+    };
+    prototype.v102WallWarpHotfix = true;
+    return true;
+  }
+  function tryInstall(attempt = 0) {
+    if (patchWallWarp(window.__TRION_GAME__)) return;
+    if (attempt < 80) setTimeout(() => tryInstall(attempt + 1), 100);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => tryInstall(), { once: true });
+  else tryInstall();
+  document.addEventListener('click', (event) => {
+    const button = event.target?.closest?.('button');
+    if (!button) return;
+    const id = String(button.id || ''), text = String(button.textContent || '');
+    if (/start|battle|deploy/i.test(id) || text.includes('出撃') || text.includes('対戦開始')) setTimeout(() => tryInstall(), 0);
+  }, true);
+})();
