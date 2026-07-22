@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/core-wall-motion-fix.py'
+      - '.github/workflows/core-wall-motion-fix.yml'
 
 permissions:
   contents: write
