@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "defaults": {
     "matchLength": 150,
     "maxSeconds": 180,
@@ -4707,6 +4707,1067 @@
             "shield",
             "spider",
             "grasshopper"
+          ]
+        }
+      ]
+    }
+  ],
+  "leagues": [
+    {
+      "id": "b-rank-named-round-robin",
+      "label": "B級ネームド部隊 総当たりリーグ",
+      "description": "全13部隊が1対1で総当たりするリーグ戦。人数差は空き枠で維持し、各部隊の全戦闘員を出場させます。",
+      "mode": "team",
+      "difficulty": "strong",
+      "matchLength": 180,
+      "maxSeconds": 210,
+      "timeOfDay": "day",
+      "weather": "clear",
+      "mapRotation": [
+        "city",
+        "desert",
+        "snowShrine",
+        "underground"
+      ],
+      "allowUnevenTeams": true,
+      "scoring": {
+        "win": 3,
+        "draw": 1,
+        "loss": 0
+      },
+      "squads": [
+        {
+          "id": "ninomiya",
+          "label": "ニノミヤ隊",
+          "labelEn": "NINOMIYA SQUAD",
+          "members": [
+            {
+              "name": "ニノミヤ",
+              "namedAgent": "NINOMIYA",
+              "namedSquadId": "ninomiya",
+              "archetype": "射手",
+              "stats": {
+                "trion": 8,
+                "technique": 6,
+                "combat": 4
+              },
+              "main": [
+                "shooter_asteroid",
+                "shooter_hound",
+                "shield",
+                "shooter_meteor"
+              ],
+              "sub": [
+                "shooter_asteroid",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "イヌカイ",
+              "namedAgent": "INUKAI",
+              "namedSquadId": "ninomiya",
+              "archetype": "銃手",
+              "stats": {
+                "trion": 6,
+                "technique": 6,
+                "combat": 6
+              },
+              "main": [
+                "gun_assault_asteroid",
+                "gun_assault_hound",
+                "shield",
+                "scorpion"
+              ],
+              "sub": [
+                "shooter_hound",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "ツジ",
+              "namedAgent": "TSUJI",
+              "namedSquadId": "ninomiya",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 6,
+                "combat": 8
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "shield",
+                "bagworm",
+                "empty",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "tamakoma2",
+          "label": "タマコマ第二",
+          "labelEn": "TAMAKOMA SECOND",
+          "members": [
+            {
+              "name": "ミクモ",
+              "namedAgent": "MIKUMO",
+              "namedSquadId": "tamakoma2",
+              "archetype": "射手",
+              "stats": {
+                "trion": 2,
+                "technique": 10,
+                "combat": 6
+              },
+              "main": [
+                "raygust",
+                "thruster",
+                "shooter_asteroid",
+                "shield"
+              ],
+              "sub": [
+                "bagworm",
+                "spider",
+                "empty",
+                "empty"
+              ]
+            },
+            {
+              "name": "クガ",
+              "namedAgent": "KUGA",
+              "namedSquadId": "tamakoma2",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 6,
+                "combat": 10
+              },
+              "main": [
+                "scorpion",
+                "grasshopper",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "scorpion",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "アマトリ",
+              "namedAgent": "AMATORI",
+              "namedSquadId": "tamakoma2",
+              "archetype": "狙撃手",
+              "stats": {
+                "trion": 14,
+                "technique": 6,
+                "combat": 6
+              },
+              "main": [
+                "egret",
+                "lightning",
+                "ibis",
+                "shield"
+              ],
+              "sub": [
+                "shooter_hound",
+                "shooter_meteor",
+                "shield",
+                "bagworm"
+              ]
+            },
+            {
+              "name": "ヒュース",
+              "namedAgent": "HYUSE",
+              "namedSquadId": "tamakoma2",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 9,
+                "technique": 5,
+                "combat": 6
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "shooter_viper"
+              ],
+              "sub": [
+                "escudo",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "kageura",
+          "label": "カゲウラ隊",
+          "labelEn": "KAGEURA SQUAD",
+          "members": [
+            {
+              "name": "カゲウラ",
+              "namedAgent": "KAGEURA",
+              "namedSquadId": "kageura",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 5,
+                "combat": 11
+              },
+              "main": [
+                "scorpion",
+                "shield",
+                "empty",
+                "empty"
+              ],
+              "sub": [
+                "scorpion",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "キタゾエ",
+              "namedAgent": "KITAZOE",
+              "namedSquadId": "kageura",
+              "archetype": "銃手",
+              "stats": {
+                "trion": 7,
+                "technique": 5,
+                "combat": 6
+              },
+              "main": [
+                "gun_grenade_asteroid",
+                "gun_grenade_meteor",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "shooter_meteor",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "エマ",
+              "namedAgent": "EMA",
+              "namedSquadId": "kageura",
+              "archetype": "狙撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 8,
+                "combat": 6
+              },
+              "main": [
+                "egret",
+                "lightning",
+                "ibis",
+                "shield"
+              ],
+              "sub": [
+                "shield",
+                "bagworm",
+                "empty",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "ikoma",
+          "label": "イコマ隊",
+          "labelEn": "IKOMA SQUAD",
+          "members": [
+            {
+              "name": "イコマ",
+              "namedAgent": "IKOMA",
+              "namedSquadId": "ikoma",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 8,
+                "combat": 8
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "shield",
+                "bagworm",
+                "empty",
+                "empty"
+              ]
+            },
+            {
+              "name": "ミズカミ",
+              "namedAgent": "MIZUKAMI",
+              "namedSquadId": "ikoma",
+              "archetype": "射手",
+              "stats": {
+                "trion": 3,
+                "technique": 9,
+                "combat": 6
+              },
+              "main": [
+                "shooter_asteroid",
+                "shooter_meteor",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "shooter_asteroid",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "オキ",
+              "namedAgent": "OKI",
+              "namedSquadId": "ikoma",
+              "archetype": "狙撃手",
+              "stats": {
+                "trion": 5,
+                "technique": 8,
+                "combat": 5
+              },
+              "main": [
+                "egret",
+                "lightning",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "grasshopper",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "ミナミサワ",
+              "namedAgent": "MINAMISAWA",
+              "namedSquadId": "ikoma",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 3,
+                "technique": 5,
+                "combat": 10
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "grasshopper",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "oji",
+          "label": "オウジ隊",
+          "labelEn": "OJI SQUAD",
+          "members": [
+            {
+              "name": "オウジ",
+              "namedAgent": "OJI",
+              "namedSquadId": "oji",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 8,
+                "combat": 6
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "shooter_hound"
+              ],
+              "sub": [
+                "scorpion",
+                "grasshopper",
+                "shield",
+                "bagworm"
+              ]
+            },
+            {
+              "name": "クラウチ",
+              "namedAgent": "KURAUCHI",
+              "namedSquadId": "oji",
+              "archetype": "射手",
+              "stats": {
+                "trion": 4,
+                "technique": 8,
+                "combat": 6
+              },
+              "main": [
+                "shooter_asteroid",
+                "shooter_meteor",
+                "shooter_hound",
+                "shield"
+              ],
+              "sub": [
+                "shooter_hound",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "カシオ",
+              "namedAgent": "KASHIO",
+              "namedSquadId": "oji",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 3,
+                "technique": 6,
+                "combat": 9
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "shooter_hound"
+              ],
+              "sub": [
+                "grasshopper",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "azuma",
+          "label": "アズマ隊",
+          "labelEn": "AZUMA SQUAD",
+          "members": [
+            {
+              "name": "アズマ",
+              "namedAgent": "AZUMA",
+              "namedSquadId": "azuma",
+              "archetype": "狙撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 13,
+                "combat": 4
+              },
+              "main": [
+                "egret",
+                "lightning",
+                "ibis",
+                "shield"
+              ],
+              "sub": [
+                "dummyBeacon",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "コアライ",
+              "namedAgent": "KOARAI",
+              "namedSquadId": "azuma",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 3,
+                "technique": 5,
+                "combat": 10
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "grasshopper",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "オクデラ",
+              "namedAgent": "OKUDERA",
+              "namedSquadId": "azuma",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 3,
+                "technique": 6,
+                "combat": 9
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "grasshopper",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "nasu",
+          "label": "ナス隊",
+          "labelEn": "NASU SQUAD",
+          "members": [
+            {
+              "name": "ナス",
+              "namedAgent": "NASU",
+              "namedSquadId": "nasu",
+              "archetype": "射手",
+              "stats": {
+                "trion": 5,
+                "technique": 10,
+                "combat": 5
+              },
+              "main": [
+                "shooter_asteroid",
+                "shooter_viper",
+                "shooter_meteor",
+                "shield"
+              ],
+              "sub": [
+                "shield",
+                "bagworm",
+                "empty",
+                "empty"
+              ]
+            },
+            {
+              "name": "クマガイ",
+              "namedAgent": "KUMAGAI",
+              "namedSquadId": "nasu",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 3,
+                "technique": 6,
+                "combat": 9
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shooter_meteor",
+                "shield"
+              ],
+              "sub": [
+                "shield",
+                "bagworm",
+                "empty",
+                "empty"
+              ]
+            },
+            {
+              "name": "ヒウラ",
+              "namedAgent": "HIURA",
+              "namedSquadId": "nasu",
+              "archetype": "狙撃手",
+              "stats": {
+                "trion": 3,
+                "technique": 8,
+                "combat": 7
+              },
+              "main": [
+                "egret",
+                "lightning",
+                "ibis",
+                "shield"
+              ],
+              "sub": [
+                "shooter_meteor",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "yuba",
+          "label": "ユバ隊",
+          "labelEn": "YUBA SQUAD",
+          "members": [
+            {
+              "name": "ユバ",
+              "namedAgent": "YUBA",
+              "namedSquadId": "yuba",
+              "archetype": "銃手",
+              "stats": {
+                "trion": 4,
+                "technique": 7,
+                "combat": 8
+              },
+              "main": [
+                "gun_handgun_asteroid",
+                "gun_handgun_viper",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "gun_handgun_asteroid",
+                "gun_handgun_viper",
+                "shield",
+                "bagworm"
+              ]
+            },
+            {
+              "name": "オビシマ",
+              "namedAgent": "OBISHIMA",
+              "namedSquadId": "yuba",
+              "archetype": "万能手",
+              "stats": {
+                "trion": 3,
+                "technique": 6,
+                "combat": 9
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "gun_assault_asteroid",
+                "gun_assault_hound"
+              ],
+              "sub": [
+                "grasshopper",
+                "shield",
+                "shield",
+                "bagworm"
+              ]
+            },
+            {
+              "name": "トノオカ",
+              "namedAgent": "TONOOKA",
+              "namedSquadId": "yuba",
+              "archetype": "狙撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 9,
+                "combat": 5
+              },
+              "main": [
+                "egret",
+                "lightning",
+                "ibis",
+                "shield"
+              ],
+              "sub": [
+                "shield",
+                "bagworm",
+                "empty",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "kuruma",
+          "label": "クルマ隊",
+          "labelEn": "KURUMA SQUAD",
+          "members": [
+            {
+              "name": "クルマ",
+              "namedAgent": "KURUMA",
+              "namedSquadId": "kuruma",
+              "archetype": "銃手",
+              "stats": {
+                "trion": 4,
+                "technique": 7,
+                "combat": 7
+              },
+              "main": [
+                "gun_assault_asteroid",
+                "gun_assault_hound",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "gun_assault_asteroid",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "ムラカミ",
+              "namedAgent": "MURAKAMI",
+              "namedSquadId": "kuruma",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 8,
+                "combat": 8
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "raygust",
+                "thruster",
+                "shield",
+                "bagworm"
+              ]
+            },
+            {
+              "name": "ベツヤク",
+              "namedAgent": "BETSUYAKU",
+              "namedSquadId": "kuruma",
+              "archetype": "狙撃手",
+              "stats": {
+                "trion": 3,
+                "technique": 8,
+                "combat": 7
+              },
+              "main": [
+                "egret",
+                "lightning",
+                "ibis",
+                "shield"
+              ],
+              "sub": [
+                "escudo",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "arafune",
+          "label": "アラフネ隊",
+          "labelEn": "ARAFUNE SQUAD",
+          "members": [
+            {
+              "name": "アラフネ",
+              "namedAgent": "ARAFUNE",
+              "namedSquadId": "arafune",
+              "archetype": "狙撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 11,
+                "combat": 5
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "egret",
+                "shield"
+              ],
+              "sub": [
+                "shield",
+                "bagworm",
+                "empty",
+                "empty"
+              ]
+            },
+            {
+              "name": "ホカリ",
+              "namedAgent": "HOKARI",
+              "namedSquadId": "arafune",
+              "archetype": "狙撃手",
+              "stats": {
+                "trion": 4,
+                "technique": 7,
+                "combat": 7
+              },
+              "main": [
+                "egret",
+                "shield",
+                "empty",
+                "empty"
+              ],
+              "sub": [
+                "shield",
+                "bagworm",
+                "empty",
+                "empty"
+              ]
+            },
+            {
+              "name": "ハンザキ",
+              "namedAgent": "HANZAKI",
+              "namedSquadId": "arafune",
+              "archetype": "狙撃手",
+              "stats": {
+                "trion": 3,
+                "technique": 12,
+                "combat": 5
+              },
+              "main": [
+                "egret",
+                "shield",
+                "empty",
+                "empty"
+              ],
+              "sub": [
+                "shield",
+                "bagworm",
+                "empty",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "katori",
+          "label": "カトリ隊",
+          "labelEn": "KATORI SQUAD",
+          "members": [
+            {
+              "name": "カトリ",
+              "namedAgent": "KATORI",
+              "namedSquadId": "katori",
+              "archetype": "万能手",
+              "stats": {
+                "trion": 4,
+                "technique": 5,
+                "combat": 9
+              },
+              "main": [
+                "scorpion",
+                "gun_handgun_asteroid",
+                "gun_handgun_hound",
+                "shield"
+              ],
+              "sub": [
+                "scorpion",
+                "chameleon",
+                "shield",
+                "bagworm"
+              ]
+            },
+            {
+              "name": "ミウラ",
+              "namedAgent": "MIURA",
+              "namedSquadId": "katori",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 3,
+                "technique": 6,
+                "combat": 9
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "shield",
+                "bagworm",
+                "empty",
+                "empty"
+              ]
+            },
+            {
+              "name": "ワカムラ",
+              "namedAgent": "WAKAMURA",
+              "namedSquadId": "katori",
+              "archetype": "銃手",
+              "stats": {
+                "trion": 4,
+                "technique": 7,
+                "combat": 7
+              },
+              "main": [
+                "gun_assault_asteroid",
+                "gun_assault_hound",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "chameleon",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "suwa",
+          "label": "スワ隊",
+          "labelEn": "SUWA SQUAD",
+          "members": [
+            {
+              "name": "スワ",
+              "namedAgent": "SUWA",
+              "namedSquadId": "suwa",
+              "archetype": "銃手",
+              "stats": {
+                "trion": 4,
+                "technique": 5,
+                "combat": 9
+              },
+              "main": [
+                "gun_shotgun_asteroid",
+                "shield",
+                "starmaker",
+                "empty"
+              ],
+              "sub": [
+                "gun_shotgun_asteroid",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "ツツミ",
+              "namedAgent": "TSUTSUMI",
+              "namedSquadId": "suwa",
+              "archetype": "銃手",
+              "stats": {
+                "trion": 4,
+                "technique": 6,
+                "combat": 8
+              },
+              "main": [
+                "gun_shotgun_asteroid",
+                "shield",
+                "starmaker",
+                "empty"
+              ],
+              "sub": [
+                "gun_shotgun_asteroid",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "ササモリ",
+              "namedAgent": "SASAMORI",
+              "namedSquadId": "suwa",
+              "archetype": "攻撃手",
+              "stats": {
+                "trion": 3,
+                "technique": 6,
+                "combat": 9
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "shield",
+                "empty"
+              ],
+              "sub": [
+                "chameleon",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "kakizaki",
+          "label": "カキザキ隊",
+          "labelEn": "KAKIZAKI SQUAD",
+          "members": [
+            {
+              "name": "カキザキ",
+              "namedAgent": "KAKIZAKI",
+              "namedSquadId": "kakizaki",
+              "archetype": "万能手",
+              "stats": {
+                "trion": 4,
+                "technique": 7,
+                "combat": 7
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "gun_assault_asteroid",
+                "gun_assault_meteor"
+              ],
+              "sub": [
+                "shield",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "テルヤ",
+              "namedAgent": "TERUYA",
+              "namedSquadId": "kakizaki",
+              "archetype": "万能手",
+              "stats": {
+                "trion": 4,
+                "technique": 8,
+                "combat": 6
+              },
+              "main": [
+                "kogetsu",
+                "senku",
+                "gun_assault_asteroid",
+                "gun_assault_hound"
+              ],
+              "sub": [
+                "shield",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            },
+            {
+              "name": "トモエ",
+              "namedAgent": "TOMOE",
+              "namedSquadId": "kakizaki",
+              "archetype": "銃手",
+              "stats": {
+                "trion": 3,
+                "technique": 6,
+                "combat": 9
+              },
+              "main": [
+                "kogetsu",
+                "gun_handgun_asteroid",
+                "gun_handgun_hound",
+                "shield"
+              ],
+              "sub": [
+                "grasshopper",
+                "shield",
+                "bagworm",
+                "empty"
+              ]
+            }
           ]
         }
       ]

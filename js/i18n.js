@@ -37,7 +37,8 @@
     '新規登録':'Create Account','ユーザー名':'Username','パスワード':'Password','登録する':'Register','ログイン':'Log In','ログアウト':'Log Out','プロフィール':'Profile','ゲーム内表示名':'Display Name','表示名を保存':'Save Display Name','フレンド管理':'Friends','追加':'Add','フレンドはまだいません':'No friends yet','フレンドと隊を結成':'Create a Squad with Friends','所属隊':'Current Squad','所属隊はありません':'Not in a squad','隊設定を保存':'Save Squad Settings','出撃設定へ反映':'Apply to Battle Setup','隊を離れる':'Leave Squad',
     'オンラインロビー':'Online Lobby','設定を読み込み中':'Loading setup','出撃設定を編集':'Edit Battle Setup','ユーザー／フレンド／隊':'User / Friends / Squad','ルームを作る':'Create Room','ルーム作成':'Create Room','ルームへ参加':'Join Room','参加':'Join','参加中':'In Room','自分のチーム':'Your Team','自分の役割':'Your Role','準備完了':'Ready','退出':'Leave','同じTEAMを選べば共闘、別のTEAMを選べば対戦できます。観戦を選ぶと戦闘員枠には入りません。':'Choose the same TEAM to cooperate or another TEAM to fight. Spectators do not occupy combatant slots.',
     '弧月':'Kogetsu','旋空':'Senkū','スコーピオン':'Scorpion','レイガスト':'Raygust','スラスター':'Thruster','アステロイド':'Asteroid','メテオラ':'Meteora','バイパー':'Viper','ハウンド':'Hound','イーグレット':'Egret','ライトニング':'Lightning','アイビス':'Ibis','シールド':'Shield','エスクード':'Escudo','グラスホッパー':'Grasshopper','テレポーター':'Teleporter','スパイダー':'Spider','バッグワーム':'Bagworm','バッグワームタグ':'Bagworm Tag','カメレオン':'Chameleon',
-    '通常刃':'Standard Blade','長刃':'Long Blade','短刃':'Short Blade','ばね':'Spring','通常':'Normal','モールクロー':'Mole Claw','乱反射':'Pinball','ブレード乱反射':'Blade Pinball','即時使用':'Instant Boost','設置':'Place Pad','厚み':'Thickness','広さ':'Coverage','射程':'Range','効果時間':'Duration'
+    '総合順位':'Standings','対戦相性':'Head-to-Head','対戦カード':'Matchups','部隊比較':'Squad Comparison','隊員ランキング':'Agent Ranking','全シナリオ':'All Scenarios','全ての部隊':'All Squads','全マップ':'All Maps','総試合数':'Total Matches','リーグ試合数':'League Matches','参加部隊':'Squads','失敗試合':'Failed Matches',
+        '通常刃':'Standard Blade','長刃':'Long Blade','短刃':'Short Blade','ばね':'Spring','通常':'Normal','モールクロー':'Mole Claw','乱反射':'Pinball','ブレード乱反射':'Blade Pinball','即時使用':'Instant Boost','設置':'Place Pad','厚み':'Thickness','広さ':'Coverage','射程':'Range','効果時間':'Duration'
   };
   const translations = new Map(Object.entries(pairs));
   const regexes = [
@@ -89,9 +90,11 @@
     if (button.getAttribute('aria-label')!==nextLabel) button.setAttribute('aria-label',nextLabel);
   }
   function loadV77() {
-    if (!document.querySelector('link[data-v77]')) { const l=document.createElement('link'); l.rel='stylesheet'; l.href='v77-features.css?v=77'; l.dataset.v77='1'; document.head.appendChild(l); }
-    if (!document.querySelector('script[data-v77]')) { const s=document.createElement('script'); s.src='js/v77-features.js?v=77'; s.defer=true; s.dataset.v77='1'; document.head.appendChild(s); }
-    document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 77');
+    if (!document.querySelector('link[data-v77]')) { const l=document.createElement('link'); l.rel='stylesheet'; l.href='v77-features.css?v=102'; l.dataset.v77='1'; document.head.appendChild(l); }
+    if (!document.querySelector('link[data-simulation-v102]')) { const l=document.createElement('link'); l.rel='stylesheet'; l.href='v102-simulation-dashboard.css?v=102'; l.dataset.simulationV102='1'; document.head.appendChild(l); }
+    if (!document.querySelector('script[data-v77]')) { const s=document.createElement('script'); s.src='js/v77-features.js?v=102'; s.defer=true; s.dataset.v77='1'; document.head.appendChild(s); }
+    if (!document.querySelector('script[data-simulation-v102]')) { const s=document.createElement('script'); s.src='js/simulation-dashboard-v102.js?v=102'; s.defer=true; s.dataset.simulationV102='1'; document.head.appendChild(s); }
+    document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 102');
   }
   function setLanguage(nextLanguage) {
     language=nextLanguage==='en'?'en':'ja'; localStorage.setItem(STORAGE_KEY,language); applying=true; processElement(document.body); updateMetadata(); ensureToggle(); applying=false;

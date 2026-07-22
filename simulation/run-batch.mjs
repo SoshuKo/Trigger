@@ -6,11 +6,12 @@ import { findScenario, loadScenarioFile, parseArgs, projectRoot } from './common
 async function buildInlineGameHtml(root) {
   let html = await fs.readFile(path.join(root, 'index.html'), 'utf8');
   const css = await fs.readFile(path.join(root, 'styles.css'), 'utf8');
-  html = html.replace(/<link rel="stylesheet"[^>]+>/, `<style>${css}</style>`);
+  const featureCss = await fs.readFile(path.join(root, 'v77-features.css'), 'utf8').catch(() => '');
+  html = html.replace(/<link rel="stylesheet"[^>]+>/, `<style>${css}\n${featureCss}</style>`);
   html = html.replace('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>', '');
   const scripts = [
     'js/online-config.js', 'js/trigger-data.js', 'js/online.js', 'js/community.js',
-    'simulation-results/latest.js', 'js/simulation-results.js', 'js/game.js',
+    'simulation-results/latest.js', 'js/simulation-results.js', 'js/game.js', 'js/v77-features.js',
   ];
   for (const source of scripts) {
     const code = await fs.readFile(path.join(root, source), 'utf8');
@@ -53,6 +54,9 @@ async function runOne(index) {
       const result = await page.evaluate(async ({ scenario: runScenario, seed: runSeed, index: runIndex }) => {
         return await window.TRION_SIMULATION_API.runMatch({ ...runScenario, seed: runSeed, matchIndex: runIndex });
       }, { scenario, seed, index });
+      result.gameVersion = Math.max(102, Number(result.gameVersion || 0));
+      result.featureVersion = 102;
+      if (scenario.league) result.league = scenario.league;
       if (attempt > 0) retryEvents.push({ matchIndex: index, seed, recoveredOnAttempt: attempt + 1 });
       return { ok: true, result, seed, attempts: attempt + 1 };
     } catch (error) {
