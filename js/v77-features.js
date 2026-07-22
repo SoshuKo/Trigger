@@ -873,37 +873,8 @@
     if(!Number.isFinite(Number(p.v96Knockdown))||Number(p.v96Knockdown)>6)p.v96Knockdown=0;if(!Number.isFinite(Number(p.v100Restrained))||Number(p.v100Restrained)>6)p.v100Restrained=0;
   }
   function offensiveIdsFor(p,d){const all=[...(p.loadout?.main||[]),...(p.loadout?.sub||[])];const close=['kogetsu','scorpion','raygust','senku','gun_shotgun_asteroid','gun_handgun_asteroid','gun_handgun_viper'],far=['shooter_asteroid','shooter_hound','shooter_viper','shooter_meteor','gun_assault_asteroid','gun_assault_hound','gun_assault_meteor','gun_grenade_asteroid','gun_grenade_meteor','egret','lightning','ibis'];return(d<190?[...close,...far]:[...far,...close]).filter((id,index,list)=>all.includes(id)&&list.indexOf(id)===index);}
-  function embeddedWallContact(g,p,r){
-    let best=null;
-    for(const w of g.walls||[]){
-      if(!w||!Number.isFinite(w.x)||!Number.isFinite(w.y)||!Number.isFinite(w.w)||!Number.isFinite(w.h))continue;
-      const cx=clamp(p.x,w.x,w.x+w.w),cy=clamp(p.y,w.y,w.y+w.h),dx=p.x-cx,dy=p.y-cy,d=Math.hypot(dx,dy);
-      if(d>=r)continue;
-      if(d>.001){const penetration=r-d,c={nx:dx/d,ny:dy/d,penetration};if(!best||penetration>best.penetration)best=c;continue;}
-      const exits=[{depth:Math.abs(p.x-w.x),nx:-1,ny:0},{depth:Math.abs(p.x-(w.x+w.w)),nx:1,ny:0},{depth:Math.abs(p.y-w.y),nx:0,ny:-1},{depth:Math.abs(p.y-(w.y+w.h)),nx:0,ny:1}].sort((a,b)=>a.depth-b.depth),c={nx:exits[0].nx,ny:exits[0].ny,penetration:exits[0].depth+r};
-      if(!best||c.penetration>best.penetration)best=c;
-    }
-    return best;
-  }
-  function recoverEmbeddedPlayer(g,p,now=mobilityNow()){
-    if(!p||p.dead||now<Number(p.v102EmbeddedCheckAt||0))return false;
-    p.v102EmbeddedCheckAt=now+140;
-    const r=Math.max(5,(Number(p.radius)||18)-.35),contact=embeddedWallContact(g,p,r);
-    if(!contact)return false;
-    g.resolveWallCollision?.(p);
-    const remaining=embeddedWallContact(g,p,r);
-    if(!remaining)return true;
-    const vx=Number(p.vx)||0,vy=Number(p.vy)||0,into=vx*remaining.nx+vy*remaining.ny;
-    if(into<0){p.vx=vx-into*remaining.nx;p.vy=vy-into*remaining.ny;}
-    if(!p.human){
-      const target=g.resolveAITarget?.(p)||nearestEnemy(g,p,900),base=target?Math.atan2(target.y-p.y,target.x-p.x):Number(p.aim)||0,tangentA=Math.atan2(remaining.ny,remaining.nx)+Math.PI/2,tangentB=tangentA+Math.PI,tangent=Math.abs(angleDelta(tangentA,base))<=Math.abs(angleDelta(tangentB,base))?tangentA:tangentB;
-      if(Math.hypot(Number(p.vx)||0,Number(p.vy)||0)<24){p.vx=Math.cos(tangent)*34+remaining.nx*3;p.vy=Math.sin(tangent)*34+remaining.ny*3;}
-      p.ai=p.ai&&typeof p.ai==='object'?p.ai:{};p.ai.navPath=[];p.ai.navPathIndex=0;delete p.v97MobilityRoute;
-    }
-    return true;
-  }
   function updateStallRecovery(g,p,dt){
-    if(!p||p.dead)return;normalizeFiniteTimers(p);const now=mobilityNow();recoverEmbeddedPlayer(g,p,now);p.v101Stall=p.v101Stall&&typeof p.v101Stall==='object'?p.v101Stall:{x:p.x,y:p.y,movedAt:now,lastActionAt:now,lastRecoveryAt:0,routeX:p.x,routeY:p.y,routeAt:now};const state=p.v101Stall,move=Math.hypot(p.x-state.x,p.y-state.y);
+    if(!p||p.dead)return;normalizeFiniteTimers(p);const now=mobilityNow();p.v101Stall=p.v101Stall&&typeof p.v101Stall==='object'?p.v101Stall:{x:p.x,y:p.y,movedAt:now,lastActionAt:now,lastRecoveryAt:0,routeX:p.x,routeY:p.y,routeAt:now};const state=p.v101Stall,move=Math.hypot(p.x-state.x,p.y-state.y);
     if(move>4.5){state.x=p.x;state.y=p.y;state.movedAt=now;}
     if(p.v97MobilityRoute){const routeMove=Math.hypot(p.x-state.routeX,p.y-state.routeY);if(routeMove>8){state.routeX=p.x;state.routeY=p.y;state.routeAt=now;}else if(now-state.routeAt>1500){delete p.v97MobilityRoute;state.routeAt=now;}}else{state.routeX=p.x;state.routeY=p.y;state.routeAt=now;}
     if(p.human||Number(p.v96Knockdown)>0||Number(p.v100Restrained)>0||now<Number(p.v101PinballActiveUntil||0))return;const target=g.resolveAITarget?.(p)||nearestEnemy(g,p,950);if(!target)return;const d=Math.hypot(target.x-p.x,target.y-p.y);
@@ -1114,7 +1085,7 @@
     try{
       const desc=Object.getOwnPropertyDescriptor(window,'__TRION_GAME__');if(desc&&!desc.configurable)return;
       let value=window.__TRION_GAME__;
-      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{applyNamed(next);patchGame(next);}catch(error){console.error('[v102 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
+      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{applyNamed(next);patchGame(next);}catch(error){console.error('[v103 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
       if(value)patchGame(value);
     }catch(_){ }
   }
@@ -1128,12 +1099,12 @@
   const rosterObserver=new MutationObserver(()=>mountRoster(false));
   const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
   function syncV96TriggerDocs(){const data=window.WT_DATA?.triggers;if(!data)return;if(data.shooter_viper){data.shooter_viper.controls='発動：キューブ展開／Shift＋発動：分割／R：固定弾道を事前計算／再発動：射撃';data.shooter_viper.description='Rで射出前に固定弾道を計算できる変化弾。計算後は敵を追尾せず、表示された経路を通ります。';}if(data.spider){data.spider.description='通常ワイヤーは接触した敵を転倒させます。ばねワイヤーは味方の移動ルートとして利用できます。';}if(data.switchbox){data.switchbox.description='強化された攻撃・転倒拘束・加速トラップを設置します。工作手CPUは撤退しながら進路へ罠を配置します。';}}
-  function installSimulationApiV102(){const api=window.TRION_SIMULATION_API;if(!api||api.v102Wrapped||typeof api.runMatch!=='function')return;const oldRun=api.runMatch.bind(api);api.runMatch=async request=>{const result=await oldRun(request);if(result&&typeof result==='object'){result.gameVersion=Math.max(102,Number(result.gameVersion||0));result.featureVersion=102;result.namedSimulation=true;}return result;};api.version=102;api.v102Wrapped=true;}
-  installSimulationApiV102();
-  window.TRION_NAMED_AUDIT={version:102,agents:Object.keys(NAMED_BEHAVIORS),tunedAgents:Object.keys(NAMED_TUNING_OVERRIDES),count:Object.keys(NAMED_BEHAVIORS).length,allExplicitlyTuned:Object.keys(NAMED_BEHAVIORS).every(name=>Boolean(NAMED_TUNING_OVERRIDES[name]))};
-  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=102;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 102';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 102');document.documentElement.dataset.gameVersion='102';}
+  function installSimulationApiV103(){const api=window.TRION_SIMULATION_API;if(!api||api.v103Wrapped||typeof api.runMatch!=='function')return;const oldRun=api.runMatch.bind(api);api.runMatch=async request=>{const result=await oldRun(request);if(result&&typeof result==='object'){result.gameVersion=Math.max(103,Number(result.gameVersion||0));result.featureVersion=103;result.namedSimulation=true;}return result;};api.version=103;api.v103Wrapped=true;}
+  installSimulationApiV103();
+  window.TRION_NAMED_AUDIT={version:103,agents:Object.keys(NAMED_BEHAVIORS),tunedAgents:Object.keys(NAMED_TUNING_OVERRIDES),count:Object.keys(NAMED_BEHAVIORS).length,allExplicitlyTuned:Object.keys(NAMED_BEHAVIORS).every(name=>Boolean(NAMED_TUNING_OVERRIDES[name]))};
+  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=103;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 103';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 103');document.documentElement.dataset.gameVersion='103';}
   syncVersionUI();
   let lastVersionSync=Date.now();
-  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);const now=Date.now();if(now-lastVersionSync>=1000){installSimulationApiV102();syncVersionUI();lastVersionSync=now;}document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},250);
+  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);const now=Date.now();if(now-lastVersionSync>=1000){installSimulationApiV103();syncVersionUI();lastVersionSync=now;}document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},1000);
   window.addEventListener('beforeunload',()=>{clearInterval(timer);rosterObserver.disconnect();});
 })();

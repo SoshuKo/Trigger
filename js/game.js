@@ -94,7 +94,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 76;
+  const GAME_VERSION = 103;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
@@ -7873,6 +7873,72 @@
       }
     }
 
+    playerWallOverlapAt(p, x, y, radius = Math.max(4, (Number(p?.radius) || 18) - .2)) {
+      const probe = { x, y, radius };
+      for (const wall of this.walls) {
+        if (!wall || wall.hp <= 0 || wall.nonBlocking) continue;
+        if (circleRectOverlap(probe, wall)) return wall;
+      }
+      return null;
+    }
+
+    movePlayerWithWallSlide(p, dt) {
+      const radius = Math.max(4, (Number(p.radius) || 18) - .2);
+      const walls = this.walls;
+      const startX = Number(p.x);
+      const startY = Number(p.y);
+      let nextX = clamp(startX + (Number(p.vx) || 0) * dt, radius, this.world.w - radius);
+      let blockedX = false;
+      if (nextX > startX + .0001) {
+        for (const wall of walls) {
+          if (!wall || wall.hp <= 0 || wall.nonBlocking) continue;
+          if (startY + radius <= wall.y + .01 || startY - radius >= wall.y + wall.h - .01) continue;
+          if (startX + radius <= wall.x + .05 && nextX + radius > wall.x) {
+            nextX = Math.min(nextX, wall.x - radius - .01);
+            blockedX = true;
+          }
+        }
+      } else if (nextX < startX - .0001) {
+        for (const wall of walls) {
+          if (!wall || wall.hp <= 0 || wall.nonBlocking) continue;
+          if (startY + radius <= wall.y + .01 || startY - radius >= wall.y + wall.h - .01) continue;
+          const edge = wall.x + wall.w;
+          if (startX - radius >= edge - .05 && nextX - radius < edge) {
+            nextX = Math.max(nextX, edge + radius + .01);
+            blockedX = true;
+          }
+        }
+      }
+      p.x = nextX;
+      if (blockedX) p.vx = 0;
+
+      let nextY = clamp(startY + (Number(p.vy) || 0) * dt, radius, this.world.h - radius);
+      let blockedY = false;
+      if (nextY > startY + .0001) {
+        for (const wall of walls) {
+          if (!wall || wall.hp <= 0 || wall.nonBlocking) continue;
+          if (p.x + radius <= wall.x + .01 || p.x - radius >= wall.x + wall.w - .01) continue;
+          if (startY + radius <= wall.y + .05 && nextY + radius > wall.y) {
+            nextY = Math.min(nextY, wall.y - radius - .01);
+            blockedY = true;
+          }
+        }
+      } else if (nextY < startY - .0001) {
+        for (const wall of walls) {
+          if (!wall || wall.hp <= 0 || wall.nonBlocking) continue;
+          if (p.x + radius <= wall.x + .01 || p.x - radius >= wall.x + wall.w - .01) continue;
+          const edge = wall.y + wall.h;
+          if (startY - radius >= edge - .05 && nextY - radius < edge) {
+            nextY = Math.max(nextY, edge + radius + .01);
+            blockedY = true;
+          }
+        }
+      }
+      p.y = nextY;
+      if (blockedY) p.vy = 0;
+      return blockedX || blockedY;
+    }
+
     updatePlayer(p, dt) {
       if (p.dead) {
         if (p.isDefenseEnemy) return;
@@ -7990,8 +8056,12 @@
       }
       if (!p.flying) this.applyTerrainPhysics(p, dt);
       this.applyUndergroundRailSafety(p, dt);
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
+      if (p.flying) {
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+      } else {
+        this.movePlayerWithWallSlide(p, dt);
+      }
       const movementSpeed = Math.hypot(p.vx, p.vy);
       p.isMoving = movementSpeed > 24;
       p.stationaryTimer = p.isMoving ? 0 : (p.stationaryTimer || 0) + dt;
@@ -8008,34 +8078,47 @@
       p.vy *= friction;
       p.x = clamp(p.x, p.radius, this.world.w - p.radius);
       p.y = clamp(p.y, p.radius, this.world.h - p.radius);
-      if (!p.flying) this.resolveWallCollision(p);
       this.resolvePlayerCollision(p);
+      if (!p.flying) this.resolveWallCollision(p);
       this.checkWireContact(p, dt);
       this.checkUndergroundHazards(p);
     }
 
-    resolveWallCollision(p) {
+    resolveWallCollision(p, options = {}) {
+      const maxCorrection = options.fullCorrection ? Infinity : 2.25;
       for (const wall of this.walls) {
-        if (wall.hp <= 0 || wall.nonBlocking) continue;
-        if (!circleRectOverlap(p, wall)) continue;
+        if (!wall || wall.hp <= 0 || wall.nonBlocking || !circleRectOverlap(p, wall)) continue;
         const closestX = clamp(p.x, wall.x, wall.x + wall.w);
         const closestY = clamp(p.y, wall.y, wall.y + wall.h);
         let dx = p.x - closestX;
         let dy = p.y - closestY;
         let len = Math.hypot(dx, dy);
+        let penetration = 0;
         if (len < .001) {
-          const distances = [Math.abs(p.x - wall.x), Math.abs(p.x - (wall.x + wall.w)), Math.abs(p.y - wall.y), Math.abs(p.y - (wall.y + wall.h))];
-          const min = Math.min(...distances);
-          if (min === distances[0]) { dx = -1; dy = 0; len = 1; }
-          else if (min === distances[1]) { dx = 1; dy = 0; len = 1; }
-          else if (min === distances[2]) { dx = 0; dy = -1; len = 1; }
-          else { dx = 0; dy = 1; len = 1; }
+          const exits = [
+            { depth: Math.abs(p.x - wall.x), nx: -1, ny: 0 },
+            { depth: Math.abs(p.x - (wall.x + wall.w)), nx: 1, ny: 0 },
+            { depth: Math.abs(p.y - wall.y), nx: 0, ny: -1 },
+            { depth: Math.abs(p.y - (wall.y + wall.h)), nx: 0, ny: 1 },
+          ].sort((a, b) => a.depth - b.depth);
+          dx = exits[0].nx;
+          dy = exits[0].ny;
+          len = 1;
+          penetration = exits[0].depth + p.radius;
+        } else {
+          penetration = p.radius - len;
         }
-        const push = p.radius - len + .5;
-        p.x += dx / len * push;
-        p.y += dy / len * push;
-        p.vx *= .55;
-        p.vy *= .55;
+        if (penetration <= 0) continue;
+        const nx = dx / len;
+        const ny = dy / len;
+        const correction = Math.min(maxCorrection, penetration + .05);
+        p.x += nx * correction;
+        p.y += ny * correction;
+        const inward = (Number(p.vx) || 0) * nx + (Number(p.vy) || 0) * ny;
+        if (inward < 0) {
+          p.vx -= inward * nx;
+          p.vy -= inward * ny;
+        }
       }
     }
 
@@ -8329,13 +8412,13 @@
     }
 
     isAINavPointOpen(x, y, radius, ignoreWallId = null) {
-      if (x < radius + 8 || y < radius + 8 || x > this.world.w - radius - 8 || y > this.world.h - radius - 8) return false;
-      const probe = { x, y, radius: radius + 5 };
+      if (x < radius + 1 || y < radius + 1 || x > this.world.w - radius - 1 || y > this.world.h - radius - 1) return false;
+      const probe = { x, y, radius: Math.max(6, radius - .25) };
       return !this.walls.some((wall) => wall.id !== ignoreWallId && wall.hp > 0 && !wall.nonBlocking && circleRectOverlap(probe, wall));
     }
 
     chooseAIWallDetour(p, wall, goalX, goalY) {
-      const margin = p.radius + 34;
+      const margin = p.radius + 18;
       const candidates = [
         { x: wall.x - margin, y: wall.y - margin },
         { x: wall.x + wall.w + margin, y: wall.y - margin },
@@ -8393,10 +8476,10 @@
 
     findAINavigationPath(p, goalX, goalY) {
       const directDistance = Math.hypot(goalX - p.x, goalY - p.y);
-      if (directDistance < 80 || !this.findBlockingWall(p.x, p.y, goalX, goalY, p.radius + 6)) return [];
+      if (directDistance < 80 || !this.findBlockingWall(p.x, p.y, goalX, goalY, Math.max(4, p.radius - .25))) return [];
       const cell = clamp(Math.round((96 + p.radius * .42) / 16) * 16, 96, 144);
       const margin = clamp(560 + directDistance * .28, 620, 1380);
-      const radius = p.radius + 8;
+      const radius = Math.max(6, p.radius - .25);
       const minX = Math.max(radius + 10, Math.min(p.x, goalX) - margin);
       const minY = Math.max(radius + 10, Math.min(p.y, goalY) - margin);
       const maxX = Math.min(this.world.w - radius - 10, Math.max(p.x, goalX) + margin);
