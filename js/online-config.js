@@ -13,8 +13,8 @@ window.TRION_ONLINE_CONFIG = {
   snapshotHz: 6,
 };
 
-// v102 hotfix: stop wall-recovery warps, keep CPU moving around walls,
-// and raise the baseline damage of all three sniper rifles.
+// v102 hotfix: keep CPU wall recovery inside the playable arena,
+// prevent boundary-wall attraction, and retain the sniper rifle damage buff.
 (() => {
   'use strict';
 
@@ -23,30 +23,172 @@ window.TRION_ONLINE_CONFIG = {
     : Date.now();
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const angleDelta = (to, from) => Math.atan2(Math.sin(to - from), Math.cos(to - from));
+  const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : null;
 
   function activeWalls(game) {
     return (game?.walls || []).filter((wall) => wall
       && wall.hp !== 0
       && !wall.nonBlocking
-      && Number.isFinite(wall.x)
-      && Number.isFinite(wall.y)
-      && Number.isFinite(wall.w)
-      && Number.isFinite(wall.h));
+      && Number.isFinite(Number(wall.x))
+      && Number.isFinite(Number(wall.y))
+      && Number.isFinite(Number(wall.w))
+      && Number.isFinite(Number(wall.h)));
+  }
+
+  function normalizeRect(rect, source = 'runtime') {
+    if (!rect || typeof rect !== 'object') return null;
+    const minX = finite(rect.minX ?? rect.left ?? rect.x);
+    const minY = finite(rect.minY ?? rect.top ?? rect.y);
+    const explicitMaxX = finite(rect.maxX ?? rect.right);
+    const explicitMaxY = finite(rect.maxY ?? rect.bottom);
+    const width = finite(rect.width ?? rect.w);
+    const height = finite(rect.height ?? rect.h);
+    const x0 = minX ?? 0;
+    const y0 = minY ?? 0;
+    const maxX = explicitMaxX ?? (width != null ? x0 + width : null);
+    const maxY = explicitMaxY ?? (height != null ? y0 + height : null);
+    if (maxX == null || maxY == null || maxX - x0 < 600 || maxY - y0 < 420) return null;
+    return { minX: x0, minY: y0, maxX, maxY, source };
+  }
+
+  function inferArenaRect(game) {
+    const objects = [
+      game?.playBounds,
+      game?.arenaBounds,
+      game?.worldBounds,
+      game?.mapBounds,
+      game?.fieldBounds,
+      game?.map?.bounds,
+      game?.bounds,
+    ];
+    for (const object of objects) {
+      const rect = normalizeRect(object);
+      if (rect) return rect;
+    }
+
+    const dimensionPairs = [
+      ['worldWidth', 'worldHeight', 'worldX', 'worldY'],
+      ['mapWidth', 'mapHeight', 'mapX', 'mapY'],
+      ['arenaWidth', 'arenaHeight', 'arenaX', 'arenaY'],
+      ['fieldWidth', 'fieldHeight', 'fieldX', 'fieldY'],
+    ];
+    for (const [widthKey, heightKey, xKey, yKey] of dimensionPairs) {
+      const width = finite(game?.[widthKey]);
+      const height = finite(game?.[heightKey]);
+      if (width != null && height != null && width >= 600 && height >= 420) {
+        return {
+          minX: finite(game?.[xKey]) ?? 0,
+          minY: finite(game?.[yKey]) ?? 0,
+          maxX: (finite(game?.[xKey]) ?? 0) + width,
+          maxY: (finite(game?.[yKey]) ?? 0) + height,
+          source: `${widthKey}/${heightKey}`,
+        };
+      }
+    }
+
+    const walls = activeWalls(game);
+    if (walls.length < 4) return null;
+    const minX = Math.min(...walls.map((wall) => Number(wall.x)));
+    const minY = Math.min(...walls.map((wall) => Number(wall.y)));
+    const maxX = Math.max(...walls.map((wall) => Number(wall.x) + Number(wall.w)));
+    const maxY = Math.max(...walls.map((wall) => Number(wall.y) + Number(wall.h)));
+    const spanX = maxX - minX;
+    const spanY = maxY - minY;
+    if (spanX < 800 || spanY < 520) return null;
+
+    const vertical = walls.filter((wall) => Number(wall.h) >= spanY * 0.48 && Number(wall.h) >= Number(wall.w) * 2.4);
+    const horizontal = walls.filter((wall) => Number(wall.w) >= spanX * 0.48 && Number(wall.w) >= Number(wall.h) * 2.4);
+    const leftWalls = vertical.filter((wall) => Number(wall.x) + Number(wall.w) * 0.5 <= minX + spanX * 0.18);
+    const rightWalls = vertical.filter((wall) => Number(wall.x) + Number(wall.w) * 0.5 >= maxX - spanX * 0.18);
+    const topWalls = horizontal.filter((wall) => Number(wall.y) + Number(wall.h) * 0.5 <= minY + spanY * 0.18);
+    const bottomWalls = horizontal.filter((wall) => Number(wall.y) + Number(wall.h) * 0.5 >= maxY - spanY * 0.18);
+
+    if (leftWalls.length && rightWalls.length && topWalls.length && bottomWalls.length) {
+      const innerLeft = Math.max(...leftWalls.map((wall) => Number(wall.x) + Number(wall.w)));
+      const innerRight = Math.min(...rightWalls.map((wall) => Number(wall.x)));
+      const innerTop = Math.max(...topWalls.map((wall) => Number(wall.y) + Number(wall.h)));
+      const innerBottom = Math.min(...bottomWalls.map((wall) => Number(wall.y)));
+      if (innerRight - innerLeft >= 600 && innerBottom - innerTop >= 420) {
+        return { minX: innerLeft, minY: innerTop, maxX: innerRight, maxY: innerBottom, source: 'boundary-walls' };
+      }
+    }
+
+    const inset = 36;
+    return { minX: minX + inset, minY: minY + inset, maxX: maxX - inset, maxY: maxY - inset, source: 'wall-extents' };
+  }
+
+  function pointInsideArena(rect, x, y, margin = 0) {
+    if (!rect) return true;
+    return x >= rect.minX + margin
+      && x <= rect.maxX - margin
+      && y >= rect.minY + margin
+      && y <= rect.maxY - margin;
+  }
+
+  function edgeDistance(rect, x, y) {
+    if (!rect) return Infinity;
+    return Math.min(x - rect.minX, rect.maxX - x, y - rect.minY, rect.maxY - y);
+  }
+
+  function arenaEdgeState(game, player, x = Number(player?.x), y = Number(player?.y)) {
+    const rect = inferArenaRect(game);
+    if (!rect || !Number.isFinite(x) || !Number.isFinite(y)) {
+      return { rect, near: false, outside: false, distance: Infinity, inwardAngle: Number(player?.aim) || 0, ix: 0, iy: 0 };
+    }
+    const radius = Number(player?.radius) || 18;
+    const soft = Math.max(150, radius + 112);
+    const hardMargin = radius + 24;
+    const left = x - rect.minX;
+    const right = rect.maxX - x;
+    const top = y - rect.minY;
+    const bottom = rect.maxY - y;
+    let ix = 0;
+    let iy = 0;
+    if (left < soft) ix += (soft - left) / soft;
+    if (right < soft) ix -= (soft - right) / soft;
+    if (top < soft) iy += (soft - top) / soft;
+    if (bottom < soft) iy -= (soft - bottom) / soft;
+    const outside = !pointInsideArena(rect, x, y, hardMargin);
+    if (outside) {
+      ix += clamp((rect.minX + hardMargin - x) / soft, -2.5, 2.5);
+      ix -= clamp((x - (rect.maxX - hardMargin)) / soft, -2.5, 2.5);
+      iy += clamp((rect.minY + hardMargin - y) / soft, -2.5, 2.5);
+      iy -= clamp((y - (rect.maxY - hardMargin)) / soft, -2.5, 2.5);
+    }
+    if (Math.hypot(ix, iy) < 0.001) {
+      ix = (rect.minX + rect.maxX) * 0.5 - x;
+      iy = (rect.minY + rect.maxY) * 0.5 - y;
+    }
+    const length = Math.hypot(ix, iy) || 1;
+    ix /= length;
+    iy /= length;
+    const distance = edgeDistance(rect, x, y);
+    return {
+      rect,
+      near: distance < soft,
+      outside,
+      distance,
+      inwardAngle: Math.atan2(iy, ix),
+      ix,
+      iy,
+    };
   }
 
   function circleHitsWall(game, x, y, radius) {
-    return activeWalls(game).some((wall) => x + radius > wall.x
-      && x - radius < wall.x + wall.w
-      && y + radius > wall.y
-      && y - radius < wall.y + wall.h);
+    return activeWalls(game).some((wall) => x + radius > Number(wall.x)
+      && x - radius < Number(wall.x) + Number(wall.w)
+      && y + radius > Number(wall.y)
+      && y - radius < Number(wall.y) + Number(wall.h));
   }
 
   function pathTouchesWall(game, x1, y1, x2, y2, radius) {
     const distance = Math.hypot(x2 - x1, y2 - y1);
-    const steps = Math.max(2, Math.min(12, Math.ceil(distance / 24)));
+    const steps = Math.max(2, Math.min(14, Math.ceil(distance / 22)));
     for (let index = 0; index <= steps; index += 1) {
       const ratio = index / steps;
-      if (circleHitsWall(game, x1 + (x2 - x1) * ratio, y1 + (y2 - y1) * ratio, radius)) return true;
+      const x = x1 + (x2 - x1) * ratio;
+      const y = y1 + (y2 - y1) * ratio;
+      if (!pointInsideArena(inferArenaRect(game), x, y, radius + 12) || circleHitsWall(game, x, y, radius)) return true;
     }
     return false;
   }
@@ -54,21 +196,20 @@ window.TRION_ONLINE_CONFIG = {
   function nearestWallNormal(game, x, y, radius) {
     let best = null;
     for (const wall of activeWalls(game)) {
-      const closestX = clamp(x, wall.x, wall.x + wall.w);
-      const closestY = clamp(y, wall.y, wall.y + wall.h);
+      const closestX = clamp(x, Number(wall.x), Number(wall.x) + Number(wall.w));
+      const closestY = clamp(y, Number(wall.y), Number(wall.y) + Number(wall.h));
       let dx = x - closestX;
       let dy = y - closestY;
       let distance = Math.hypot(dx, dy);
       if (distance < 0.001) {
         const exits = [
-          { depth: Math.abs(x - wall.x), nx: -1, ny: 0 },
-          { depth: Math.abs(x - (wall.x + wall.w)), nx: 1, ny: 0 },
-          { depth: Math.abs(y - wall.y), nx: 0, ny: -1 },
-          { depth: Math.abs(y - (wall.y + wall.h)), nx: 0, ny: 1 },
+          { depth: Math.abs(x - Number(wall.x)), nx: -1, ny: 0 },
+          { depth: Math.abs(x - (Number(wall.x) + Number(wall.w))), nx: 1, ny: 0 },
+          { depth: Math.abs(y - Number(wall.y)), nx: 0, ny: -1 },
+          { depth: Math.abs(y - (Number(wall.y) + Number(wall.h))), nx: 0, ny: 1 },
         ].sort((a, b) => a.depth - b.depth);
-        const exit = exits[0];
-        dx = exit.nx;
-        dy = exit.ny;
+        dx = exits[0].nx;
+        dy = exits[0].ny;
         distance = 1;
       }
       const gap = distance - radius;
@@ -81,23 +222,34 @@ window.TRION_ONLINE_CONFIG = {
 
   function directionIsOpen(game, player, angle, distance) {
     const radius = (Number(player.radius) || 18) + 6;
-    return !circleHitsWall(
-      game,
-      Number(player.x) + Math.cos(angle) * distance,
-      Number(player.y) + Math.sin(angle) * distance,
-      radius,
-    );
+    const startX = Number(player.x);
+    const startY = Number(player.y);
+    const endX = startX + Math.cos(angle) * distance;
+    const endY = startY + Math.sin(angle) * distance;
+    const rect = inferArenaRect(game);
+    if (!pointInsideArena(rect, endX, endY, radius + 18)) return false;
+    return !pathTouchesWall(game, startX, startY, endX, endY, radius);
   }
 
   function chooseSlideAngle(game, player, targetAngle, previousAngle = null) {
+    const edge = arenaEdgeState(game, player);
+    const currentEdgeDistance = edge.distance;
+    const projectedEdgeDistance = (angle, distance = 104) => edgeDistance(
+      edge.rect,
+      Number(player.x) + Math.cos(angle) * distance,
+      Number(player.y) + Math.sin(angle) * distance,
+    );
+
     if (Number.isFinite(previousAngle)
       && directionIsOpen(game, player, previousAngle, 46)
-      && directionIsOpen(game, player, previousAngle, 104)) return previousAngle;
+      && directionIsOpen(game, player, previousAngle, 104)
+      && (!edge.near || projectedEdgeDistance(previousAngle) >= currentEdgeDistance + 4)) return previousAngle;
 
     const normal = nearestWallNormal(game, Number(player.x), Number(player.y), (Number(player.radius) || 18) + 8);
     const tangentA = normal ? Math.atan2(normal.ny, normal.nx) + Math.PI / 2 : targetAngle + Math.PI / 2;
     const tangentB = tangentA + Math.PI;
     const candidates = [
+      ...(edge.near ? [edge.inwardAngle, edge.inwardAngle + 0.42, edge.inwardAngle - 0.42] : []),
       tangentA,
       tangentB,
       targetAngle + Math.PI / 2,
@@ -106,15 +258,20 @@ window.TRION_ONLINE_CONFIG = {
       targetAngle - 0.92,
       targetAngle + Math.PI,
     ];
-    let selected = candidates[0];
+    let selected = edge.near ? edge.inwardAngle : candidates[0];
     let selectedScore = Infinity;
     for (const angle of candidates) {
       const nearBlocked = !directionIsOpen(game, player, angle, 46);
       const farBlocked = !directionIsOpen(game, player, angle, 104);
-      const score = (nearBlocked ? 2000 : 0)
-        + (farBlocked ? 700 : 0)
-        + Math.abs(angleDelta(angle, targetAngle)) * 38
-        + (Number.isFinite(previousAngle) ? Math.abs(angleDelta(angle, previousAngle)) * 20 : 0);
+      const nextEdge = projectedEdgeDistance(angle);
+      const edgeLoss = edge.near ? Math.max(0, currentEdgeDistance + 14 - nextEdge) : 0;
+      const inwardAlignment = edge.near ? Math.cos(angleDelta(angle, edge.inwardAngle)) : 0;
+      const score = (nearBlocked ? 12000 : 0)
+        + (farBlocked ? 4600 : 0)
+        + Math.abs(angleDelta(angle, targetAngle)) * 34
+        + (Number.isFinite(previousAngle) ? Math.abs(angleDelta(angle, previousAngle)) * 12 : 0)
+        + edgeLoss * 42
+        - inwardAlignment * (edge.near ? 520 : 0);
       if (score < selectedScore) {
         selected = angle;
         selectedScore = score;
@@ -147,16 +304,18 @@ window.TRION_ONLINE_CONFIG = {
   }
 
   function applyWallSlide(game, player, targetAngle, time, force = false) {
+    const edge = arenaEdgeState(game, player);
     const previous = time < Number(player.v102WallSlideUntil || 0)
       ? Number(player.v102WallSlideAngle)
       : null;
-    const angle = chooseSlideAngle(game, player, targetAngle, previous);
-    const speed = Math.max(122, (Number(player.speed) || 150) * 0.82);
+    const requestedAngle = edge.near ? edge.inwardAngle : targetAngle;
+    const angle = chooseSlideAngle(game, player, requestedAngle, previous);
+    const speed = Math.max(edge.near ? 136 : 122, (Number(player.speed) || 150) * (edge.near ? 0.9 : 0.82));
     if (!force && !directionIsOpen(game, player, angle, 42)) return false;
     player.vx = Math.cos(angle) * speed;
     player.vy = Math.sin(angle) * speed;
     player.v102WallSlideAngle = angle;
-    player.v102WallSlideUntil = time + 760;
+    player.v102WallSlideUntil = time + (edge.near ? 920 : 720);
     clearNavigation(player);
     return true;
   }
@@ -165,12 +324,12 @@ window.TRION_ONLINE_CONFIG = {
     if (!game || !Array.isArray(game.players)) return false;
     const prototype = Object.getPrototypeOf(game);
     const originalUpdate = prototype?.update;
-    if (!prototype || prototype.v102WallSlideHotfix || typeof originalUpdate !== 'function') {
-      return Boolean(prototype?.v102WallSlideHotfix);
+    if (!prototype || prototype.v102ArenaBoundaryHotfix || typeof originalUpdate !== 'function') {
+      return Boolean(prototype?.v102ArenaBoundaryHotfix);
     }
-    if (!prototype.v102WallWarpHotfix && !String(originalUpdate).includes('updateStallRecovery')) return false;
+    if (!String(originalUpdate).includes('updateStallRecovery')) return false;
 
-    prototype.update = function wallSlideSafeUpdate(dt) {
+    prototype.update = function arenaBoundarySafeUpdate(dt) {
       const effectStart = (this.effects || []).length;
       const snapshots = (this.players || []).map((player) => ({
         player,
@@ -185,7 +344,7 @@ window.TRION_ONLINE_CONFIG = {
 
       for (const snapshot of snapshots) {
         const player = snapshot.player;
-        if (!player || player.dead || !Number.isFinite(player.x) || !Number.isFinite(player.y)) continue;
+        if (!player || player.dead || !Number.isFinite(Number(player.x)) || !Number.isFinite(Number(player.y))) continue;
         const dx = Number(player.x) - snapshot.x;
         const dy = Number(player.y) - snapshot.y;
         const displacement = Math.hypot(dx, dy);
@@ -196,8 +355,7 @@ window.TRION_ONLINE_CONFIG = {
         const intentionalTeleport = hasTeleportEffect(this, effectStart, snapshot.x, snapshot.y, Number(player.x), Number(player.y));
         const wallRelated = circleHitsWall(this, snapshot.x, snapshot.y, snapshot.radius + 5)
           || circleHitsWall(this, Number(player.x), Number(player.y), snapshot.radius + 5)
-          || pathTouchesWall(this, snapshot.x, snapshot.y, Number(player.x), Number(player.y), snapshot.radius + 3)
-          || time - Number(player.v102WallWarpPreventedAt || 0) < 180;
+          || pathTouchesWall(this, snapshot.x, snapshot.y, Number(player.x), Number(player.y), snapshot.radius + 3);
 
         if (!pinball && !intentionalTeleport && wallRelated && displacement > allowed) {
           player.x = snapshot.x;
@@ -212,6 +370,11 @@ window.TRION_ONLINE_CONFIG = {
         }
 
         if (player.human || Number(player.v96Knockdown) > 0 || Number(player.v100Restrained) > 0 || pinball) continue;
+        const edge = arenaEdgeState(this, player);
+        const velocityLength = Math.hypot(Number(player.vx) || 0, Number(player.vy) || 0) || 1;
+        const outwardMotion = edge.near
+          && ((Number(player.vx) || 0) / velocityLength * edge.ix + (Number(player.vy) || 0) / velocityLength * edge.iy) < 0.18;
+
         player.v102WallMotion = player.v102WallMotion && typeof player.v102WallMotion === 'object'
           ? player.v102WallMotion
           : { x: Number(player.x), y: Number(player.y), movedAt: time };
@@ -228,16 +391,23 @@ window.TRION_ONLINE_CONFIG = {
         if (!target) continue;
         const targetAngle = Math.atan2(Number(target.y) - Number(player.y), Number(target.x) - Number(player.x));
         const radius = (Number(player.radius) || 18) + 7;
-        const wallAhead = circleHitsWall(this, Number(player.x) + Math.cos(targetAngle) * 48, Number(player.y) + Math.sin(targetAngle) * 48, radius)
-          || circleHitsWall(this, Number(player.x) + Math.cos(targetAngle) * 92, Number(player.y) + Math.sin(targetAngle) * 92, radius);
+        const wallAhead = !directionIsOpen(this, player, targetAngle, 92)
+          || circleHitsWall(this, Number(player.x) + Math.cos(targetAngle) * 48, Number(player.y) + Math.sin(targetAngle) * 48, radius);
         const stalled = Math.hypot(Number(target.x) - Number(player.x), Number(target.y) - Number(player.y)) > 110
           && time - Number(motion.movedAt || time) > 820;
         const continuingSlide = time < Number(player.v102WallSlideUntil || 0);
-        if (wallAhead || stalled || continuingSlide) applyWallSlide(this, player, targetAngle, time, wallAhead || stalled);
+
+        if (edge.outside || (edge.distance < 110 && outwardMotion)) {
+          applyWallSlide(this, player, edge.inwardAngle, time, true);
+        } else if (wallAhead || stalled || continuingSlide) {
+          applyWallSlide(this, player, targetAngle, time, wallAhead || stalled);
+        } else if (!edge.near) {
+          player.v102WallSlideUntil = 0;
+        }
       }
       return result;
     };
-    prototype.v102WallSlideHotfix = true;
+    prototype.v102ArenaBoundaryHotfix = true;
     return true;
   }
 
@@ -259,6 +429,13 @@ window.TRION_ONLINE_CONFIG = {
     const sniperReady = applySniperBuff();
     if ((!gameReady || !sniperReady) && attempt < 120) setTimeout(() => install(attempt + 1), 100);
   }
+
+  window.TRION_WALL_RECOVERY_AUDIT = {
+    inferArenaRect,
+    arenaEdgeState,
+    directionIsOpen,
+    chooseSlideAngle,
+  };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => install(), { once: true });
   else install();
