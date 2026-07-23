@@ -1,0 +1,15 @@
+TRION ARENA VERSION 108
+
+- Fixed spectator zoom rendering on high-DPI displays.
+- Preserved the canvas device-pixel-ratio transform while zooming.
+- Clears the full canvas before every scaled spectator frame.
+- Prevents zoom-out from exceeding the battlefield bounds.
+- Keeps keyboard-only AUTO / LOCK / FREE spectator controls.
+- Keeps VERSION 106/107 support-unit AI improvements.
+- Clean package: no OBS files, no .git directory, no build cache.
+
+APPLY
+1. Extract this ZIP over the existing world-trigger-arena folder.
+2. Run: git apply --check --unidiff-zero .\v108.patch
+3. Run: git apply --unidiff-zero --whitespace=nowarn .\v108.patch
+4. Delete v108.patch after it applies successfully.
