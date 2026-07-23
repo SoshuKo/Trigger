@@ -167,9 +167,9 @@
     TERUYA:{offense:1.13,defense:1.13,cooldown:.70,reaction:.58,aim:.59,hp:1.08,trion:1.04,speed:1.07},
     TOMOE:{offense:1.15,defense:1.06,cooldown:.68,reaction:.63,aim:.67,hp:1.06,trion:1.00,speed:1.14}
   };
-  // v104: 2026-07-22 generated league (12,596 matches) calibration.
+  // v105: 2026-07-22 generated league (12,596 matches) calibration.
   // This corrects systemic role/roster bias while preserving each agent's individual tuning.
-  const SQUAD_BALANCE_V104={
+  const SQUAD_BALANCE_V105={
     ninomiya:{offense:1.29,defense:1.19,cooldown:.84,reaction:.86,hp:1.09,trion:1.07,think:.70},
     tamakoma2:{offense:1.00,defense:1.00,cooldown:1.00,reaction:1.00,hp:1.00,think:1.00},
     kageura:{offense:1.20,defense:1.14,cooldown:.84,reaction:.90,speed:1.055,hp:1.08,trion:1.035,think:.75},
@@ -200,7 +200,7 @@
     };
     const tuned=Object.assign(base,NAMED_TUNING_OVERRIDES[name]||{});
     const squad=SQUADS.find(item=>item.agents.some(agent=>agent.en===name));
-    const balance=SQUAD_BALANCE_V104[squad?.id]||{};
+    const balance=SQUAD_BALANCE_V105[squad?.id]||{};
     for(const key of ['offense','defense','cooldown','reaction','aim','speed','hp','trion']) if(Number.isFinite(balance[key])) tuned[key]*=balance[key];
     tuned.cooldown=clamp(tuned.cooldown,.46,1.35);tuned.reaction=clamp(tuned.reaction,.38,1.35);tuned.aim=clamp(tuned.aim,.34,1.25);
     tuned.offense=clamp(tuned.offense,.68,1.75);tuned.defense=clamp(tuned.defense,.72,1.55);tuned.speed=clamp(tuned.speed,.82,1.38);tuned.hp=clamp(tuned.hp,.72,1.55);tuned.trion=clamp(tuned.trion,.78,1.65);
@@ -1066,13 +1066,13 @@
       const specialWires=hasSpecialWires?(this.wires||[]).filter(w=>w?.v96TripWire||w?.mode==='spring'):[],coreWires=hasSpecialWires?(this.wires||[]).filter(w=>!w?.v96TripWire&&w?.mode!=='spring'):(this.wires||[]),engineerTraps=hasEngineerTraps?(this.traps||[]).filter(t=>t?.v96EngineerTrap):[],coreTraps=hasEngineerTraps?(this.traps||[]).filter(t=>!t?.v96EngineerTrap):(this.traps||[]);
       this.v98HazardSnapshot={wires:specialWires.filter(w=>w?.v96TripWire),traps:engineerTraps};this.wires=coreWires;this.traps=coreTraps;
       let out;try{out=typeof oldUpdate==='function'?oldUpdate.call(this,dt):undefined;}finally{if(hasSpecialWires)this.wires=[...(this.wires||[]),...specialWires];if(hasEngineerTraps)this.traps=[...(this.traps||[]),...engineerTraps];delete this.v98HazardSnapshot;}
-      if(hasEngineerTraps)updateEngineerTraps(this,dt);if(hasSpecialWires||this.v94MobilityPads?.length)updateMobilityRoutes(this,dt);updateViperRoutes(this,dt);if(hasSpecialWires)updateTripWires(this,dt);
-      this.v104FeatureEffectTimer=Math.max(0,(this.v104FeatureEffectTimer||0)-dt);if(this.v104FeatureEffectTimer<=0){updateEngineerTrapEffects(this);updateNamedStatus(this,.16);this.v104FeatureEffectTimer=.16;}
+      if(hasEngineerTraps)updateEngineerTraps(this,dt);updateMobilityRoutes(this,dt);updateViperRoutes(this,dt);if(hasSpecialWires)updateTripWires(this,dt);
+      updateNamedStatus(this,dt);this.v105FeatureEffectTimer=Math.max(0,(this.v105FeatureEffectTimer||0)-dt);if(this.v105FeatureEffectTimer<=0){updateEngineerTrapEffects(this);this.v105FeatureEffectTimer=.16;}
       for(const p of this.players||[]){
         applyNamedTuning(p);if(p.v96NamedSpeed&&Number.isFinite(p.speed))p.speed=Math.max(p.speed,p.v96NamedSpeed);
         for(const hand of ['main','sub']){const sh=p.shields?.[hand];if(!sh)continue;const coverage=clamp(settings.shieldCoverage,.15,1),thickness=1/coverage;sh.v77Coverage=coverage;sh.arc=(sh.baseArc||sh.arc||1.3)*(.55+coverage*.8);sh.radius=(sh.baseRadius||sh.radius||70)*(.65+coverage*.75);sh.hp=Math.max(sh.hp||0,(sh.maxHp||80)*(.65+thickness*.65));}
-        p.v104FeatureAccumulator=(p.v104FeatureAccumulator||0)+dt;const featureStep=this.simulationMode ? .12 : .08;if(p.v104FeatureAccumulator>=featureStep){const step=Math.min(.2,p.v104FeatureAccumulator);p.v104FeatureAccumulator=0;applyNamedBehavior(this,p,step);cpuAdvancedTechniques(this,p,step);if(isEngineer(p))engineerTactics(this,p,step);updateKogetsuBranch(this,p,step);}
-        p.v104StallTimer=Math.max(0,(p.v104StallTimer||0)-dt);if(p.v104StallTimer<=0){updateStallRecovery(this,p,.22);p.v104StallTimer=.22;}
+        p.v105FeatureAccumulator=(p.v105FeatureAccumulator||0)+dt;const featureStep=this.simulationMode ? .12 : .08;if(p.v105FeatureAccumulator>=featureStep){const step=Math.min(.2,p.v105FeatureAccumulator);p.v105FeatureAccumulator=0;applyNamedBehavior(this,p,step);cpuAdvancedTechniques(this,p,step);if(isEngineer(p))engineerTactics(this,p,step);}updateKogetsuBranch(this,p,dt);
+        p.v105StallTimer=Math.max(0,(p.v105StallTimer||0)-dt);if(p.v105StallTimer<=0){updateStallRecovery(this,p,.22);p.v105StallTimer=.22;}
       }
       return out;
     };
@@ -1124,7 +1124,7 @@
     try{
       const desc=Object.getOwnPropertyDescriptor(window,'__TRION_GAME__');if(desc&&!desc.configurable)return;
       let value=window.__TRION_GAME__;
-      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{if(next.simulationMode)applySimulationNamed(next);else applyNamed(next);patchGame(next);}catch(error){console.error('[v104 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
+      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{if(next.simulationMode)applySimulationNamed(next);else applyNamed(next);patchGame(next);}catch(error){console.error('[v105 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
       if(value)patchGame(value);
     }catch(_){ }
   }
@@ -1138,12 +1138,12 @@
   const rosterObserver=new MutationObserver(()=>mountRoster(false));
   const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
   function syncV96TriggerDocs(){const data=window.WT_DATA?.triggers;if(!data)return;if(data.shooter_viper){data.shooter_viper.controls='発動：キューブ展開／Shift＋発動：分割／R：固定弾道を事前計算／再発動：射撃';data.shooter_viper.description='Rで射出前に固定弾道を計算できる変化弾。計算後は敵を追尾せず、表示された経路を通ります。';}if(data.spider){data.spider.description='通常ワイヤーは接触した敵を転倒させます。ばねワイヤーは味方の移動ルートとして利用できます。';}if(data.switchbox){data.switchbox.description='強化された攻撃・転倒拘束・加速トラップを設置します。工作手CPUは撤退しながら進路へ罠を配置します。';}}
-  function installSimulationApiV104(){const api=window.TRION_SIMULATION_API;if(!api||api.v104Wrapped||typeof api.runMatch!=='function')return;const oldRun=api.runMatch.bind(api);api.runMatch=async request=>{const result=await oldRun(request);if(result&&typeof result==='object'){result.gameVersion=Math.max(104,Number(result.gameVersion||0));result.featureVersion=104;result.namedSimulation=true;}return result;};api.version=104;api.v104Wrapped=true;}
-  installSimulationApiV104();
-  window.TRION_NAMED_AUDIT={version:104,agents:Object.keys(NAMED_BEHAVIORS),tunedAgents:Object.keys(NAMED_TUNING_OVERRIDES),count:Object.keys(NAMED_BEHAVIORS).length,allExplicitlyTuned:Object.keys(NAMED_BEHAVIORS).every(name=>Boolean(NAMED_TUNING_OVERRIDES[name]))};
-  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=104;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 104';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 104');document.documentElement.dataset.gameVersion='104';}
+  function installSimulationApiV105(){const api=window.TRION_SIMULATION_API;if(!api||api.v105Wrapped||typeof api.runMatch!=='function')return;const oldRun=api.runMatch.bind(api);api.runMatch=async request=>{const result=await oldRun(request);if(result&&typeof result==='object'){result.gameVersion=Math.max(104,Number(result.gameVersion||0));result.featureVersion=105;result.namedSimulation=true;}return result;};api.version=105;api.v105Wrapped=true;}
+  installSimulationApiV105();
+  window.TRION_NAMED_AUDIT={version:105,agents:Object.keys(NAMED_BEHAVIORS),tunedAgents:Object.keys(NAMED_TUNING_OVERRIDES),count:Object.keys(NAMED_BEHAVIORS).length,allExplicitlyTuned:Object.keys(NAMED_BEHAVIORS).every(name=>Boolean(NAMED_TUNING_OVERRIDES[name]))};
+  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=104;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 105';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 105');document.documentElement.dataset.gameVersion='105';}
   syncVersionUI();
   let lastVersionSync=Date.now();
-  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);const now=Date.now();if(now-lastVersionSync>=1000){installSimulationApiV104();syncVersionUI();lastVersionSync=now;}document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},1000);
+  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);const now=Date.now();if(now-lastVersionSync>=1000){installSimulationApiV105();syncVersionUI();lastVersionSync=now;}document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},1000);
   window.addEventListener('beforeunload',()=>{clearInterval(timer);rosterObserver.disconnect();});
 })();

@@ -1,4 +1,4 @@
-TRION ARENA VERSION 104
+TRION ARENA VERSION 105
 
 【変更概要】
 - 壁空間インデックスで移動・射線・弾丸の壁判定を高速化
@@ -21,7 +21,7 @@ TRION ARENA VERSION 104
 
 【性能検証】
 - 同一4カードのv103実行時間: 12.297秒
-- 同一4カードのv104実行時間: 6.063秒
+- 同一4カードのv105実行時間: 6.063秒
 - 実行時間短縮: 50.7%
 - この数値はヘッドレス・シミュレーション環境の比較であり、端末上のFPSを直接保証するものではありません。
 
@@ -30,4 +30,4 @@ TRION ARENA VERSION 104
 - 平均最寄り敵距離: 1376.8 → 1743.5
 - 前線滞在率は約65.2%減少
 
-詳細: simulation-results/v104-calibration-summary.json
+詳細: simulation-results/v105-calibration-summary.json

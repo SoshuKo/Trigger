@@ -15,7 +15,7 @@
 
 ## 更新履歴
 
-### VERSION 104 — 処理軽量化・役割AI・ネームド部隊調整
+### VERSION 105 — 処理軽量化・役割AI・ネームド部隊調整
 
 - 壁判定へ空間インデックスを導入し、移動・射線・弾丸衝突の候補壁を限定
 - ネームドAI、詰み監視、補助効果走査を分散・間引きし、同条件のヘッドレス検証でv103比約50.7%短縮
@@ -47,7 +47,7 @@
 
 - 原作設定に基づくトリガー構成、能力配分、練度、個別AI、部隊戦術を再構成
 
-詳細なv104検証値は[V104_PERFORMANCE_SNIPER_ATTACKER_NAMED_BALANCE.txt](V104_PERFORMANCE_SNIPER_ATTACKER_NAMED_BALANCE.txt)と[simulation-results/v104-calibration-summary.json](simulation-results/v104-calibration-summary.json)を参照してください。
+詳細なv105検証値は[V105_PERFORMANCE_SNIPER_ATTACKER_NAMED_BALANCE.txt](V105_PERFORMANCE_SNIPER_ATTACKER_NAMED_BALANCE.txt)と[simulation-results/v105-calibration-summary.json](simulation-results/v105-calibration-summary.json)を参照してください。
 
 ---
 
@@ -397,7 +397,7 @@
 - 同じ射点へ居続けず、左右の安全な射点へ移動
 - バッグワームと遮蔽物を活かして再配置
 
-壁越しの攻撃は、通常弾、狙撃、近接、爆発、予告範囲、霧、炎床、フラッグ攻撃を含めて遮蔽されます。v104では壁空間インデックスを使い、近傍の壁だけを調べることで同じ判定を軽量化しています。
+壁越しの攻撃は、通常弾、狙撃、近接、爆発、予告範囲、霧、炎床、フラッグ攻撃を含めて遮蔽されます。v105では壁空間インデックスを使い、近傍の壁だけを調べることで同じ判定を軽量化しています。
 
 ---
 
@@ -413,7 +413,7 @@
 - 隊員別の平均与ダメージ、撃破、死亡、練度
 - マップ別の試合時間と引き分け率
 
-`simulation-results/latest.json`は大規模基準結果、`simulation-results/v104-calibration-summary.json`はv104調整時の390試合検証結果です。シミュレーション順位はゲームバランス確認用であり、原作の公式戦績そのものではありません。
+`simulation-results/latest.json`は大規模基準結果、`simulation-results/v105-calibration-summary.json`はv105調整時の390試合検証結果です。シミュレーション順位はゲームバランス確認用であり、原作の公式戦績そのものではありません。
 
 ---
 
@@ -482,7 +482,7 @@
 ├─ styles.css                画面デザイン
 ├─ README.md                 取扱説明書・更新履歴
 ├─ 攻略本.md                 戦術・攻略情報
-├─ V104_PERFORMANCE_SNIPER_ATTACKER_NAMED_BALANCE.txt
+├─ V105_PERFORMANCE_SNIPER_ATTACKER_NAMED_BALANCE.txt
 ├─ js/
 │  ├─ game.js                ゲーム本体、描画、AI、各モード
 │  ├─ v77-features.js        ネームドAI、部隊戦術、追加機能
@@ -492,7 +492,7 @@
 │  ├─ community.js           ユーザー、フレンド、隊、ランキング
 │  └─ online-config.js       Supabase接続設定
 ├─ simulation/               バッチ・ローカルシミュレーション
-├─ simulation-results/       基準結果・v104調整結果
+├─ simulation-results/       基準結果・v105調整結果
 ├─ supabase-schema.sql       データベース構成
 ├─ supabase-registration-*.sql
 ├─ ONLINE_SETUP.md

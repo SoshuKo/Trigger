@@ -56,8 +56,8 @@ async function runOne(index) {
       const result = await page.evaluate(async ({ scenario: runScenario, seed: runSeed, index: runIndex }) => {
         return await window.TRION_SIMULATION_API.runMatch({ ...runScenario, seed: runSeed, matchIndex: runIndex });
       }, { scenario, seed, index });
-      result.gameVersion = Math.max(104, Number(result.gameVersion || 0));
-      result.featureVersion = 104;
+      result.gameVersion = Math.max(105, Number(result.gameVersion || 0));
+      result.featureVersion = 105;
       if (scenario.league) result.league = scenario.league;
       if (attempt > 0) retryEvents.push({ matchIndex: index, seed, recoveredOnAttempt: attempt + 1 });
       return { ok: true, result, seed, attempts: attempt + 1 };
@@ -74,7 +74,7 @@ async function runOne(index) {
 
 try {
   await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 0 });
-  await page.waitForFunction(() => Boolean(window.TRION_SIMULATION_API?.runMatch) && Number(window.TRION_NAMED_AUDIT?.version || 0) >= 104, null, { timeout: 0 });
+  await page.waitForFunction(() => Boolean(window.TRION_SIMULATION_API?.runMatch) && Number(window.TRION_NAMED_AUDIT?.version || 0) >= 105, null, { timeout: 0 });
   for (let index = shard; index < matches; index += shardCount) {
     const outcome = await runOne(index);
     if (outcome.ok) {

@@ -90,11 +90,11 @@
     if (button.getAttribute('aria-label')!==nextLabel) button.setAttribute('aria-label',nextLabel);
   }
   function loadV77() {
-    if (!document.querySelector('link[data-v77]')) { const l=document.createElement('link'); l.rel='stylesheet'; l.href='v77-features.css?v=104'; l.dataset.v77='1'; document.head.appendChild(l); }
-    if (!document.querySelector('link[data-simulation-v102]')) { const l=document.createElement('link'); l.rel='stylesheet'; l.href='v102-simulation-dashboard.css?v=104'; l.dataset.simulationV102='1'; document.head.appendChild(l); }
-    if (!document.querySelector('script[data-v77]')) { const s=document.createElement('script'); s.src='js/v77-features.js?v=104'; s.defer=true; s.dataset.v77='1'; document.head.appendChild(s); }
-    if (!document.querySelector('script[data-simulation-v102]')) { const s=document.createElement('script'); s.src='js/simulation-dashboard-v102.js?v=104'; s.defer=true; s.dataset.simulationV102='1'; document.head.appendChild(s); }
-    document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 104');
+    if (!document.querySelector('link[data-v77]')) { const l=document.createElement('link'); l.rel='stylesheet'; l.href='v77-features.css?v=105'; l.dataset.v77='1'; document.head.appendChild(l); }
+    if (!document.querySelector('link[data-simulation-v102]')) { const l=document.createElement('link'); l.rel='stylesheet'; l.href='v102-simulation-dashboard.css?v=105'; l.dataset.simulationV102='1'; document.head.appendChild(l); }
+    if (!document.querySelector('script[data-v77]')) { const s=document.createElement('script'); s.src='js/v77-features.js?v=105'; s.defer=true; s.dataset.v77='1'; document.head.appendChild(s); }
+    if (!document.querySelector('script[data-simulation-v102]')) { const s=document.createElement('script'); s.src='js/simulation-dashboard-v102.js?v=105'; s.defer=true; s.dataset.simulationV102='1'; document.head.appendChild(s); }
+    document.querySelectorAll('.version-badge').forEach(el=>el.textContent='VERSION 105');
   }
   function setLanguage(nextLanguage) {
     language=nextLanguage==='en'?'en':'ja'; localStorage.setItem(STORAGE_KEY,language); applying=true; processElement(document.body); updateMetadata(); ensureToggle(); applying=false;

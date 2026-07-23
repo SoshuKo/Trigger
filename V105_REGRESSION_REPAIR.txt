@@ -1,0 +1,5 @@
+TRION ARENA VERSION 105
+
+Keeps v104 performance, sniper AI, attacker AI, named balance, and wall fixes.
+Restores v103 community UI, CSS, access counter schema, published simulation data,
+workflow sharding, mobility steering, frame-sensitive Kogetsu updates, and strategy guide.

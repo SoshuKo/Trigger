@@ -8,7 +8,7 @@ on:
         required: true
         default: '100'
       shards:
-        description: '各シナリオの分割数（1～16）'
+        description: '通常シナリオの分割数（1～16、リーグ戦は1分割。256ジョブ以内へ自動調整）'
         required: true
         default: '4'
       publish_pages:
@@ -67,7 +67,7 @@ jobs:
             --scenario '${{ matrix.scenario }}' \
             --matches '${{ inputs.matches }}' \
             --shard '${{ matrix.shard }}' \
-            --shard-count '${{ inputs.shards }}' \
+            --shard-count '${{ matrix.shardCount }}' \
             --retries 2 \
             --max-failure-rate 0.12 \
             --output 'simulation-output/${{ matrix.scenario }}-${{ matrix.shard }}.json'
