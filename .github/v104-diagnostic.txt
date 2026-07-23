@@ -1,0 +1,12 @@
+base64_expected=b6e866c5d3cf86b026b645192c249bb766878a559ea75ed1331cbb49e6ec63cb
+base64_actual=b6e866c5d3cf86b026b645192c249bb766878a559ea75ed1331cbb49e6ec63cb
+base64_bytes=51912
+decode_ok=1
+gzip_expected=c1e9620caaa57d4aa561a0eb1450a0abb7f92578cff4694f36243bab3dc4f4bd
+gzip_actual=c1e9620caaa57d4aa561a0eb1450a0abb7f92578cff4694f36243bab3dc4f4bd
+gzip_ok=1
+patch_expected=af9d0e8fedd8c95b41cc2897f1bd2f725bbef295e921a38512022f653c774a66
+patch_actual=af9d0e8fedd8c95b41cc2897f1bd2f725bbef295e921a38512022f653c774a66
+apply_ok=0
+error: patch failed: #U653b#U7565#U672c.md:1
+error: #U653b#U7565#U672c.md: patch does not apply
