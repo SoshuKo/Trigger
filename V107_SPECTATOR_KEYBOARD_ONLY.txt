@@ -1,0 +1,7 @@
+TRION ARENA VERSION 107
+
+- Removed the large spectator operation panel.
+- Kept AUTO, LOCK and FREE spectator camera modes.
+- Kept Q/E target switching, WASD/arrow free camera movement, +/- zoom and 0 reset.
+- Kept mouse wheel zoom and field dragging.
+- Kept the enhanced Sogetsu, Full Arms and Geist support AI from VERSION 106.
