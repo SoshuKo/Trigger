@@ -2,7 +2,7 @@
 
 『ワールドトリガー』のトリガー戦闘を題材にした、見下ろし型の非公式ブラウザゲームです。一般隊員同士の個人戦・チーム戦、フラッグを守る防衛戦、防衛戦ユニットを操作できるエキストラモードを遊べます。
 
-> **対応バージョン:** 107
+> **対応バージョン:** 108
 > 本作は非公式ファンゲームです。公式画像、公式音源、公式ロゴ、公式ゲームデータは使用していません。
 
 ## ドキュメント
@@ -14,6 +14,13 @@
 - **[GitHubへの反映](GITHUB_PUSH.md):** 更新ファイルをGitHubへ送る手順
 
 ## 更新履歴
+### VERSION 108 - Spectator zoom rendering fix
+
+- Preserves device-pixel-ratio while spectator zoom is active.
+- Clears the full canvas before each scaled spectator frame.
+- Prevents zoom-out from exceeding battlefield bounds.
+- Distribution package contains no OBS-related files.
+
 
 ### VERSION 106 — 観戦カメラ・防衛助っ人AI強化
 ### VERSION 107 — 観戦パネル撤去

@@ -1,0 +1,5 @@
+/* TRION ARENA VERSION 108: keyboard-only spectator camera controls */
+[id$="SpectatorControls"],
+[class*="spectator-controls"] {
+  display: none !important;
+}

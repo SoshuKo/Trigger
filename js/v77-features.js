@@ -1124,7 +1124,7 @@
     try{
       const desc=Object.getOwnPropertyDescriptor(window,'__TRION_GAME__');if(desc&&!desc.configurable)return;
       let value=window.__TRION_GAME__;
-      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{if(next.simulationMode)applySimulationNamed(next);else applyNamed(next);patchGame(next);}catch(error){console.error('[v107 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
+      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{if(next.simulationMode)applySimulationNamed(next);else applyNamed(next);patchGame(next);}catch(error){console.error('[v108 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
       if(value)patchGame(value);
     }catch(_){ }
   }
@@ -1138,12 +1138,12 @@
   const rosterObserver=new MutationObserver(()=>mountRoster(false));
   const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
   function syncV96TriggerDocs(){const data=window.WT_DATA?.triggers;if(!data)return;if(data.shooter_viper){data.shooter_viper.controls='発動：キューブ展開／Shift＋発動：分割／R：固定弾道を事前計算／再発動：射撃';data.shooter_viper.description='Rで射出前に固定弾道を計算できる変化弾。計算後は敵を追尾せず、表示された経路を通ります。';}if(data.spider){data.spider.description='通常ワイヤーは接触した敵を転倒させます。ばねワイヤーは味方の移動ルートとして利用できます。';}if(data.switchbox){data.switchbox.description='強化された攻撃・転倒拘束・加速トラップを設置します。工作手CPUは撤退しながら進路へ罠を配置します。';}}
-  function installSimulationApiV107(){const api=window.TRION_SIMULATION_API;if(!api||api.v107Wrapped||typeof api.runMatch!=='function')return;const oldRun=api.runMatch.bind(api);api.runMatch=async request=>{const result=await oldRun(request);if(result&&typeof result==='object'){result.gameVersion=Math.max(107,Number(result.gameVersion||0));result.featureVersion=107;result.namedSimulation=true;}return result;};api.version=107;api.v107Wrapped=true;}
-  installSimulationApiV107();
-  window.TRION_NAMED_AUDIT={version:107,agents:Object.keys(NAMED_BEHAVIORS),tunedAgents:Object.keys(NAMED_TUNING_OVERRIDES),count:Object.keys(NAMED_BEHAVIORS).length,allExplicitlyTuned:Object.keys(NAMED_BEHAVIORS).every(name=>Boolean(NAMED_TUNING_OVERRIDES[name]))};
-  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=107;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 107';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 107');document.documentElement.dataset.gameVersion='107';}
+  function installSimulationApiV108(){const api=window.TRION_SIMULATION_API;if(!api||api.v108Wrapped||typeof api.runMatch!=='function')return;const oldRun=api.runMatch.bind(api);api.runMatch=async request=>{const result=await oldRun(request);if(result&&typeof result==='object'){result.gameVersion=Math.max(108,Number(result.gameVersion||0));result.featureVersion=108;result.namedSimulation=true;}return result;};api.version=108;api.v108Wrapped=true;}
+  installSimulationApiV108();
+  window.TRION_NAMED_AUDIT={version:108,agents:Object.keys(NAMED_BEHAVIORS),tunedAgents:Object.keys(NAMED_TUNING_OVERRIDES),count:Object.keys(NAMED_BEHAVIORS).length,allExplicitlyTuned:Object.keys(NAMED_BEHAVIORS).every(name=>Boolean(NAMED_TUNING_OVERRIDES[name]))};
+  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=107;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 108';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 108');document.documentElement.dataset.gameVersion='108';}
   syncVersionUI();
   let lastVersionSync=Date.now();
-  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);const now=Date.now();if(now-lastVersionSync>=1000){installSimulationApiV107();syncVersionUI();lastVersionSync=now;}document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},1000);
+  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);const now=Date.now();if(now-lastVersionSync>=1000){installSimulationApiV108();syncVersionUI();lastVersionSync=now;}document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},1000);
   window.addEventListener('beforeunload',()=>{clearInterval(timer);rosterObserver.disconnect();});
 })();

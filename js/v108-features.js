@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 107;
+  const VERSION = 108;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const lerp = (a, b, t) => a + (b - a) * t;
   const distance = (a, b) => Math.hypot((a?.x || 0) - (b?.x || 0), (a?.y || 0) - (b?.y || 0));
@@ -44,10 +44,15 @@
   }
 
   function virtualView(game, state = gameState(game)) {
-    const physicalW = Number(state.physicalViewW || game.viewW || game.canvas?.width || 1280);
-    const physicalH = Number(state.physicalViewH || game.viewH || game.canvas?.height || 720);
-    const zoom = clamp(Number(state.zoom) || 1, .45, 2.25);
-    return { physicalW, physicalH, width: physicalW / zoom, height: physicalH / zoom, zoom };
+    const dpr = Math.max(.5, Number(game?.dpr) || Number(window.devicePixelRatio) || 1);
+    const physicalW = Number(state.physicalViewW || game.viewW || (game.canvas?.width ? game.canvas.width / dpr : 0) || 1280);
+    const physicalH = Number(state.physicalViewH || game.viewH || (game.canvas?.height ? game.canvas.height / dpr : 0) || 720);
+    const worldW = Math.max(1, Number(game.world?.w) || physicalW);
+    const worldH = Math.max(1, Number(game.world?.h) || physicalH);
+    const minZoom = clamp(Math.max(physicalW / worldW, physicalH / worldH), .45, 1);
+    const zoom = clamp(Number(state.zoom) || 1, minZoom, 2.25);
+    if (Math.abs(Number(state.zoom) - zoom) > .0001) state.zoom = zoom;
+    return { physicalW, physicalH, width: physicalW / zoom, height: physicalH / zoom, zoom, minZoom, dpr };
   }
 
   function initializeFreeCenter(game, state = gameState(game)) {
@@ -87,7 +92,7 @@
     if (!isSpectating(game)) return;
     const state = gameState(game);
     const previous = virtualView(game, state);
-    const next = clamp(nextZoom, .45, 2.25);
+    const next = clamp(nextZoom, previous.minZoom, 2.25);
     if (Math.abs(next - state.zoom) < .001) return;
 
     if (state.mode === 'free') {
@@ -208,7 +213,7 @@
   }
 
   function supportState(unit) {
-    unit.v106SupportAI ||= {
+    unit.v108SupportAI ||= {
       decisionTimer: 0,
       targetId: null,
       targetLockTimer: 0,
@@ -219,7 +224,7 @@
       guardTimer: 0,
       targetRefreshTimer: 0,
     };
-    return unit.v106SupportAI;
+    return unit.v108SupportAI;
   }
 
   function supportEnemies(game, unit) {
@@ -270,7 +275,7 @@
     try {
       return Boolean(game.usePlayableDefenseAction?.(unit, hand, index, target, { ai: true, ...options }));
     } catch (error) {
-      console.warn('[v107 support action]', error);
+      console.warn('[v108 support action]', error);
       return false;
     }
   }
@@ -505,7 +510,11 @@
         const ctx = this.ctx;
         return withVirtualView(this, (view) => {
           ctx.save();
-          ctx.setTransform(view.zoom, 0, 0, view.zoom, 0, 0);
+          // Clear in device pixels first so zoom changes never leave stale strips.
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, this.canvas?.width || Math.ceil(view.physicalW * view.dpr), this.canvas?.height || Math.ceil(view.physicalH * view.dpr));
+          // Keep the game's DPR transform and apply spectator zoom on top of it.
+          ctx.setTransform(view.dpr * view.zoom, 0, 0, view.dpr * view.zoom, 0, 0);
           local.renderingScaled = true;
           try {
             return oldRender.apply(this, args);
@@ -558,7 +567,7 @@
   function installSimulationApi() {
     const api = window.TRION_SIMULATION_API;
     if (!api || typeof api.runMatch !== 'function') return;
-    if (api.runMatch !== simulationBase && !api.runMatch.v107Wrapped) {
+    if (api.runMatch !== simulationBase && !api.runMatch.v108Wrapped) {
       const base = api.runMatch.bind(api);
       const wrapped = async (request) => {
         const result = await base(request);
@@ -570,12 +579,12 @@
         }
         return result;
       };
-      wrapped.v107Wrapped = true;
+      wrapped.v108Wrapped = true;
       simulationBase = wrapped;
       api.runMatch = wrapped;
     }
     api.version = VERSION;
-    api.v107Wrapped = true;
+    api.v108Wrapped = true;
   }
 
   function syncVersion() {
@@ -668,10 +677,12 @@
     syncVersion();
     captureGame();
     installSimulationApi();
-    window.TRION_V107_AUDIT = {
+    window.TRION_V108_AUDIT = {
       version: VERSION,
       spectatorModes: ['auto','lock','free'],
       zoomRange: [.45, 2.25],
+      dprSafeZoom: true,
+      worldFitClamp: true,
       supportTypes: [...SUPPORT_TYPES],
     };
     const timer = window.setInterval(() => {
