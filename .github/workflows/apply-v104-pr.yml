@@ -19,34 +19,65 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Detect transfer payload
-        id: payload
+      - name: Reconstruct, diagnose, apply and validate
         shell: bash
         run: |
-          if [ -f .github/v104-release-patch/part-00 ]; then
-            echo 'present=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'present=false' >> "$GITHUB_OUTPUT"
+          set -u
+          if [ ! -f .github/v104-release-patch/part-00 ]; then
+            echo 'Transfer payload already removed; nothing to do.'
+            exit 0
           fi
 
-      - name: Reconstruct and apply validated patch
-        if: steps.payload.outputs.present == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
+          EXPECT_B64='b6e866c5d3cf86b026b645192c249bb766878a559ea75ed1331cbb49e6ec63cb'
+          EXPECT_GZ='c1e9620caaa57d4aa561a0eb1450a0abb7f92578cff4694f36243bab3dc4f4bd'
+          EXPECT_PATCH='af9d0e8fedd8c95b41cc2897f1bd2f725bbef295e921a38512022f653c774a66'
+          DIAG=.github/v104-diagnostic.txt
+          : > "$DIAG"
+
           cat .github/v104-release-patch/part-* > /tmp/v104-release.patch.gz.b64
-          echo 'b6e866c5d3cf86b026b645192c249bb766878a559ea75ed1331cbb49e6ec63cb  /tmp/v104-release.patch.gz.b64' | sha256sum -c -
-          base64 --decode /tmp/v104-release.patch.gz.b64 > /tmp/v104-release.patch.gz
-          echo 'c1e9620caaa57d4aa561a0eb1450a0abb7f92578cff4694f36243bab3dc4f4bd  /tmp/v104-release.patch.gz' | sha256sum -c -
-          gzip -dc /tmp/v104-release.patch.gz > /tmp/v104-release.patch
-          echo 'af9d0e8fedd8c95b41cc2897f1bd2f725bbef295e921a38512022f653c774a66  /tmp/v104-release.patch' | sha256sum -c -
-          git apply --check /tmp/v104-release.patch
+          ACTUAL_B64=$(sha256sum /tmp/v104-release.patch.gz.b64 | awk '{print $1}')
+          echo "base64_expected=$EXPECT_B64" >> "$DIAG"
+          echo "base64_actual=$ACTUAL_B64" >> "$DIAG"
+          echo "base64_bytes=$(wc -c < /tmp/v104-release.patch.gz.b64)" >> "$DIAG"
+
+          DECODE_OK=1
+          base64 --decode /tmp/v104-release.patch.gz.b64 > /tmp/v104-release.patch.gz 2>/tmp/v104-base64.err || DECODE_OK=0
+          echo "decode_ok=$DECODE_OK" >> "$DIAG"
+          cat /tmp/v104-base64.err >> "$DIAG"
+
+          ACTUAL_GZ='unavailable'
+          ACTUAL_PATCH='unavailable'
+          GZIP_OK=0
+          APPLY_OK=0
+          if [ "$DECODE_OK" = 1 ]; then
+            ACTUAL_GZ=$(sha256sum /tmp/v104-release.patch.gz | awk '{print $1}')
+            echo "gzip_expected=$EXPECT_GZ" >> "$DIAG"
+            echo "gzip_actual=$ACTUAL_GZ" >> "$DIAG"
+            gzip -dc /tmp/v104-release.patch.gz > /tmp/v104-release.patch 2>/tmp/v104-gzip.err && GZIP_OK=1
+            echo "gzip_ok=$GZIP_OK" >> "$DIAG"
+            cat /tmp/v104-gzip.err >> "$DIAG"
+          fi
+          if [ "$GZIP_OK" = 1 ]; then
+            ACTUAL_PATCH=$(sha256sum /tmp/v104-release.patch | awk '{print $1}')
+            echo "patch_expected=$EXPECT_PATCH" >> "$DIAG"
+            echo "patch_actual=$ACTUAL_PATCH" >> "$DIAG"
+            git apply --check /tmp/v104-release.patch > /tmp/v104-apply.out 2>/tmp/v104-apply.err && APPLY_OK=1
+            echo "apply_ok=$APPLY_OK" >> "$DIAG"
+            cat /tmp/v104-apply.out /tmp/v104-apply.err >> "$DIAG"
+          fi
+
+          if [ "$ACTUAL_B64" != "$EXPECT_B64" ] || [ "$ACTUAL_GZ" != "$EXPECT_GZ" ] || [ "$ACTUAL_PATCH" != "$EXPECT_PATCH" ] || [ "$APPLY_OK" != 1 ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add "$DIAG"
+            git diff --cached --quiet || git commit -m 'Record v104 transfer diagnostics'
+            git push origin HEAD:${{ github.head_ref }}
+            exit 1
+          fi
+
+          rm -f "$DIAG"
           git apply --index /tmp/v104-release.patch
 
-      - name: Validate v104 release
-        if: steps.payload.outputs.present == 'true'
-        shell: bash
-        run: |
           set -euo pipefail
           node --check js/game.js
           node --check js/i18n.js
@@ -64,21 +95,12 @@ jobs:
           test -f simulation-results/v104-calibration-summary.json
           ! grep -q 'VERSION 103' index.html
 
-      - name: Remove transfer-only files
-        if: steps.payload.outputs.present == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
           rm -rf .github/v104-release-patch
           rm -f .github/v104-archive-url.txt
           rm -f .github/workflows/apply-v104-release.yml
+          rm -f .github/v104-diagnostic.txt
           git add -A
 
-      - name: Commit release branch
-        if: steps.payload.outputs.present == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'Release v104 performance and role AI balance update'
