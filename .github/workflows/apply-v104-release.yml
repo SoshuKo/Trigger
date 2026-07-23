@@ -1,0 +1,72 @@
+name: Apply v104 release
+
+on:
+  push:
+    branches:
+      - release-v104-performance-role-ai-docs
+    paths:
+      - .github/workflows/apply-v104-release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and apply validated patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/v104-release-patch/part-* > /tmp/v104-release.patch.gz.b64
+          echo 'b6e866c5d3cf86b026b645192c249bb766878a559ea75ed1331cbb49e6ec63cb  /tmp/v104-release.patch.gz.b64' | sha256sum -c -
+          base64 --decode /tmp/v104-release.patch.gz.b64 > /tmp/v104-release.patch.gz
+          echo 'c1e9620caaa57d4aa561a0eb1450a0abb7f92578cff4694f36243bab3dc4f4bd  /tmp/v104-release.patch.gz' | sha256sum -c -
+          gzip -dc /tmp/v104-release.patch.gz > /tmp/v104-release.patch
+          echo 'af9d0e8fedd8c95b41cc2897f1bd2f725bbef295e921a38512022f653c774a66  /tmp/v104-release.patch' | sha256sum -c -
+          git apply --check /tmp/v104-release.patch
+          git apply --index /tmp/v104-release.patch
+
+      - name: Validate v104 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check js/game.js
+          node --check js/i18n.js
+          node --check js/v77-features.js
+          node --check simulation/common.mjs
+          node --check simulation/matrix.mjs
+          node --check simulation/merge-results.mjs
+          node --check simulation/run-batch.mjs
+          grep -q 'GAME_VERSION = 104' js/game.js
+          grep -q 'VERSION 104' index.html
+          grep -q '"version": "104.0.0"' package.json
+          grep -q 'VERSION 104' README.md
+          test -f '攻略本.md'
+          test -f V104_PERFORMANCE_SNIPER_ATTACKER_NAMED_BALANCE.txt
+          test -f simulation-results/v104-calibration-summary.json
+          ! grep -q 'VERSION 103' index.html
+
+      - name: Remove transfer-only files
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .github/v104-release-patch
+          rm -f .github/v104-archive-url.txt
+          rm -f .github/workflows/apply-v104-release.yml
+          git add -A
+
+      - name: Commit release branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Release v104 performance and role AI balance update'
+          git push origin HEAD:release-v104-performance-role-ai-docs
