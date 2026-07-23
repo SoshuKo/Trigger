@@ -1,0 +1,7 @@
+VERSION 103
+- Swept X/Y wall collision prevents thin-wall crossing.
+- Wall contact preserves tangent movement.
+- Deep overlap correction is capped to prevent visible warps.
+- Extra feature-layer wall recovery scans were removed.
+- Narrow-passage navigation margins were reduced.
+- Sniper damage remains Egret 58 / Lightning 33 / Ibis 84.
