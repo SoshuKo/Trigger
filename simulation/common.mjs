@@ -185,7 +185,7 @@ export function buildGameConfig(rawScenario, defaults = {}) {
     soundEnabled: false,
     beginnerSkill: 'none',
     keyBindings: {},
-    gameVersion: 104,
+    gameVersion: 102,
     simulationMode: true,
     teamConfig: {
       playerName: participants.player.name,

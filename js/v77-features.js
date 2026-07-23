@@ -94,7 +94,7 @@
     EMA:{style:'sniper',preferredRange:720,aggression:.62,defense:.74,special:'coverSnipe'},
     IKOMA:{style:'senku',preferredRange:300,aggression:.9,defense:.72,special:'ikomaSenku'},
     MIZUKAMI:{style:'controller',preferredRange:380,aggression:.62,defense:.8,special:'tactician'},
-    OKI:{style:'mobileSniper',preferredRange:720,aggression:.62,defense:.74,special:'mobileSnipe'},
+    OKI:{style:'mobileSniper',preferredRange:600,aggression:.7,defense:.7,special:'mobileSnipe'},
     MINAMISAWA:{style:'rush',preferredRange:80,aggression:.98,defense:.55,special:'rush'},
     OJI:{style:'hunter',preferredRange:180,aggression:.88,defense:.8,special:'leaderHunter'},
     KURAUCHI:{style:'controller',preferredRange:360,aggression:.7,defense:.78,special:'compositeControl'},
@@ -110,9 +110,9 @@
     TONOOKA:{style:'watcher',preferredRange:760,aggression:.45,defense:.82,special:'priorityWatch'},
     KURUMA:{style:'gunner',preferredRange:300,aggression:.72,defense:.82,special:'fullAttackWithMurakami'},
     MURAKAMI:{style:'tank',preferredRange:90,aggression:.78,defense:.98,special:'learningGuard'},
-    BETSUYAKU:{style:'terrainSniper',preferredRange:720,aggression:.48,defense:.82,special:'escudoTerrain'},
-    ARAFUNE:{style:'hybridSniper',preferredRange:720,aggression:.58,defense:.86,special:'hybrid'},
-    HOKARI:{style:'sniper',preferredRange:760,aggression:.52,defense:.78,special:'spreadSnipe'},
+    BETSUYAKU:{style:'terrainSniper',preferredRange:650,aggression:.52,defense:.8,special:'escudoTerrain'},
+    ARAFUNE:{style:'hybridSniper',preferredRange:520,aggression:.74,defense:.82,special:'hybrid'},
+    HOKARI:{style:'sniper',preferredRange:680,aggression:.62,defense:.74,special:'spreadSnipe'},
     HANZAKI:{style:'precisionSniper',preferredRange:850,aggression:.45,defense:.82,special:'precision'},
     KATORI:{style:'adaptive',preferredRange:140,aggression:.96,defense:.64,special:'adaptive'},
     MIURA:{style:'bodyguard',preferredRange:90,aggression:.72,defense:.9,special:'guardLeader'},
@@ -132,31 +132,31 @@
     KUGA:{offense:1.23,defense:1.08,cooldown:.66,reaction:.57,aim:.68,speed:1.22,hp:1.06,trion:1.04},
     AMATORI:{offense:1.36,defense:1.09,cooldown:.84,reaction:.7,aim:.54,trion:1.55,hp:.97,speed:.97},
     HYUSE:{offense:1.18,defense:1.15,cooldown:.73,reaction:.64,aim:.61,trion:1.30,hp:1.08,speed:1.06},
-    KAGEURA:{offense:1.38,defense:1.18,cooldown:.58,reaction:.52,aim:.72,speed:1.18,hp:1.11,trion:1.04},
-    KITAZOE:{offense:1.23,defense:1.12,cooldown:.72,reaction:.78,aim:.74,hp:1.10,trion:1.18,speed:.98},
-    EMA:{offense:1.25,defense:1.10,cooldown:.68,reaction:.64,aim:.52,hp:1.00,trion:1.06,speed:1.02},
-    IKOMA:{offense:1.23,defense:1.07,cooldown:.76,reaction:.70,aim:.68,speed:1.06,hp:1.07,trion:1.04},
-    MIZUKAMI:{offense:1.00,defense:1.03,cooldown:.80,reaction:.57,aim:.57,hp:1.02,trion:1.00,speed:1.00},
-    OKI:{offense:1.16,defense:1.08,cooldown:.68,reaction:.60,aim:.54,hp:1.02,trion:1.08,speed:1.12},
-    MINAMISAWA:{offense:1.18,defense:1.02,cooldown:.70,reaction:.62,aim:.76,hp:1.10,trion:1.00,speed:1.18},
-    OJI:{offense:1.14,defense:1.09,cooldown:.73,reaction:.58,aim:.61,speed:1.13,hp:1.07,trion:1.05},
-    KURAUCHI:{offense:1.10,defense:1.07,cooldown:.75,reaction:.59,aim:.56,hp:1.04,trion:1.09,speed:1.02},
-    KASHIO:{offense:1.18,defense:1.10,cooldown:.70,reaction:.60,aim:.68,hp:1.10,trion:1.02,speed:1.17},
+    KAGEURA:{offense:1.27,defense:1.11,cooldown:.68,reaction:.54,aim:.74,speed:1.17,hp:1.10,trion:1.03},
+    KITAZOE:{offense:1.14,defense:1.08,cooldown:.82,reaction:.78,aim:.74,hp:1.10,trion:1.18,speed:.98},
+    EMA:{offense:1.16,defense:1.05,cooldown:.76,reaction:.64,aim:.52,hp:1.00,trion:1.06,speed:1.02},
+    IKOMA:{offense:1.25,defense:1.08,cooldown:.74,reaction:.69,aim:.68,speed:1.07,hp:1.08,trion:1.04},
+    MIZUKAMI:{offense:1.08,defense:1.10,cooldown:.69,reaction:.57,aim:.57,hp:1.02,trion:1.00,speed:1.00},
+    OKI:{offense:1.10,defense:1.04,cooldown:.73,reaction:.64,aim:.58,hp:1.00,trion:1.08,speed:1.12},
+    MINAMISAWA:{offense:1.20,defense:.98,cooldown:.68,reaction:.66,aim:.78,hp:1.08,trion:1.00,speed:1.18},
+    OJI:{offense:1.17,defense:1.12,cooldown:.70,reaction:.61,aim:.63,speed:1.12,hp:1.05,trion:1.04},
+    KURAUCHI:{offense:1.11,defense:1.09,cooldown:.69,reaction:.62,aim:.58,hp:1.02,trion:1.07,speed:1.01},
+    KASHIO:{offense:1.16,defense:1.05,cooldown:.69,reaction:.64,aim:.70,hp:1.06,trion:1.00,speed:1.15},
     AZUMA:{offense:1.20,defense:1.19,cooldown:.70,reaction:.53,aim:.42,hp:1.06,trion:1.08,speed:1.03},
     KOARAI:{offense:1.17,defense:1.06,cooldown:.69,reaction:.66,aim:.76,hp:1.08,trion:1.00,speed:1.14},
     OKUDERA:{offense:1.12,defense:1.15,cooldown:.72,reaction:.63,aim:.72,hp:1.10,trion:1.00,speed:1.09},
     NASU:{offense:1.21,defense:1.07,cooldown:.67,reaction:.58,aim:.47,speed:1.10,hp:.99,trion:1.13},
-    KUMAGAI:{offense:1.06,defense:1.10,cooldown:.78,reaction:.68,aim:.72,hp:1.09,trion:1.00,speed:1.05},
+    KUMAGAI:{offense:1.12,defense:1.17,cooldown:.74,reaction:.66,aim:.72,hp:1.12,trion:1.00,speed:1.07},
     HIURA:{offense:1.12,defense:1.04,cooldown:.75,reaction:.65,aim:.54,hp:1.01,trion:1.00,speed:1.04},
-    YUBA:{offense:1.38,defense:1.13,cooldown:.50,reaction:.48,aim:.50,speed:1.14,hp:1.07,trion:1.05},
+    YUBA:{offense:1.29,defense:1.07,cooldown:.55,reaction:.48,aim:.50,speed:1.14,hp:1.07,trion:1.05},
     OBISHIMA:{offense:1.13,defense:1.08,cooldown:.72,reaction:.69,aim:.67,speed:1.13,hp:1.06,trion:1.00},
     TONOOKA:{offense:1.13,defense:1.10,cooldown:.75,reaction:.58,aim:.46,speed:1.04,hp:1.00,trion:1.04},
     KURUMA:{offense:1.10,defense:1.14,cooldown:.74,reaction:.66,aim:.66,hp:1.09,trion:1.04,speed:1.00},
     MURAKAMI:{offense:1.15,defense:1.23,cooldown:.71,reaction:.60,aim:.68,hp:1.22,trion:1.05,speed:1.02},
     BETSUYAKU:{offense:1.07,defense:1.06,cooldown:.74,reaction:.67,aim:.56,hp:1.03,trion:1.00,speed:1.05},
-    ARAFUNE:{offense:1.28,defense:1.17,cooldown:.62,reaction:.61,aim:.52,hp:1.08,trion:1.04,speed:1.06},
-    HOKARI:{offense:1.22,defense:1.10,cooldown:.66,reaction:.68,aim:.57,hp:1.04,trion:1.04,speed:1.06},
-    HANZAKI:{offense:1.29,defense:1.09,cooldown:.65,reaction:.58,aim:.39,hp:1.00,trion:1.00,speed:.99},
+    ARAFUNE:{offense:1.16,defense:1.12,cooldown:.72,reaction:.61,aim:.52,hp:1.08,trion:1.04,speed:1.06},
+    HOKARI:{offense:1.11,defense:1.05,cooldown:.76,reaction:.68,aim:.57,hp:1.04,trion:1.04,speed:1.06},
+    HANZAKI:{offense:1.19,defense:1.04,cooldown:.75,reaction:.58,aim:.39,hp:1.00,trion:1.00,speed:.99},
     KATORI:{offense:1.22,defense:1.02,cooldown:.63,reaction:.56,aim:.65,speed:1.18,hp:1.05,trion:1.05},
     MIURA:{offense:1.13,defense:1.18,cooldown:.71,reaction:.64,aim:.71,hp:1.11,trion:1.00,speed:1.07},
     WAKAMURA:{offense:1.06,defense:1.12,cooldown:.76,reaction:.75,aim:.68,hp:1.06,trion:1.04,speed:1.00},
@@ -166,23 +166,6 @@
     KAKIZAKI:{offense:1.08,defense:1.20,cooldown:.76,reaction:.66,aim:.66,hp:1.15,trion:1.04,speed:1.00},
     TERUYA:{offense:1.13,defense:1.13,cooldown:.70,reaction:.58,aim:.59,hp:1.08,trion:1.04,speed:1.07},
     TOMOE:{offense:1.15,defense:1.06,cooldown:.68,reaction:.63,aim:.67,hp:1.06,trion:1.00,speed:1.14}
-  };
-  // v104: 2026-07-22 generated league (12,596 matches) calibration.
-  // This corrects systemic role/roster bias while preserving each agent's individual tuning.
-  const SQUAD_BALANCE_V104={
-    ninomiya:{offense:1.29,defense:1.19,cooldown:.84,reaction:.86,hp:1.09,trion:1.07,think:.70},
-    tamakoma2:{offense:1.00,defense:1.00,cooldown:1.00,reaction:1.00,hp:1.00,think:1.00},
-    kageura:{offense:1.20,defense:1.14,cooldown:.84,reaction:.90,speed:1.055,hp:1.08,trion:1.035,think:.75},
-    ikoma:{offense:1.12,defense:1.07,cooldown:.90,reaction:.92,speed:1.025,hp:1.015,think:.83},
-    oji:{offense:1.56,defense:1.40,cooldown:.64,reaction:.64,speed:1.14,hp:1.21,trion:1.12,think:.46},
-    azuma:{offense:.89,defense:.93,cooldown:1.08,reaction:1.06,hp:.97,think:1.12},
-    nasu:{offense:.96,defense:.97,cooldown:1.06,reaction:1.03,hp:.98,think:1.08},
-    yuba:{offense:1.17,defense:1.10,cooldown:.91,reaction:.91,speed:1.05,hp:1.05,think:.86},
-    kuruma:{offense:.80,defense:.84,cooldown:1.18,reaction:1.12,hp:.92,think:1.30},
-    arafune:{offense:.78,defense:.85,cooldown:1.22,reaction:1.15,hp:.91,trion:.98,think:1.30},
-    katori:{offense:.70,defense:.78,cooldown:1.28,reaction:1.18,hp:.86,think:1.42},
-    suwa:{offense:.96,defense:.98,cooldown:1.05,reaction:1.03,hp:1.00,think:1.08},
-    kakizaki:{offense:.61,defense:.67,cooldown:1.38,reaction:1.28,speed:.88,hp:.76,trion:.87,think:1.62},
   };
   function namedAgentData(name){for(const squad of SQUADS){const agent=squad.agents.find(a=>a.en===name);if(agent)return agent;}return null;}
   function namedTuningFor(name){
@@ -198,14 +181,7 @@
       hp:clamp(.96+combat*.012,1,1.16),
       trion:clamp(.94+trion*.025,1,1.3)
     };
-    const tuned=Object.assign(base,NAMED_TUNING_OVERRIDES[name]||{});
-    const squad=SQUADS.find(item=>item.agents.some(agent=>agent.en===name));
-    const balance=SQUAD_BALANCE_V104[squad?.id]||{};
-    for(const key of ['offense','defense','cooldown','reaction','aim','speed','hp','trion']) if(Number.isFinite(balance[key])) tuned[key]*=balance[key];
-    tuned.cooldown=clamp(tuned.cooldown,.46,1.35);tuned.reaction=clamp(tuned.reaction,.38,1.35);tuned.aim=clamp(tuned.aim,.34,1.25);
-    tuned.offense=clamp(tuned.offense,.68,1.75);tuned.defense=clamp(tuned.defense,.72,1.55);tuned.speed=clamp(tuned.speed,.82,1.38);tuned.hp=clamp(tuned.hp,.72,1.55);tuned.trion=clamp(tuned.trion,.78,1.65);
-    tuned.think=Number(balance.think)||1;
-    return tuned;
+    return Object.assign(base,NAMED_TUNING_OVERRIDES[name]||{});
   }
   function applyNamedTuning(p){
     if(!p?.v78Named||p.v96TuningApplied)return;
@@ -294,21 +270,21 @@
   function squadOrders(g){return g.v100SquadOrders||(g.v100SquadOrders={});}
   function orderTarget(g,p,target,ttl=2200){if(!target)return;squadOrders(g)[p.team]={targetId:target.id,until:mobilityNow()+ttl,issuer:p.v78Named};}
   function orderedTarget(g,p,enemies){const order=squadOrders(g)[p.team];if(!order||mobilityNow()>order.until)return null;return enemies.find(e=>e.id===order.targetId)||null;}
-  function hasWallBetween(g,a,b){if(typeof g.findBlockingWall==='function')return Boolean(g.findBlockingWall(a.x,a.y,b.x,b.y,3));for(const w of g.walls||[]){if(!w||!Number.isFinite(w.x)||!Number.isFinite(w.w))continue;const cx=w.x+w.w/2,cy=w.y+w.h/2,r=Math.hypot(w.w,w.h)*.42;if(segDist(a.x,a.y,b.x,b.y,cx,cy).d<r)return true;}return false;}
+  function hasWallBetween(g,a,b){for(const w of g.walls||[]){if(!w||!Number.isFinite(w.x)||!Number.isFinite(w.w))continue;const cx=w.x+w.w/2,cy=w.y+w.h/2,r=Math.hypot(w.w,w.h)*.42;if(segDist(a.x,a.y,b.x,b.y,cx,cy).d<r)return true;}return false;}
   function projectileThreatFor(g,p,horizon=.9){let best=null;for(const q of g.projectiles||[]){if(q.ownerId===p.id||(q.team===p.team&&(g.config?.mode==='team'||g.isDefenseMode)))continue;const rx=q.x-p.x,ry=q.y-p.y,rvx=(q.vx||0)-(p.vx||0),rvy=(q.vy||0)-(p.vy||0),vv=rvx*rvx+rvy*rvy;if(vv<1)continue;const t=-(rx*rvx+ry*rvy)/vv;if(t<0||t>horizon)continue;const miss=Math.hypot(rx+rvx*t,ry+rvy*t);if(miss>(p.radius||18)+(q.radius||5)+24)continue;if(!best||t<best.t)best={q,t,angle:Math.atan2(-rvy,-rvx)};}return best;}
   function strafe(p,target,amount,side=stableSide(p)){const a=Math.atan2(target.y-p.y,target.x-p.x)+side*Math.PI/2;p.vx=(p.vx||0)+Math.cos(a)*amount;p.vy=(p.vy||0)+Math.sin(a)*amount;}
   function maintainRange(p,target,desired,b,dt){const d=Math.hypot(target.x-p.x,target.y-p.y);if(d>desired*1.13)nudgeToward(p,target.x,target.y,(b.aggression||.7)*36*dt);else if(d<desired*.78)nudgeAway(p,target.x,target.y,(b.defense||.7)*42*dt);else strafe(p,target,18*dt);return d;}
   function setAimLead(p,target,lead=.3){p.aim=Math.atan2(target.y+(target.vy||0)*lead-p.y,target.x+(target.vx||0)*lead-p.x);}
   function markShotProfile(p,profile){p.v100ShotProfile=profile;}
   function activateGuard(g,p){if(hasTrigger(p,'shield'))return useNamedTrigger(g,p,'shield');if(hasTrigger(p,'raygust'))return useNamedTrigger(g,p,'raygust',{shift:true});return false;}
-  function updateNamedStatus(g,dt){for(const p of g.players||[]){if((p.v100Restrained||0)>0){p.v100Restrained=Math.max(0,p.v100Restrained-dt);p.vx=(p.vx||0)*Math.max(0,1-dt*8);p.vy=(p.vy||0)*Math.max(0,1-dt*8);p.ai=p.ai||{};p.ai.attackTimer=Math.max(p.ai.attackTimer||0,p.v100Restrained+.15);}if(p.v78Named==='MURAKAMI'){delete p.v79DefenseScale;}if(p.v78Squad==='kakizaki'){const near=(g.players||[]).filter(a=>a!==p&&!a.dead&&a.team===p.team&&a.v78Squad==='kakizaki'&&Math.hypot(a.x-p.x,a.y-p.y)<230).length;p.v100FormationDefense=near>=2?1.04:near?1.02:1;}else p.v100FormationDefense=1;}}
+  function updateNamedStatus(g,dt){for(const p of g.players||[]){if((p.v100Restrained||0)>0){p.v100Restrained=Math.max(0,p.v100Restrained-dt);p.vx=(p.vx||0)*Math.max(0,1-dt*8);p.vy=(p.vy||0)*Math.max(0,1-dt*8);p.ai=p.ai||{};p.ai.attackTimer=Math.max(p.ai.attackTimer||0,p.v100Restrained+.15);}if(p.v78Named==='MURAKAMI'){delete p.v79DefenseScale;}if(p.v78Squad==='kakizaki'){const near=(g.players||[]).filter(a=>a!==p&&!a.dead&&a.team===p.team&&a.v78Squad==='kakizaki'&&Math.hypot(a.x-p.x,a.y-p.y)<230).length;p.v100FormationDefense=near>=2?1.10:near?1.05:1;}else p.v100FormationDefense=1;}}
   function tagCanonicalProjectiles(g,p,before){const profile=p?.v100ShotProfile;if(!profile)return;for(const key of ['projectiles','bullets','shots']){const arr=g[key];if(!Array.isArray(arr))continue;for(let i=before[key]||0;i<arr.length;i++){const q=arr[i],owner=q?.ownerId??q?.playerId??q?.sourceId??q?.owner?.id;if(owner!==p.id&&q?.owner!==p&&q?.source!==p)continue;if(profile.kind==='ninomiyaSmall'){q.radius=Math.max(2,(q.radius||6)*.64);q.damage=(q.damage||10)*.72;q.vx*=1.24;q.vy*=1.24;q.speed=(q.speed||Math.hypot(q.vx||0,q.vy||0))*1.24;}
         if(profile.kind==='ninomiyaLarge'){q.radius=(q.radius||6)*1.52;q.damage=(q.damage||10)*1.38;q.vx*=.76;q.vy*=.76;q.speed=(q.speed||Math.hypot(q.vx||0,q.vy||0))*.76;}
         if(profile.kind==='mikumoSlow'){q.damage=(q.damage||10)*1.18;q.vx*=.30;q.vy*=.30;q.speed=(q.speed||Math.hypot(q.vx||0,q.vy||0))*.30;q.life=(q.life||1)*2.1;q.v100PlacedShot=true;}
         if(profile.kind==='chikaLead'){q.lead=true;q.shieldPierce=true;q.leadWeight=3+Math.floor((p.stats?.trion||0)/5);q.damage=0;q.vx*=.86;q.vy*=.86;q.speed=(q.speed||Math.hypot(q.vx||0,q.vy||0))*.86;}
         if(profile.kind==='tonookaWatch'){q.damage=(q.damage||10)*1.18;q.vx*=1.08;q.vy*=1.08;}
       }}delete p.v100ShotProfile;}
-  function namedDamageAdjustment(target,amount,source,meta){const key=String(meta?.sourceKey||meta?.name||meta?.type||'unknown');if(source?.v96Tuning?.offense)amount*=source.v96Tuning.offense;if(target?.v96Tuning?.defense)amount/=target.v96Tuning.defense;if(target?.v78Named==='MURAKAMI'){target.v100LearnedSources=target.v100LearnedSources||{};const seen=Number(target.v100LearnedSources[key]||0);amount*=Math.max(.68,1-seen*.065);target.v100LearnedSources[key]=Math.min(5,seen+1);}if(target?.v78Named==='KUGA'){target.v100ObservedSources=target.v100ObservedSources||{};const seen=Number(target.v100ObservedSources[key]||0);amount*=Math.max(.84,1-seen*.035);target.v100ObservedSources[key]=Math.min(4,seen+1);}if(target?.v78Named==='KAGEURA'&&source&&meta?.type!=='hazard'&&meta?.type!=='explosion')amount*=.80;if(target?.v100FormationDefense)amount/=target.v100FormationDefense;return amount;}
+  function namedDamageAdjustment(target,amount,source,meta){const key=String(meta?.sourceKey||meta?.name||meta?.type||'unknown');if(target?.v78Named==='MURAKAMI'){target.v100LearnedSources=target.v100LearnedSources||{};const seen=Number(target.v100LearnedSources[key]||0);amount*=Math.max(.68,1-seen*.065);target.v100LearnedSources[key]=Math.min(5,seen+1);}if(target?.v78Named==='KUGA'){target.v100ObservedSources=target.v100ObservedSources||{};const seen=Number(target.v100ObservedSources[key]||0);amount*=Math.max(.84,1-seen*.035);target.v100ObservedSources[key]=Math.min(4,seen+1);}if(target?.v78Named==='KAGEURA'&&source&&meta?.type!=='hazard'&&meta?.type!=='explosion')amount*=.88;if(target?.v100FormationDefense)amount/=target.v100FormationDefense;return amount;}
   function applyNamedBehavior(g,p,dt){
     const b=NAMED_BEHAVIORS[p.v78Named];if(!b||p.dead||p.human)return;
     p.v79Behavior=b;p.ai=p.ai||{};if(mobilityNow()<Number(p.ai.v98HazardUntil||0))return;const state=namedState(p);p.v79Think=Math.max(0,(p.v79Think||0)-dt);
@@ -320,7 +296,7 @@
     if(['guardLeader','bodyguard'].includes(b.special)&&leader)target=targetThreatening(g,leader,enemies)||target;
     setAiTarget(p,target);if(!target)return;setAimLead(p,target,.08+(p.stats?.technique||0)*.018);
     let d=maintainRange(p,target,b.preferredRange||240,b,dt);
-    if(p.v79Think>0)return;p.v79Think=(.24+Math.random()*.18)*(p.v96Tuning?.reaction||1)*(p.v96Tuning?.think||1);
+    if(p.v79Think>0)return;p.v79Think=(.12+Math.random()*.12)*(p.v96Tuning?.reaction||1);
     const now=mobilityNow(),side=stableSide(p),name=p.v78Named;
     switch(name){
       case 'NINOMIYA':{
@@ -802,7 +778,7 @@
     for(let wi=(g.wires||[]).length-1;wi>=0;wi--){const w=g.wires[wi];if(w?.mode!=='spring')continue;w.ttl=(Number(w.ttl)||0)-dt;if(w.ttl<=0||w.hp<=0){g.wires.splice(wi,1);continue;}w.v97CooldownUntil=w.v97CooldownUntil&&typeof w.v97CooldownUntil==='object'?w.v97CooldownUntil:{};
       for(const p of g.players||[]){const key=String(p.id);if(!mobilityAlly(g,w,p)||now<Number(w.v94ArmedAt||0)||now<Number(w.v97CooldownUntil[key]||0))continue;const crossing=springWireCrossing(p,w);if(!crossing)continue;w.v97CooldownUntil[key]=now+720;mobilityBoost(g,p,crossing.angle,Number(w.springPower)||760,'springWire',{forwardCarry:.18,tangentCarry:.72});}
     }
-    const hasRouteDevices=(g.v94MobilityPads||[]).length>0||(g.wires||[]).some(w=>w?.mode==='spring');for(const p of g.players||[]){steerAfterMobility(p,dt);if(hasRouteDevices&&!p.human&&!p.dead){const target=nearestEnemy(g,p,760);if(target)cpuUseExistingMobility(g,p,target,dt);}}
+    for(const p of g.players||[]){steerAfterMobility(p,dt);if(!p.human&&!p.dead){const target=nearestEnemy(g,p,760);if(target)cpuUseExistingMobility(g,p,target,dt);}}
   }
   function drawRouteArrow(ctx,x,y,angle,size,color,alpha=.9){ctx.save();ctx.translate(x,y);ctx.rotate(angle);ctx.globalAlpha=alpha;ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=1.35;ctx.beginPath();ctx.moveTo(-size*.7,0);ctx.lineTo(size*.55,0);ctx.stroke();ctx.beginPath();ctx.moveTo(size*.65,0);ctx.lineTo(size*.15,-size*.35);ctx.lineTo(size*.15,size*.35);ctx.closePath();ctx.fill();ctx.restore();}
   function drawMobilityRoutes(g){const ctx=g?.ctx||g?.context;if(!ctx)return;const now=mobilityNow();ctx.save();
@@ -1050,7 +1026,7 @@
   function hideNinomiyaNativeCubes(g){const n=(g.players||[]).find(p=>p.v78Named==='NINOMIYA');const saved={charges:n?.shooterCharges,groups:[]};if(n&&n.shooterCharges)n.shooterCharges={};for(const key of ['projectiles','bullets','shots']){const arr=g[key];if(!Array.isArray(arr))continue;const filtered=arr.filter(item=>!projectileOwnerIsNinomiya(g,item));if(filtered.length!==arr.length){saved.groups.push([key,arr]);g[key]=filtered;}}return()=>{if(n&&saved.charges)n.shooterCharges=saved.charges;for(const [key,arr] of saved.groups)g[key]=arr;};}
   function tagNewNinomiyaProjectiles(g,p,before){if(p?.v78Named!=='NINOMIYA')return;for(const [key,count] of Object.entries(before)){const arr=g[key];if(!Array.isArray(arr))continue;for(const item of arr.slice(count)){if(item&&typeof item==='object'){item.v86Tetra=true;item.v88SpinSeed??=Math.random()*Math.PI*2;item.ownerId??=p.id;}}}}
 
-  function patchGame(g){if(!g||!g.constructor)return;currentGame=g;if(g.simulationMode)applySimulationNamed(g);else applyNamed(g);window.requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));const proto=Object.getPrototypeOf(g);if(patchedProto===proto)return;patchedProto=proto;
+  function patchGame(g){if(!g||!g.constructor)return;currentGame=g;applyNamed(g);window.requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));const proto=Object.getPrototypeOf(g);if(patchedProto===proto)return;patchedProto=proto;
     const oldLogCombatDetail=proto.logCombatDetail;if(typeof oldLogCombatDetail==='function')proto.logCombatDetail=function(type,player=null,detail={},store=true){let safeDetail;try{safeDetail=safeLogValue(detail);}catch(_){safeDetail={message:String(detail?.message||`${player?.name||'SYSTEM'} ${type}`),sanitized:true};}if(!safeDetail||typeof safeDetail!=='object'||Array.isArray(safeDetail))safeDetail={value:safeDetail};return oldLogCombatDetail.call(this,type,player,safeDetail,store);};
     const oldDangerAvoidance=proto.updateAIDangerAvoidance;if(typeof oldDangerAvoidance==='function')proto.updateAIDangerAvoidance=function(p,dt){if(oldDangerAvoidance.call(this,p,dt))return true;return avoidPlacedHazards(this,p,dt);};
     const oldUseMelee=proto.useMelee;proto.useMelee=function(p,hand,trigger,options){if((p?.v96Knockdown||0)>0)return false;if(trigger?.id==='scorpion'&&moleClaw(this,p,true)){this.setCooldown?.(p,hand,Math.max(.28,(Number(trigger?.cooldown)||.34)*.8));this.revealOnAttack?.(p,1.2);return true;}const out=typeof oldUseMelee==='function'?oldUseMelee.call(this,p,hand,trigger,options):false;if(out&&trigger?.id==='kogetsu'&&p?.v96KogetsuBranchReady&&mobilityNow()<(p.v96KogetsuBranchUntil||0)){p.v96KogetsuBranchReady=false;p.v96KogetsuBranchUntil=0;const slot=`${hand}:${p.selected?.[hand]??0}`;if(Number.isFinite(p.cooldowns?.[slot]))p.cooldowns[slot]*=.52;battleTimeout(this,p,()=>{if(p.dead)return;this.performSlash?.(p,(Number(trigger.range)||94)*1.18,(Number(trigger.damage)||28)*.68,.72,'kogetsuBranch');(this.effects||=[]).push({type:'justCut',x:p.x,y:p.y,angle:p.aim,radius:(p.radius||18)+28,ttl:.26,maxTtl:.26,color:'#e8fdff'});},85);if(p.human)flash('弧月・ジャスト派生');}return out;};
@@ -1058,30 +1034,15 @@
     const oldSlash=proto.performSlash;proto.performSlash=function(p,range,damage,arc,style){const before=this.effects?.length||0,result=typeof oldSlash==='function'?oldSlash.call(this,p,range,damage,arc,style):false;if(style==='kogetsu'&&this.effects?.length>before){const e=this.effects[this.effects.length-1],speed=clamp(.42-(p.stats?.combat||0)*.028,.12,.38);e.ttl=e.maxTtl=speed;e.v77Draw=true;}return result;};
     const oldWire=proto.placeWire;proto.placeWire=function(p,hand,trigger){const ok=typeof oldWire==='function'?oldWire.call(this,p,hand,trigger):false;if(ok){const wires=Array.isArray(this.wires)?this.wires:[];const w=wires[wires.length-1];if(w&&p.spiderMode){const now=mobilityNow();w.mode='spring';w.v94MobilityWire=true;w.v94PlacedAt=now;w.v94ArmedAt=now+(p.human?130:70);w.v94Inside={};w.v97CooldownUntil={};w.springPower=700+(p.stats?.combat||0)*29;w.hp=Math.max(w.hp||0,48);w.ttl=p.human?Math.min(Math.max(Number(w.ttl)||30,10),36):Math.min(Math.max(Number(w.ttl)||8,4),9);w.preferredLaunchAngle=Number.isFinite(p.v94MobilityAngle)?p.v94MobilityAngle:null;capOwnerDevices(wires,p.id,p.human?4:1,item=>item?.mode==='spring');}else if(w){w.v96TripWire=true;w.mode='normal';w.hp=Math.max(Number(w.hp)||0,34+(p.stats?.technique||0)*2);w.ttl=Math.min(Math.max(Number(w.ttl)||28,12),36);w.v96TripHits={};}}return ok;};
     const oldGrass=proto.grasshopper;proto.grasshopper=function(p,hand,trigger){if(p.human&&shiftHeld){settings.grasshopperMode=settings.grasshopperMode==='placed'?'instant':'placed';save();flash(`グラスホッパー：${settings.grasshopperMode==='placed'?'設置':'即時使用'}`);return true;}if((p.human&&settings.grasshopperMode==='placed')||p.v77PlaceGrasshopper){if(!this.consumeTrion?.(p,Number(trigger?.cost)||0))return false;const aimed=p.human?this.getHumanAimPoint?.(p,210):null,intended=Number.isFinite(p.v94MobilityAngle)?p.v94MobilityAngle:null,target=aimed&&Number.isFinite(aimed.x)&&Number.isFinite(aimed.y)?aimed:{x:p.x+Math.cos(intended??p.aim)*120,y:p.y+Math.sin(intended??p.aim)*120},dx=target.x-p.x,dy=target.y-p.y,d=Math.hypot(dx,dy)||1,angle=intended??Math.atan2(dy,dx),travel=p.human?Math.min(Math.max(d,78),250):Math.min(Math.max(d,82),125),x=p.x+dx/d*travel,y=p.y+dy/d*travel,now=mobilityNow();this.v94MobilityPads=Array.isArray(this.v94MobilityPads)?this.v94MobilityPads:[];this.v94MobilityPads.push({id:`v97-pad-${now}-${Math.random()}`,x,y,radius:24,team:p.team,ownerId:p.id,ttl:p.human?6:3.6,armedAt:now+(p.human?160:90),hp:38,v94MobilityPad:true,v94PlacedAt:now,launchAngle:angle,power:710+(p.stats?.combat||0)*30,uses:1,v94Inside:{},v97CooldownUntil:{}});capOwnerDevices(this.v94MobilityPads,p.id,p.human?2:1);(this.effects||=[]).push({type:'grasshopper',x,y,angle,ttl:.62,maxTtl:.62,v94Route:true});this.setCooldown?.(p,hand,Math.max(.38,(Number(trigger?.cooldown)||.56)*.8));return true;}if(!this.consumeTrion?.(p,Number(trigger?.cost)||0))return false;const power=650+(p.stats?.combat||0)*34;mobilityBoost(this,p,Number(p.aim)||0,power,'instantGrasshopper',{forwardCarry:.28,tangentCarry:.5});this.setCooldown?.(p,hand,Math.max(.32,(Number(trigger?.cooldown)||.56)*.68));return true;};
-    const oldUpdate=proto.update;proto.update=function(dt){
-      if(this.simulationMode)applySimulationNamed(this);
-      convertLegacyGrassPads(this);
-      for(const p of this.players||[]){sanitizeAiState(p);p.v97PrevX=Number(p.x)||0;p.v97PrevY=Number(p.y)||0;if((p.v96Knockdown||0)>0){p.ai=p.ai||{};p.ai.attackTimer=Math.max(p.ai.attackTimer||0,p.v96Knockdown+.2);}}
-      const hasSpecialWires=(this.wires||[]).some(w=>w?.v96TripWire||w?.mode==='spring'),hasEngineerTraps=(this.traps||[]).some(t=>t?.v96EngineerTrap);
-      const specialWires=hasSpecialWires?(this.wires||[]).filter(w=>w?.v96TripWire||w?.mode==='spring'):[],coreWires=hasSpecialWires?(this.wires||[]).filter(w=>!w?.v96TripWire&&w?.mode!=='spring'):(this.wires||[]),engineerTraps=hasEngineerTraps?(this.traps||[]).filter(t=>t?.v96EngineerTrap):[],coreTraps=hasEngineerTraps?(this.traps||[]).filter(t=>!t?.v96EngineerTrap):(this.traps||[]);
-      this.v98HazardSnapshot={wires:specialWires.filter(w=>w?.v96TripWire),traps:engineerTraps};this.wires=coreWires;this.traps=coreTraps;
-      let out;try{out=typeof oldUpdate==='function'?oldUpdate.call(this,dt):undefined;}finally{if(hasSpecialWires)this.wires=[...(this.wires||[]),...specialWires];if(hasEngineerTraps)this.traps=[...(this.traps||[]),...engineerTraps];delete this.v98HazardSnapshot;}
-      if(hasEngineerTraps)updateEngineerTraps(this,dt);if(hasSpecialWires||this.v94MobilityPads?.length)updateMobilityRoutes(this,dt);updateViperRoutes(this,dt);if(hasSpecialWires)updateTripWires(this,dt);
-      this.v104FeatureEffectTimer=Math.max(0,(this.v104FeatureEffectTimer||0)-dt);if(this.v104FeatureEffectTimer<=0){updateEngineerTrapEffects(this);updateNamedStatus(this,.16);this.v104FeatureEffectTimer=.16;}
-      for(const p of this.players||[]){
-        applyNamedTuning(p);if(p.v96NamedSpeed&&Number.isFinite(p.speed))p.speed=Math.max(p.speed,p.v96NamedSpeed);
-        for(const hand of ['main','sub']){const sh=p.shields?.[hand];if(!sh)continue;const coverage=clamp(settings.shieldCoverage,.15,1),thickness=1/coverage;sh.v77Coverage=coverage;sh.arc=(sh.baseArc||sh.arc||1.3)*(.55+coverage*.8);sh.radius=(sh.baseRadius||sh.radius||70)*(.65+coverage*.75);sh.hp=Math.max(sh.hp||0,(sh.maxHp||80)*(.65+thickness*.65));}
-        p.v104FeatureAccumulator=(p.v104FeatureAccumulator||0)+dt;const featureStep=this.simulationMode ? .12 : .08;if(p.v104FeatureAccumulator>=featureStep){const step=Math.min(.2,p.v104FeatureAccumulator);p.v104FeatureAccumulator=0;applyNamedBehavior(this,p,step);cpuAdvancedTechniques(this,p,step);if(isEngineer(p))engineerTactics(this,p,step);updateKogetsuBranch(this,p,step);}
-        p.v104StallTimer=Math.max(0,(p.v104StallTimer||0)-dt);if(p.v104StallTimer<=0){updateStallRecovery(this,p,.22);p.v104StallTimer=.22;}
-      }
-      return out;
-    };
+    const oldUpdate=proto.update;proto.update=function(dt){if(this.simulationMode)applySimulationNamed(this);convertLegacyGrassPads(this);for(const p of this.players||[]){sanitizeAiState(p);p.v97PrevX=Number(p.x)||0;p.v97PrevY=Number(p.y)||0;if((p.v96Knockdown||0)>0){p.ai=p.ai||{};p.ai.attackTimer=Math.max(p.ai.attackTimer||0,p.v96Knockdown+.2);}}const specialWires=(this.wires||[]).filter(w=>w?.v96TripWire||w?.mode==='spring'),coreWires=(this.wires||[]).filter(w=>!w?.v96TripWire&&w?.mode!=='spring'),engineerTraps=(this.traps||[]).filter(t=>t?.v96EngineerTrap),coreTraps=(this.traps||[]).filter(t=>!t?.v96EngineerTrap);this.v98HazardSnapshot={wires:specialWires.filter(w=>w?.v96TripWire),traps:engineerTraps};this.wires=coreWires;this.traps=coreTraps;let out;try{out=typeof oldUpdate==='function'?oldUpdate.call(this,dt):undefined;}finally{this.wires=[...(this.wires||[]),...specialWires];this.traps=[...(this.traps||[]),...engineerTraps];delete this.v98HazardSnapshot;}updateEngineerTraps(this,dt);updateMobilityRoutes(this,dt);updateViperRoutes(this,dt);updateTripWires(this,dt);updateEngineerTrapEffects(this);updateNamedStatus(this,dt);for(const p of this.players||[]){applyNamedTuning(p);if(p.v96NamedSpeed&&Number.isFinite(p.speed))p.speed=Math.max(p.speed,p.v96NamedSpeed);for(const hand of ['main','sub']){const sh=p.shields?.[hand];if(!sh)continue;const coverage=clamp(settings.shieldCoverage,.15,1),thickness=1/coverage;sh.v77Coverage=coverage;sh.arc=(sh.baseArc||sh.arc||1.3)*(.55+coverage*.8);sh.radius=(sh.baseRadius||sh.radius||70)*(.65+coverage*.75);sh.hp=Math.max(sh.hp||0,(sh.maxHp||80)*(.65+thickness*.65));}applyNamedBehavior(this,p,dt);cpuAdvancedTechniques(this,p,dt);engineerTactics(this,p,dt);updateKogetsuBranch(this,p,dt);updateStallRecovery(this,p,dt);}return out;};
     const oldFireShooter=proto.fireShooter;if(oldFireShooter)proto.fireShooter=function(p,...args){const before={projectiles:Array.isArray(this.projectiles)?this.projectiles.length:0,bullets:Array.isArray(this.bullets)?this.bullets.length:0,shots:Array.isArray(this.shots)?this.shots.length:0};const out=oldFireShooter.call(this,p,...args);tagNewNinomiyaProjectiles(this,p,before);tagViperProjectiles(this,p,before);tagCanonicalProjectiles(this,p,before);return out;};
     const oldFireSniper=proto.fireSniper;if(oldFireSniper)proto.fireSniper=function(p,...args){const before={projectiles:Array.isArray(this.projectiles)?this.projectiles.length:0,bullets:Array.isArray(this.bullets)?this.bullets.length:0,shots:Array.isArray(this.shots)?this.shots.length:0};const out=oldFireSniper.call(this,p,...args);tagCanonicalProjectiles(this,p,before);return out;};
     const oldBeginShooterCharge=proto.beginShooterCharge;if(oldBeginShooterCharge)proto.beginShooterCharge=function(p,hand,trigger){if(trigger?.bullet==='viper'&&!p.human&&!p.v96ViperPlan)makeViperPlan(this,p,nearestEnemy(this,p,820));const out=oldBeginShooterCharge.call(this,p,hand,trigger);if(p?.shooterCharges?.[hand])p.shooterCharges[hand].v101StartedAt??=mobilityNow();if(p?.v78Named==='NINOMIYA'&&p.shooterCharges?.[hand]){p.shooterCharges[hand].v86Tetra=true;p.shooterCharges[hand].v88SpinSeed??=Math.random()*Math.PI*2;}return out;};
     const oldDamage=proto.damagePlayer;if(oldDamage)proto.damagePlayer=function(target,amount,source,meta){
       amount=namedDamageAdjustment(target,amount,source,meta||{});
-      if(target?.v79DefenseScale&&target?.v78Named!=='MURAKAMI'&&!target?.v96Tuning?.defense)amount/=target.v79DefenseScale;
+      if(target?.v79DefenseScale&&target?.v78Named!=='MURAKAMI')amount/=target.v79DefenseScale;
+      if(source?.v96Tuning)amount*=source.v96Tuning.offense||1;
+      if(target?.v96Tuning)amount/=target.v96Tuning.defense||1;
       if(source?.v78Named==='NINOMIYA'&&meta?.sourceKey?.includes('asteroid'))amount*=1.12;
       if(source?.v78Named==='YUBA'&&performance.now()<(source.v79QuickdrawUntil||0))amount*=1.18;
       if(source?.v78Named==='HANZAKI'&&meta?.type==='sniper')amount*=1.15;
@@ -1124,7 +1085,7 @@
     try{
       const desc=Object.getOwnPropertyDescriptor(window,'__TRION_GAME__');if(desc&&!desc.configurable)return;
       let value=window.__TRION_GAME__;
-      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{if(next.simulationMode)applySimulationNamed(next);else applyNamed(next);patchGame(next);}catch(error){console.error('[v104 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
+      Object.defineProperty(window,'__TRION_GAME__',{configurable:true,enumerable:true,get(){return value;},set(next){value=next;if(next){try{applyNamed(next);patchGame(next);}catch(error){console.error('[v103 game capture]',error);}requestAnimationFrame?.(()=>document.documentElement.classList.remove('v96-spawning'));}}});
       if(value)patchGame(value);
     }catch(_){ }
   }
@@ -1138,12 +1099,12 @@
   const rosterObserver=new MutationObserver(()=>mountRoster(false));
   const rosterRoot=document.querySelector('#cpuConfigList');if(rosterRoot)rosterObserver.observe(rosterRoot,{childList:true,subtree:true});
   function syncV96TriggerDocs(){const data=window.WT_DATA?.triggers;if(!data)return;if(data.shooter_viper){data.shooter_viper.controls='発動：キューブ展開／Shift＋発動：分割／R：固定弾道を事前計算／再発動：射撃';data.shooter_viper.description='Rで射出前に固定弾道を計算できる変化弾。計算後は敵を追尾せず、表示された経路を通ります。';}if(data.spider){data.spider.description='通常ワイヤーは接触した敵を転倒させます。ばねワイヤーは味方の移動ルートとして利用できます。';}if(data.switchbox){data.switchbox.description='強化された攻撃・転倒拘束・加速トラップを設置します。工作手CPUは撤退しながら進路へ罠を配置します。';}}
-  function installSimulationApiV104(){const api=window.TRION_SIMULATION_API;if(!api||api.v104Wrapped||typeof api.runMatch!=='function')return;const oldRun=api.runMatch.bind(api);api.runMatch=async request=>{const result=await oldRun(request);if(result&&typeof result==='object'){result.gameVersion=Math.max(104,Number(result.gameVersion||0));result.featureVersion=104;result.namedSimulation=true;}return result;};api.version=104;api.v104Wrapped=true;}
-  installSimulationApiV104();
-  window.TRION_NAMED_AUDIT={version:104,agents:Object.keys(NAMED_BEHAVIORS),tunedAgents:Object.keys(NAMED_TUNING_OVERRIDES),count:Object.keys(NAMED_BEHAVIORS).length,allExplicitlyTuned:Object.keys(NAMED_BEHAVIORS).every(name=>Boolean(NAMED_TUNING_OVERRIDES[name]))};
-  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=104;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 104';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 104');document.documentElement.dataset.gameVersion='104';}
+  function installSimulationApiV103(){const api=window.TRION_SIMULATION_API;if(!api||api.v103Wrapped||typeof api.runMatch!=='function')return;const oldRun=api.runMatch.bind(api);api.runMatch=async request=>{const result=await oldRun(request);if(result&&typeof result==='object'){result.gameVersion=Math.max(103,Number(result.gameVersion||0));result.featureVersion=103;result.namedSimulation=true;}return result;};api.version=103;api.v103Wrapped=true;}
+  installSimulationApiV103();
+  window.TRION_NAMED_AUDIT={version:103,agents:Object.keys(NAMED_BEHAVIORS),tunedAgents:Object.keys(NAMED_TUNING_OVERRIDES),count:Object.keys(NAMED_BEHAVIORS).length,allExplicitlyTuned:Object.keys(NAMED_BEHAVIORS).every(name=>Boolean(NAMED_TUNING_OVERRIDES[name]))};
+  function syncVersionUI(){syncV96TriggerDocs();if(window.TRION_SIMULATION_API)window.TRION_SIMULATION_API.version=103;document.querySelectorAll('.version-badge,[data-version],#version,.version').forEach(el=>{if(/VERSION\s*\d+/i.test(el.textContent||'')||el.matches('.version-badge,[data-version],#version'))el.textContent='VERSION 103';});document.title=document.title.replace(/VERSION\s*\d+/ig,'VERSION 103');document.documentElement.dataset.gameVersion='103';}
   syncVersionUI();
   let lastVersionSync=Date.now();
-  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);const now=Date.now();if(now-lastVersionSync>=1000){installSimulationApiV104();syncVersionUI();lastVersionSync=now;}document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},1000);
+  const timer=setInterval(()=>{const g=window.__TRION_GAME__;if(g&&g!==currentGame)patchGame(g);const now=Date.now();if(now-lastVersionSync>=1000){installSimulationApiV103();syncVersionUI();lastVersionSync=now;}document.querySelectorAll('.v77-trigger-panel').forEach(el=>el.remove());},1000);
   window.addEventListener('beforeunload',()=>{clearInterval(timer);rosterObserver.disconnect();});
 })();

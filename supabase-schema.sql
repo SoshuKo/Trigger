@@ -274,6 +274,13 @@ create table if not exists public.site_stats (
 );
 insert into public.site_stats(id,access_count) values(1,0) on conflict(id) do nothing;
 
+create table if not exists public.site_visit_daily (
+  user_id uuid not null,
+  visit_day date not null default current_date,
+  created_at timestamptz not null default now(),
+  primary key(user_id,visit_day)
+);
+
 -- Used only by the public registration Edge Function through the service-role key.
 create table if not exists public.registration_rate_limits (
   key_hash text primary key,
@@ -285,12 +292,14 @@ create table if not exists public.registration_rate_limits (
 alter table public.squads enable row level security;
 alter table public.squad_members enable row level security;
 alter table public.site_stats enable row level security;
+alter table public.site_visit_daily enable row level security;
 alter table public.registration_rate_limits enable row level security;
 
 -- Community tables are read and modified through security-definer RPCs only.
 drop policy if exists "squads direct access disabled" on public.squads;
 drop policy if exists "squad members direct access disabled" on public.squad_members;
 drop policy if exists "site stats direct access disabled" on public.site_stats;
+drop policy if exists "site visit daily direct access disabled" on public.site_visit_daily;
 
 create or replace function public.remove_friend(target_id uuid)
 returns boolean
@@ -453,11 +462,27 @@ set search_path=public
 as $$
 declare
   total bigint;
+  visitor uuid := auth.uid();
+  inserted_count integer := 0;
 begin
-  insert into public.site_stats(id,access_count,updated_at) values(1,1,now())
-  on conflict(id) do update set access_count=public.site_stats.access_count+1,updated_at=now()
-  returning access_count into total;
-  return total;
+  if visitor is not null then
+    insert into public.site_visit_daily(user_id,visit_day) values(visitor,current_date)
+    on conflict(user_id,visit_day) do nothing;
+    get diagnostics inserted_count = row_count;
+  else
+    inserted_count := 1;
+  end if;
+
+  if inserted_count > 0 then
+    insert into public.site_stats(id,access_count,updated_at) values(1,1,now())
+    on conflict(id) do update set access_count=public.site_stats.access_count+1,updated_at=now()
+    returning access_count into total;
+  else
+    select access_count into total from public.site_stats where id=1;
+  end if;
+
+  if random()<0.01 then delete from public.site_visit_daily where visit_day<current_date-30; end if;
+  return coalesce(total,0);
 end;
 $$;
 

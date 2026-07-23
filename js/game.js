@@ -94,7 +94,7 @@
     turret: { label: '固定砲台', cost: 40, cooldown: 16, ttl: 92, maxActive: 4 },
     decoy: { label: '囮ビーコン', cost: 16, cooldown: 8, ttl: 48, maxActive: 5 },
   };
-  const GAME_VERSION = 104;
+  const GAME_VERSION = 103;
   const MASTERY_RANKS = [
     { id:'C', min:0, color:'#9fb0b8' },
     { id:'B-', min:22, color:'#7fc7df' },
@@ -6784,7 +6784,6 @@
       this.updateLightSources(dt);
       this.updateGasFields(dt);
       this.updateSubwaySystems(dt);
-      this.rebuildWallSpatialIndex();
       if (this.isPlayerOperator) this.updateOperatorCamera(dt);
       else if (this.isPlayerCombatant && !this.spectating) this.updateHuman(dt);
       for (const player of [...this.players]) {
@@ -6815,8 +6814,8 @@
       if (this.isOnlineHost) this.updateOnlineHost(dt);
       this.debugRefreshTimer -= dt;
       if (this.debugRefreshTimer <= 0) {
-        if (this.debugVisible || !$('#debugPanel')?.classList.contains('hidden')) this.updateDebugPanel();
-        this.debugRefreshTimer = this.debugVisible ? .35 : .8;
+        this.updateDebugPanel();
+        this.debugRefreshTimer = .35;
       }
     }
 
@@ -7874,64 +7873,10 @@
       }
     }
 
-    rebuildWallSpatialIndex(force = false) {
-      const walls = Array.isArray(this.walls) ? this.walls : [];
-      const firstId = walls[0]?.id || '';
-      const lastId = walls[walls.length - 1]?.id || '';
-      const structureChanged = this._wallSpatialWallsRef !== walls || this._wallSpatialCount !== walls.length
-        || this._wallSpatialFirstId !== firstId || this._wallSpatialLastId !== lastId;
-      if (!force && this._wallSpatialIndex && !structureChanged && this.elapsed < (this._wallSpatialRefreshAt || 0)) return;
-      const cellSize = 224;
-      const grid = new Map();
-      for (const wall of walls) {
-        if (!wall || wall.hp <= 0 || wall.nonBlocking) continue;
-        const x = Number(wall.x), y = Number(wall.y), w = Number(wall.w), h = Number(wall.h);
-        if (![x,y,w,h].every(Number.isFinite) || w <= 0 || h <= 0) continue;
-        const minCellX = Math.floor(x / cellSize), maxCellX = Math.floor((x + w) / cellSize);
-        const minCellY = Math.floor(y / cellSize), maxCellY = Math.floor((y + h) / cellSize);
-        for (let cy = minCellY; cy <= maxCellY; cy++) for (let cx = minCellX; cx <= maxCellX; cx++) {
-          const key = `${cx}:${cy}`;
-          const bucket = grid.get(key);
-          if (bucket) bucket.push(wall); else grid.set(key, [wall]);
-        }
-      }
-      this._wallSpatialIndex = { cellSize, grid };
-      this._wallSpatialWallsRef = walls;
-      this._wallSpatialCount = walls.length;
-      this._wallSpatialFirstId = firstId;
-      this._wallSpatialLastId = lastId;
-      this._wallSpatialRefreshAt = this.elapsed + .25;
-    }
-
-    getBlockingWallsInBounds(minX, minY, maxX, maxY) {
-      this.rebuildWallSpatialIndex();
-      const index = this._wallSpatialIndex;
-      if (!index) return [];
-      const cellSize = index.cellSize;
-      const minCellX = Math.floor(minX / cellSize), maxCellX = Math.floor(maxX / cellSize);
-      const minCellY = Math.floor(minY / cellSize), maxCellY = Math.floor(maxY / cellSize);
-      const seen = new Set();
-      const result = [];
-      for (let cy = minCellY; cy <= maxCellY; cy++) for (let cx = minCellX; cx <= maxCellX; cx++) {
-        for (const wall of index.grid.get(`${cx}:${cy}`) || []) {
-          if (seen.has(wall)) continue;
-          seen.add(wall);
-          if (!wall || wall.hp <= 0 || wall.nonBlocking) continue;
-          if (wall.x > maxX || wall.x + wall.w < minX || wall.y > maxY || wall.y + wall.h < minY) continue;
-          result.push(wall);
-        }
-      }
-      return result;
-    }
-
-    getNearbyBlockingWalls(x, y, padding = 0) {
-      const radius = Math.max(0, Number(padding) || 0);
-      return this.getBlockingWallsInBounds(x - radius, y - radius, x + radius, y + radius);
-    }
-
     playerWallOverlapAt(p, x, y, radius = Math.max(4, (Number(p?.radius) || 18) - .2)) {
       const probe = { x, y, radius };
-      for (const wall of this.getNearbyBlockingWalls(x, y, radius + 2)) {
+      for (const wall of this.walls) {
+        if (!wall || wall.hp <= 0 || wall.nonBlocking) continue;
         if (circleRectOverlap(probe, wall)) return wall;
       }
       return null;
@@ -7939,17 +7884,10 @@
 
     movePlayerWithWallSlide(p, dt) {
       const radius = Math.max(4, (Number(p.radius) || 18) - .2);
+      const walls = this.walls;
       const startX = Number(p.x);
       const startY = Number(p.y);
-      const rawNextX = startX + (Number(p.vx) || 0) * dt;
-      const rawNextY = startY + (Number(p.vy) || 0) * dt;
-      const walls = this.getBlockingWallsInBounds(
-        Math.min(startX, rawNextX) - radius - 2,
-        Math.min(startY, rawNextY) - radius - 2,
-        Math.max(startX, rawNextX) + radius + 2,
-        Math.max(startY, rawNextY) + radius + 2,
-      );
-      let nextX = clamp(rawNextX, radius, this.world.w - radius);
+      let nextX = clamp(startX + (Number(p.vx) || 0) * dt, radius, this.world.w - radius);
       let blockedX = false;
       if (nextX > startX + .0001) {
         for (const wall of walls) {
@@ -8148,7 +8086,7 @@
 
     resolveWallCollision(p, options = {}) {
       const maxCorrection = options.fullCorrection ? Infinity : 2.25;
-      for (const wall of this.getNearbyBlockingWalls(p.x, p.y, (Number(p.radius) || 18) + 4)) {
+      for (const wall of this.walls) {
         if (!wall || wall.hp <= 0 || wall.nonBlocking || !circleRectOverlap(p, wall)) continue;
         const closestX = clamp(p.x, wall.x, wall.x + wall.w);
         const closestY = clamp(p.y, wall.y, wall.y + wall.h);
@@ -8262,189 +8200,6 @@
       };
       p.ai.engagementPointTimer = rand(1.35, 2.35);
       return p.ai.engagementPoint;
-    }
-
-    getAISniperDirective(p, target, band, dt) {
-      if (!p || !target) return null;
-      p.ai ||= {};
-      p.ai.sniperDirectiveTimer = Math.max(0, (p.ai.sniperDirectiveTimer || 0) - dt);
-      const distanceToTarget = Math.hypot(target.x - p.x, target.y - p.y);
-      let nearestEnemy = target;
-      let nearestEnemyDistance = distanceToTarget;
-      let closestAllyDistance = Infinity;
-      const allies = [];
-      for (const unit of this.players) {
-        if (!unit || unit === p || unit.dead || unit.isDefenseEnemy) continue;
-        if (unit.team === p.team) {
-          allies.push(unit);
-          closestAllyDistance = Math.min(closestAllyDistance, Math.hypot(target.x - unit.x, target.y - unit.y));
-        } else if (this.canDamage(p, unit)) {
-          const enemyDistance = Math.hypot(unit.x - p.x, unit.y - p.y);
-          if (enemyDistance < nearestEnemyDistance) { nearestEnemy = unit; nearestEnemyDistance = enemyDistance; }
-        }
-      }
-      const frontline = allies.length > 0 && distanceToTarget <= closestAllyDistance + 135;
-      const minimum = Math.max(700, Number(band?.min || 520) * 1.18);
-      const desired = clamp(Math.max(820, Number(band?.preferred || 840)), 820, 1020);
-      const maximum = Math.max(desired + 190, Number(band?.max || 900) * 1.10);
-      const clearShot = !this.findBlockingWall(p.x, p.y, target.x, target.y, 3);
-      const emergencyRetreat = nearestEnemyDistance < 720;
-      const underPressure = emergencyRetreat || distanceToTarget < minimum || frontline;
-
-      const cached = p.ai.sniperDirective;
-      if (cached && p.ai.sniperDirectiveTimer > 0 && cached.targetId === target.id
-        && !(emergencyRetreat && cached.hold) && this.isAINavPointOpen(cached.x, cached.y, p.radius)) return cached;
-
-      if (!underPressure && clearShot && distanceToTarget >= minimum && distanceToTarget <= maximum) {
-        const side = p.ai.strafe || 1;
-        const tangent = Math.atan2(p.y - target.y, p.x - target.x) + side * Math.PI / 2;
-        const hold = {
-          type:'sniperHold', targetId:target.id, hold:true,
-          x:clamp(p.x + Math.cos(tangent) * 28, 55, this.world.w - 55),
-          y:clamp(p.y + Math.sin(tangent) * 28, 55, this.world.h - 55),
-          label:'味方後方の射撃位置を維持',
-        };
-        p.ai.sniperDirective = hold;
-        p.ai.sniperDirectiveTimer = .48;
-        return hold;
-      }
-
-      const side = p.ai.strafe || 1;
-      const candidates = [];
-      if (emergencyRetreat) {
-        const baseAngle = Math.atan2(p.y - nearestEnemy.y, p.x - nearestEnemy.x);
-        for (const offset of [0, side*.24, -side*.24, side*.48, -side*.48, side*.76, -side*.76]) {
-          const angle = baseAngle + offset;
-          const distance = nearestEnemyDistance < 470 ? 520 : 390;
-          const point = {
-            x:clamp(p.x + Math.cos(angle) * distance, 55, this.world.w - 55),
-            y:clamp(p.y + Math.sin(angle) * distance, 55, this.world.h - 55),
-          };
-          if (!this.isAINavPointOpen(point.x, point.y, p.radius)) continue;
-          if (this.findBlockingWall(p.x, p.y, point.x, point.y, Math.max(4, p.radius - .4))) continue;
-          const targetRange = Math.hypot(target.x - point.x, target.y - point.y);
-          const behindPenalty = Number.isFinite(closestAllyDistance) && targetRange < closestAllyDistance + 150 ? 420 : 0;
-          candidates.push({...point,type:'sniperEmergency',targetId:target.id,label:'前線から緊急離脱',score:behindPenalty + Math.abs(targetRange-desired)});
-        }
-      } else {
-        const baseAngle = Math.atan2(p.y - target.y, p.x - target.x);
-        for (const offset of [0, side*.28, -side*.28, side*.55, -side*.55, side*.86, -side*.86]) {
-          const angle = baseAngle + offset;
-          const range = underPressure ? desired + 110 : desired;
-          const point = {
-            x:clamp(target.x + Math.cos(angle) * range, 55, this.world.w - 55),
-            y:clamp(target.y + Math.sin(angle) * range, 55, this.world.h - 55),
-          };
-          if (!this.isAINavPointOpen(point.x, point.y, p.radius)) continue;
-          const travel = Math.hypot(point.x - p.x, point.y - p.y);
-          const shotBlocked = this.findBlockingWall(point.x, point.y, target.x, target.y, 3) ? 210 : 0;
-          let enemyCrowd = 0;
-          for (const unit of this.players) if (this.canDamage(p, unit) && Math.hypot(unit.x - point.x, unit.y - point.y) < 470) enemyCrowd += 1;
-          const targetRange = Math.hypot(target.x - point.x, target.y - point.y);
-          const behindPenalty = Number.isFinite(closestAllyDistance) && targetRange < closestAllyDistance + 150 ? 420 : 0;
-          const worldCorner = this.isAINearWorldCorner(point.x, point.y, 130) ? 160 : 0;
-          candidates.push({...point,type:'sniperRear',targetId:target.id,label:'味方後方の狙撃位置へ移動',score:travel + shotBlocked + enemyCrowd*210 + behindPenalty + worldCorner});
-        }
-      }
-      candidates.sort((a,b)=>a.score-b.score);
-      const fallbackAngle = Math.atan2(p.y - nearestEnemy.y, p.x - nearestEnemy.x);
-      const result = candidates[0] || {
-        type:'sniperFallback', targetId:target.id, label:'前線から後退',
-        x:clamp(p.x + Math.cos(fallbackAngle) * 380, 55, this.world.w - 55),
-        y:clamp(p.y + Math.sin(fallbackAngle) * 380, 55, this.world.h - 55),
-      };
-      p.ai.sniperDirective = result;
-      p.ai.sniperDirectiveTimer = emergencyRetreat ? rand(.32, .52) : rand(.7, 1.1);
-      return result;
-    }
-
-    getAIAttackerDirective(p, target, dt) {
-      if (!p || !target) return null;
-      p.ai ||= {};
-      p.ai.attackerDirectiveTimer = Math.max(0, (p.ai.attackerDirectiveTimer || 0) - dt);
-      const cached = p.ai.attackerDirective;
-      if (cached && p.ai.attackerDirectiveTimer > 0 && cached.targetId === target.id && this.isAINavPointOpen(cached.x,cached.y,p.radius)) return cached;
-
-      const d = Math.hypot(target.x - p.x, target.y - p.y);
-      const hpRatio = p.hp / Math.max(1, p.maxHp);
-      const targetHpRatio = target.hp / Math.max(1, target.maxHp || target.hp || 1);
-      let enemySupport = 0;
-      let allySupport = 0;
-      for (const unit of this.players) {
-        if (!unit || unit.dead || unit === p || unit === target) continue;
-        const aroundTarget = Math.hypot(unit.x-target.x,unit.y-target.y);
-        if (aroundTarget > 360) continue;
-        if (unit.team === target.team) enemySupport += 1;
-        else if (unit.team === p.team) allySupport += 1;
-      }
-      const rangedTarget = ['狙撃手','射手','銃手'].includes(target.archetype);
-      const targetFacing = Math.abs(angleDiff(Math.atan2(p.y-target.y,p.x-target.x),target.aim||0)) < .82;
-
-      if (hpRatio < .30 || (hpRatio < .52 && enemySupport > allySupport + 1)) {
-        const cover = this.getAICoverPoint(p, target, 250);
-        if (cover) {
-          const result = {...cover,type:'attackerReset',targetId:target.id,label:'包囲を切って再接近'};
-          p.ai.attackerDirective=result;p.ai.attackerDirectiveTimer=.48;return result;
-        }
-      }
-      if (d < 105 && this.elapsed - (p.ai.lastAttackAt || -999) < .72) {
-        const away = Math.atan2(p.y-target.y,p.x-target.x) + (p.ai.strafe || 1)*.28;
-        const result={type:'attackerReset',targetId:target.id,label:'斬撃後に間合いを再設定',x:clamp(p.x+Math.cos(away)*118,55,this.world.w-55),y:clamp(p.y+Math.sin(away)*118,55,this.world.h-55)};
-        p.ai.attackerDirective=result;p.ai.attackerDirectiveTimer=.32;return result;
-      }
-      if (d > 125 && d < 720) {
-        const predict = clamp(d/680,.18,.68);
-        const tx = target.x + (target.vx || 0) * predict;
-        const ty = target.y + (target.vy || 0) * predict;
-        const base = Math.atan2(p.y-ty,p.x-tx);
-        const side = p.ai.separationSide || p.ai.strafe || 1;
-        const flank = rangedTarget && targetFacing ? .88 : rangedTarget ? .62 : .42;
-        const execute = targetHpRatio < .38 && allySupport >= enemySupport;
-        const desired = execute ? 82 : rangedTarget ? 112 : 138;
-        for (const offset of [side*flank,-side*flank,side*.24,-side*.24,0]) {
-          const point={x:clamp(tx+Math.cos(base+offset)*desired,55,this.world.w-55),y:clamp(ty+Math.sin(base+offset)*desired,55,this.world.h-55)};
-          if (!this.isAINavPointOpen(point.x,point.y,Math.max(6,p.radius-.5))) continue;
-          const result={...point,type:execute?'attackerExecute':'attackerFlank',targetId:target.id,label:execute?'低HPの敵を詰める':'側面から接近'};
-          p.ai.attackerDirective=result;p.ai.attackerDirectiveTimer=execute?rand(.24,.4):rand(.42,.72);return result;
-        }
-        const directAngle=Math.atan2(ty-p.y,tx-p.x);
-        const fallback={type:'attackerPressure',targetId:target.id,label:'射線をずらして接近',x:clamp(p.x+Math.cos(directAngle+side*.22)*Math.min(220,d*.55),55,this.world.w-55),y:clamp(p.y+Math.sin(directAngle+side*.22)*Math.min(220,d*.55),55,this.world.h-55)};
-        if(this.isAINavPointOpen(fallback.x,fallback.y,Math.max(6,p.radius-.5))){p.ai.attackerDirective=fallback;p.ai.attackerDirectiveTimer=.34;return fallback;}
-      }
-      p.ai.attackerDirective=null;
-      p.ai.attackerDirectiveTimer=.22;
-      return null;
-    }
-
-    aiTryAttackerGapClose(p, target, d, profile) {
-      if (!p || !target || p.archetype !== '攻撃手' || d < 175 || d > 470 || p.trion < p.maxTrion * .18) return false;
-      const directBlocked = this.findBlockingWall(p.x,p.y,target.x,target.y,p.radius+2);
-      if (directBlocked) return false;
-      const targetFacing = Math.abs(angleDiff(Math.atan2(p.y-target.y,p.x-target.x), target.aim || 0)) < .7;
-      const targetRanged = ['狙撃手','銃手','射手'].includes(target.archetype);
-      const chance = clamp(.18 + profile.aggression*.28 + (targetRanged?.16:0) + (targetFacing?.12:0), .18, .72);
-      if (Math.random() > chance) return false;
-      const lead = clamp(d/780,.18,.52);
-      p.aim = Math.atan2(target.y+(target.vy||0)*lead-p.y,target.x+(target.vx||0)*lead-p.x);
-      const grasshopper = this.findTriggerHand(p,(trigger)=>trigger.id==='grasshopper');
-      if (grasshopper && this.slotReady(p,grasshopper.hand,grasshopper.index,grasshopper.trigger)) {
-        p.selected[grasshopper.hand]=grasshopper.index;
-        p.metrics.aiTriggerSelections.grasshopper=(p.metrics.aiTriggerSelections.grasshopper||0)+1;
-        if (this.tryUseHand(p,grasshopper.hand)) { p.ai.attackTimer=Math.min(p.ai.attackTimer,.16); return true; }
-      }
-      const thruster = this.findTriggerHand(p,(trigger)=>trigger.id==='thruster');
-      if (thruster && d < 310 && this.slotReady(p,thruster.hand,thruster.index,thruster.trigger)) {
-        p.selected[thruster.hand]=thruster.index;
-        p.metrics.aiTriggerSelections.thruster=(p.metrics.aiTriggerSelections.thruster||0)+1;
-        if (this.tryUseHand(p,thruster.hand)) { p.ai.attackTimer=Math.min(p.ai.attackTimer,.12); return true; }
-      }
-      const senku = this.findTriggerHand(p,(trigger)=>trigger.id==='senku');
-      if (senku && d < 390 && this.slotReady(p,senku.hand,senku.index,senku.trigger)) {
-        p.selected[senku.hand]=senku.index;
-        p.metrics.aiTriggerSelections.senku=(p.metrics.aiTriggerSelections.senku||0)+1;
-        return Boolean(this.tryUseHand(p,senku.hand));
-      }
-      return false;
     }
 
     getTargetLockDuration(p) {
@@ -8646,12 +8401,7 @@
     findBlockingWall(ax, ay, bx, by, padding = 0, ignoreWallId = null) {
       let best = null;
       let bestT = Infinity;
-      const margin = Math.max(0, Number(padding) || 0) + 2;
-      const walls = this.getBlockingWallsInBounds(
-        Math.min(ax, bx) - margin, Math.min(ay, by) - margin,
-        Math.max(ax, bx) + margin, Math.max(ay, by) + margin,
-      );
-      for (const wall of walls) {
+      for (const wall of this.walls) {
         if (wall.id === ignoreWallId || wall.hp <= 0 || wall.nonBlocking) continue;
         const t = this.segmentHitsExpandedRect(ax, ay, bx, by, wall, padding);
         if (t === null || t < 0.015 || t >= bestT) continue;
@@ -8664,7 +8414,7 @@
     isAINavPointOpen(x, y, radius, ignoreWallId = null) {
       if (x < radius + 1 || y < radius + 1 || x > this.world.w - radius - 1 || y > this.world.h - radius - 1) return false;
       const probe = { x, y, radius: Math.max(6, radius - .25) };
-      return !this.getNearbyBlockingWalls(x, y, probe.radius + 2).some((wall) => wall.id !== ignoreWallId && circleRectOverlap(probe, wall));
+      return !this.walls.some((wall) => wall.id !== ignoreWallId && wall.hp > 0 && !wall.nonBlocking && circleRectOverlap(probe, wall));
     }
 
     chooseAIWallDetour(p, wall, goalX, goalY) {
@@ -9710,7 +9460,7 @@
       let preferred = role === '重装手' ? 170 : role === '工作手' ? 520 : rangeBand?.preferred || (hasSniper ? 860 : hasMelee ? 128 : 360);
       if (role === '攻撃手') preferred = Math.max(preferred, 145);
       if (role === '工作手') preferred = Math.max(preferred, 500);
-      if (hasSniper) preferred = Math.max(preferred, 790);
+      if (hasSniper) preferred = Math.max(preferred, 690);
       const closeEnemies=this.players.filter((other)=>this.canDamage(p,other)&&Math.hypot(other.x-p.x,other.y-p.y)<340).length;
       const targetUsesRanged=target.isDefenseEnemy || target.archetype==='狙撃手' || target.archetype==='銃手' || target.archetype==='射手'
         || (!target.playableDefenseType && [...(target.loadout?.main||[]),...(target.loadout?.sub||[])].some((id)=>['gun','sniper','shooter'].includes(DATA.triggers[id]?.kind)));
@@ -9728,20 +9478,15 @@
       else if (movementMode === 'strafe') moveAngle += p.ai.strafe * Math.PI / 2;
       else if (movementMode === 'hold') movementScale = .16;
       if (hasSniper) {
-        const sniperMinimum = Math.max(680,(rangeBand?.min||500)*1.16);
-        const sniperMaximum = Math.max(980,(rangeBand?.max||850)*1.08);
-        const clearSniperShot = !this.findBlockingWall(p.x,p.y,target.x,target.y,3);
-        if (clearSniperShot && d >= sniperMinimum && d <= sniperMaximum) movementScale = 0;
-        if (d < sniperMinimum) { moveAngle = targetAngle + Math.PI; movementScale = Math.max(movementScale, 1.55); }
-        if (d > sniperMaximum) movementScale = Math.min(movementScale, .42);
+        if (rangeBand && d >= rangeBand.min * .96 && d <= rangeBand.max * 1.05) movementScale = Math.min(movementScale, p.ai.targetAge < .55 ? .1 : .18);
+        if (d < Math.max(560,(rangeBand?.min||500)*1.12)) { moveAngle = targetAngle + Math.PI; movementScale = Math.max(movementScale, 1.3); }
+        if (rangeBand && d > rangeBand.max * 1.2) movementScale = Math.min(movementScale, .62);
       }
       if (role==='攻撃手' && this.elapsed-(p.ai.lastAttackAt||-999)<.72 && d<105 && closeEnemies>0) { moveAngle=targetAngle+Math.PI; movementScale=Math.max(movementScale,.78); }
       if (hasSniper && p.ai.relocateTimer > 0) { moveAngle = targetAngle + p.ai.strafe * Math.PI * .68; movementScale = 1.2; }
       let directive = this.getOperatorMoveDirective(p, target);
-      if (!directive && hasSniper) directive = this.getAISniperDirective(p,target,rangeBand,dt);
-      else if (!directive && role === '攻撃手') directive = this.getAIAttackerDirective(p,target,dt);
-      const overEngaged=closeEnemies>=2 || (closeEnemies>=1 && p.hp<p.maxHp*.43) || (hasSniper && d<680);
-      if (!directive && (overEngaged || (targetUsesRanged && (threatened || p.hp<p.maxHp*.64 || hasSniper)))) {
+      const overEngaged=closeEnemies>=2 || (closeEnemies>=1 && p.hp<p.maxHp*.43) || (hasSniper && d<560);
+      if (!directive && (overEngaged || (targetUsesRanged && (threatened || p.hp<p.maxHp*.64 || (role==='攻撃手' && d>360) || hasSniper)))) {
         const cover=this.getAICoverPoint(p,target,hasSniper?720:role==='攻撃手'?260:rangeBand?.preferred||390);
         if (cover) directive={type:'cover',x:cover.x,y:cover.y,label:'遮蔽へ退避'};
       }
@@ -9754,7 +9499,7 @@
         directive={type:'disengage',x:clamp(p.x+Math.cos(away)*300,70,this.world.w-70),y:clamp(p.y+Math.sin(away)*300,70,this.world.h-70),label:'過剰接敵を回避'};
       }
       if (directive) {
-        moveAngle = Math.atan2(directive.y - p.y, directive.x - p.x); movementScale = directive.hold ? 0 : (hasSniper ? 1.02 : 1.15);
+        moveAngle = Math.atan2(directive.y - p.y, directive.x - p.x); movementScale = directive.hold ? 0 : 1.15;
       } else {
         const reliefPoint = this.getAIDesertRecoveryDirective(p, target, threatened, dt);
         if (reliefPoint) {
@@ -9767,24 +9512,12 @@
       let navGoalX = engagementPoint && ['advance','retreat','hold'].includes(movementMode) ? engagementPoint.x : p.x + Math.cos(moveAngle) * navGoalDistance;
       let navGoalY = engagementPoint && ['advance','retreat','hold'].includes(movementMode) ? engagementPoint.y : p.y + Math.sin(moveAngle) * navGoalDistance;
       if (directive && Number.isFinite(directive.x) && Number.isFinite(directive.y)) { navGoalX = directive.x; navGoalY = directive.y; }
-      const combatRouteBlocked = !directive && !hasSniper && movementMode !== 'retreat' && this.findBlockingWall(p.x, p.y, target.x, target.y, p.radius + 5);
+      const combatRouteBlocked = !directive && movementMode !== 'retreat' && this.findBlockingWall(p.x, p.y, target.x, target.y, p.radius + 5);
       if (combatRouteBlocked) { navGoalX = target.x; navGoalY = target.y; movementScale = Math.max(movementScale, .72); }
       moveAngle = this.getAINavigationAngle(p, navGoalX, navGoalY, moveAngle, dt, movementScale);
       moveAngle = this.stabilizeAIMovementAngle(p, moveAngle, navGoalX, navGoalY, dt, movementScale);
       p.vx += Math.cos(moveAngle) * p.speed * dt * 4.2 * profile.move * movementScale;
       p.vy += Math.sin(moveAngle) * p.speed * dt * 4.2 * profile.move * movementScale;
-      if (hasSniper) {
-        const nearestHostile = this.players.filter((unit)=>this.canDamage(p,unit)).sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y))[0];
-        if (nearestHostile) {
-          const hostileDistance = Math.hypot(nearestHostile.x-p.x,nearestHostile.y-p.y);
-          if (hostileDistance < 760) {
-            const escapeAngle = Math.atan2(p.y-nearestHostile.y,p.x-nearestHostile.x);
-            const urgency = clamp((760-hostileDistance)/330,.45,1.45);
-            p.vx += Math.cos(escapeAngle) * p.speed * dt * 6.8 * profile.move * urgency;
-            p.vy += Math.sin(escapeAngle) * p.speed * dt * 6.8 * profile.move * urgency;
-          }
-        }
-      }
       this.applyAISeparation(p, dt, false);
 
       p.ai.threatTime = threatened ? p.ai.threatTime + dt : 0;
@@ -9844,7 +9577,6 @@
       if (lowHeavyResources && d > 120) { p.ai.attackTimer = .28; return; }
 
       if (role === '攻撃手' && this.aiTryMantis(p, d, profile)) return;
-      if (role === '攻撃手' && this.aiTryAttackerGapClose(p,target,d,profile)) return;
       if (role === '重装手' && d > 105 && d < 305 && p.trion > p.maxTrion * .32) {
         const thruster = this.findTriggerHand(p, (trigger) => trigger.id === 'thruster');
         if (thruster && this.slotReady(p, thruster.hand, thruster.index, thruster.trigger) && Math.random() < .58) {
@@ -10011,14 +9743,6 @@
       let score = d / (1 + threat * .115);
       if (bagworm && !attackedThroughStealth) score *= 1.35;
       if (proximityAware) score *= .38;
-      if (p.archetype === '攻撃手') {
-        const hpRatio = target.hp / Math.max(1, target.maxHp || target.hp || 1);
-        const enemySupport = this.players.filter((unit) => unit !== target && !unit.dead && unit.team === target.team && Math.hypot(unit.x-target.x,unit.y-target.y)<310).length;
-        const allySupport = this.players.filter((unit) => unit !== p && !unit.dead && unit.team === p.team && Math.hypot(unit.x-target.x,unit.y-target.y)<390).length;
-        const rangedPrey = ['狙撃手','射手','銃手'].includes(target.archetype);
-        score *= clamp(.68 + hpRatio*.48 + enemySupport*.14 - Math.min(allySupport,2)*.08, .56, 1.55);
-        if (rangedPrey && d < 720) score *= .86;
-      }
       const axisDx=Math.abs(target.x-p.x), axisDy=Math.abs(target.y-p.y);
       if (axisDx < 92 && axisDy > 210) score *= 1.22;
       const alliedFocus=this.players.filter((ally)=>ally!==p&&!ally.dead&&ally.team===p.team&&ally.ai?.target===target.id).length;
@@ -10469,7 +10193,7 @@
           continue;
         }
 
-        for (const wall of this.getNearbyBlockingWalls(p.x, p.y, p.radius + 3)) {
+        for (const wall of this.walls) {
           if (p.x + p.radius < wall.x || p.x - p.radius > wall.x + wall.w || p.y + p.radius < wall.y || p.y - p.radius > wall.y + wall.h) continue;
           if (p.lead) {
             this.effects.push({ type: 'weight', x: p.x, y: p.y, ttl: 4.5, maxTtl: 4.5 });
@@ -14531,8 +14255,6 @@ drawUndergroundFeatures(ctx){
         if (participant?.label) player.name = participant.label;
         if (participant?.archetype) player.archetype = participant.archetype;
       });
-      simulation.players = simulation.players.filter((player) => player.name !== '__VACANT__');
-      simulation.players.forEach((player, slot) => { player.simulationSlot = slot; });
       simulation.finalizeLog = function(reason = 'simulation_end') {
         if (this.logFinalized) return this.finalLog;
         this.finalLog = this.buildLog(reason);

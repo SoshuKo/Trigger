@@ -52,7 +52,7 @@ const scenarios = [...groups.values()].map((group) => {
     if (result.outcome?.draw) draw += 1;
     else if (result.outcome?.winnerSlot === 0 || result.outcome?.winnerTeam === 0 || result.outcome?.defenseSuccess === true) winnerA += 1;
     else winnerB += 1;
-    for (const player of (result.players || []).filter((entry) => entry?.name !== '__VACANT__')) {
+    for (const player of result.players || []) {
       const slot = Number(player.slot || 0);
       const team = Number(player.team || 0);
       const row = participants.get(slot) || {
