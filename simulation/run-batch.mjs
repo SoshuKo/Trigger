@@ -7,18 +7,20 @@ async function buildInlineGameHtml(root) {
   let html = await fs.readFile(path.join(root, 'index.html'), 'utf8');
   const css = await fs.readFile(path.join(root, 'styles.css'), 'utf8');
   const featureCss = await fs.readFile(path.join(root, 'v77-features.css'), 'utf8').catch(() => '');
-  html = html.replace(/<link rel="stylesheet"[^>]+>/, `<style>${css}\n${featureCss}</style>`);
+  const v106Css = await fs.readFile(path.join(root, 'v106-features.css'), 'utf8').catch(() => '');
+  html = html.replace(/<link rel="stylesheet"[^>]+>/, `<style>${css}\n${featureCss}\n${v106Css}</style>`);
   html = html.replace('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>', '');
   const scripts = [
     'js/online-config.js', 'js/trigger-data.js', 'js/online.js', 'js/community.js',
     'simulation-results/latest.js', 'js/simulation-results.js', 'js/game.js', 'js/v77-features.js',
+    'js/v106-features.js',
   ];
   for (const source of scripts) {
     const code = await fs.readFile(path.join(root, source), 'utf8');
     const escaped = source.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const pattern = new RegExp(`<script src="${escaped}(?:\\?v=\\d+)?"></script>`);
     if (pattern.test(html)) html = html.replace(pattern, () => `<script>\n${code}\n</script>`);
-    else if (source === 'js/v77-features.js') html = html.replace('</body>', `<script>\n${code}\n</script>\n</body>`);
+    else if (source === 'js/v77-features.js' || source === 'js/v106-features.js') html = html.replace('</body>', `<script>\n${code}\n</script>\n</body>`);
   }
   return html;
 }
@@ -56,8 +58,8 @@ async function runOne(index) {
       const result = await page.evaluate(async ({ scenario: runScenario, seed: runSeed, index: runIndex }) => {
         return await window.TRION_SIMULATION_API.runMatch({ ...runScenario, seed: runSeed, matchIndex: runIndex });
       }, { scenario, seed, index });
-      result.gameVersion = Math.max(105, Number(result.gameVersion || 0));
-      result.featureVersion = 105;
+      result.gameVersion = Math.max(106, Number(result.gameVersion || 0));
+      result.featureVersion = 106;
       if (scenario.league) result.league = scenario.league;
       if (attempt > 0) retryEvents.push({ matchIndex: index, seed, recoveredOnAttempt: attempt + 1 });
       return { ok: true, result, seed, attempts: attempt + 1 };
@@ -74,7 +76,7 @@ async function runOne(index) {
 
 try {
   await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 0 });
-  await page.waitForFunction(() => Boolean(window.TRION_SIMULATION_API?.runMatch) && Number(window.TRION_NAMED_AUDIT?.version || 0) >= 105, null, { timeout: 0 });
+  await page.waitForFunction(() => Boolean(window.TRION_SIMULATION_API?.runMatch) && Number(window.TRION_NAMED_AUDIT?.version || 0) >= 106 && Number(window.TRION_V106_AUDIT?.version || 0) >= 106, null, { timeout: 0 });
   for (let index = shard; index < matches; index += shardCount) {
     const outcome = await runOne(index);
     if (outcome.ok) {

@@ -1,0 +1,20 @@
+TRION ARENA VERSION 106
+Spectator camera and defense-support AI update
+
+Base:
+- GitHub main commit b87f25d42107b8e82a947ff39374bd607e8a919d
+
+Spectator camera:
+- AUTO: preserves the existing automatic spectator target camera.
+- LOCK: follows one selected combatant continuously. Q/E changes the locked target.
+- FREE: removes player focus and pans across the field with WASD, arrow keys, drag, or the on-screen pad.
+- Zoom: 45% to 225% with mouse wheel, +/- keys, 0 reset, or on-screen controls.
+
+Defense-support AI:
+- Sogetsu prioritizes flag threats, intercepts at close range, connects the axes when appropriate, alternates melee hands, and uses Meteor against groups.
+- Fullarms keeps a rear support range and chooses Gatling, Meteor, Hound, Egret, Spider, guard, or full volley based on range, cover, and enemy density.
+- Geist activates only when the battle state justifies the cost, then combines flanking movement with Kogetsu, rifle fire, Viper, Meteor, Escudo, and guard.
+
+Compatibility:
+- Existing v105 performance improvements, role AI, named squad tuning, wall collision behavior, community features, and simulation results are preserved.
+- No PowerShell or command-script installer is included. Apply v106.patch with Git.

@@ -1,7 +1,7 @@
 {
   "name": "trion-arena-simulation",
   "private": true,
-  "version": "105.0.0",
+  "version": "106.0.0",
   "type": "module",
   "scripts": {
     "simulate:batch": "node simulation/run-batch.mjs",
