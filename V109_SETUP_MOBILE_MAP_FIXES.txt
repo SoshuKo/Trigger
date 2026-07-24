@@ -1,0 +1,9 @@
+TRION ARENA VERSION 109
+
+- Fixes player character color synchronization when switching from team battle to solo battle.
+- Renews the mobile control layout with safe-area aware pads, slots and action buttons.
+- Removes the non-river slowdown field around city trees while keeping trees as cover.
+- Adds destructible small cover objects to the city and desert maps.
+- Makes underground water channels apply water-level-based slowdown reliably.
+- Makes the CPU roster reset complete from one user click.
+- Preserves VERSION 108 spectator zoom fixes and support-unit AI.

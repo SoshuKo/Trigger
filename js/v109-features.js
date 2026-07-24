@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 108;
+  const VERSION = 109;
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
   const lerp = (a, b, t) => a + (b - a) * t;
   const distance = (a, b) => Math.hypot((a?.x || 0) - (b?.x || 0), (a?.y || 0) - (b?.y || 0));
@@ -26,6 +26,7 @@
         physicalViewW: null,
         physicalViewH: null,
         renderingScaled: false,
+        mapCoverApplied: null,
       });
     }
     return stateByGame.get(game);
@@ -213,7 +214,7 @@
   }
 
   function supportState(unit) {
-    unit.v108SupportAI ||= {
+    unit.v109SupportAI ||= {
       decisionTimer: 0,
       targetId: null,
       targetLockTimer: 0,
@@ -224,7 +225,7 @@
       guardTimer: 0,
       targetRefreshTimer: 0,
     };
-    return unit.v108SupportAI;
+    return unit.v109SupportAI;
   }
 
   function supportEnemies(game, unit) {
@@ -275,7 +276,7 @@
     try {
       return Boolean(game.usePlayableDefenseAction?.(unit, hand, index, target, { ai: true, ...options }));
     } catch (error) {
-      console.warn('[v108 support action]', error);
+      console.warn('[v109 support action]', error);
       return false;
     }
   }
@@ -446,9 +447,175 @@
     return true;
   }
 
+
+  const CITY_COVER_SPECS = [
+    ['car-01', 620, 2020, 112, 48], ['car-02', 1120, 2245, 104, 46], ['car-03', 1810, 2012, 118, 50],
+    ['car-04', 2440, 2240, 108, 48], ['car-05', 3670, 2020, 116, 50], ['car-06', 4490, 2240, 108, 48],
+    ['car-07', 5450, 2010, 120, 50], ['barrier-01', 3025, 1020, 54, 126], ['barrier-02', 3355, 1370, 56, 120],
+    ['barrier-03', 3020, 2860, 58, 126], ['barrier-04', 3348, 3210, 56, 122], ['planter-01', 2570, 1740, 82, 82],
+    ['planter-02', 3730, 1740, 82, 82], ['planter-03', 2570, 2510, 82, 82], ['planter-04', 3730, 2510, 82, 82],
+    ['kiosk-01', 760, 730, 92, 62], ['kiosk-02', 1180, 730, 92, 62], ['kiosk-03', 5130, 3470, 96, 62],
+    ['crate-01', 2130, 3560, 72, 72], ['crate-02', 2250, 3560, 72, 72], ['crate-03', 4230, 3560, 72, 72],
+    ['crate-04', 4350, 3560, 72, 72], ['utility-01', 3070, 690, 72, 54], ['utility-02', 3290, 690, 72, 54],
+  ];
+
+  const DESERT_COVER_SPECS = [
+    ['rock-01', 520, 1880, 94, 82], ['rock-02', 920, 2240, 84, 96], ['rock-03', 1480, 1870, 118, 78],
+    ['rock-04', 2180, 2250, 96, 88], ['rock-05', 3660, 1860, 110, 82], ['rock-06', 4380, 2250, 90, 96],
+    ['rock-07', 5200, 1870, 122, 80], ['rock-08', 5780, 2240, 96, 92], ['ruin-01', 760, 790, 150, 54],
+    ['ruin-02', 1160, 790, 54, 146], ['ruin-03', 2050, 790, 138, 54], ['ruin-04', 3930, 3420, 148, 54],
+    ['ruin-05', 4680, 3420, 54, 144], ['ruin-06', 5480, 3420, 146, 54], ['crate-01', 2740, 1880, 74, 74],
+    ['crate-02', 2840, 1880, 74, 74], ['crate-03', 3460, 2260, 74, 74], ['crate-04', 3560, 2260, 74, 74],
+    ['wreck-01', 3110, 1120, 128, 58], ['wreck-02', 3110, 3020, 128, 58], ['sandbag-01', 2550, 2140, 152, 38],
+    ['sandbag-02', 3740, 2140, 152, 38], ['sandbag-03', 3090, 1640, 38, 152], ['sandbag-04', 3090, 2620, 38, 152],
+  ];
+
+  function rectanglesOverlap(a, b, margin = 8) {
+    return !(a.x + a.w + margin <= b.x || b.x + b.w + margin <= a.x || a.y + a.h + margin <= b.y || b.y + b.h + margin <= a.y);
+  }
+
+  function refreshWallSpatialIndex(game) {
+    game.wallSpatialIndexDirty = true;
+    game.wallIndexDirty = true;
+    game._wallSpatialIndexDirty = true;
+    game._wallIndexDirty = true;
+    game.wallSpatialIndexVersion = -1;
+    game._wallSpatialIndexVersion = -1;
+    for (const name of ['invalidateWallSpatialIndex', 'markWallSpatialIndexDirty', 'rebuildWallSpatialIndex', 'buildWallSpatialIndex']) {
+      if (typeof game[name] !== 'function') continue;
+      try { game[name](); } catch (_) { }
+      break;
+    }
+  }
+
+  function ensureMapCover(game) {
+    if (!game || !Array.isArray(game.walls) || !game.world || !['city', 'desert'].includes(game.mapId)) return 0;
+    const state = gameState(game);
+    if (state.mapCoverApplied === game.mapId) return 0;
+    const specs = game.mapId === 'city' ? CITY_COVER_SPECS : DESERT_COVER_SPECS;
+    const sx = Math.max(.5, Number(game.world.w || 6400) / 6400);
+    const sy = Math.max(.5, Number(game.world.h || 4400) / 4400);
+    const type = game.mapId === 'city' ? 'barricade' : 'fortressWall';
+    let added = 0;
+    for (const [suffix, rawX, rawY, rawW, rawH] of specs) {
+      const id = `v109-${game.mapId}-${suffix}`;
+      if (game.walls.some((wall) => wall?.id === id)) continue;
+      const rect = {
+        id,
+        x: Math.round(rawX * sx), y: Math.round(rawY * sy),
+        w: Math.max(28, Math.round(rawW * sx)), h: Math.max(28, Math.round(rawH * sy)),
+        type, hp: game.mapId === 'city' ? 230 : 310, maxHp: game.mapId === 'city' ? 230 : 310,
+        ttl: Infinity, respawnable: true, respawnDelay: game.mapId === 'city' ? [42, 66] : [58, 82],
+        v109Cover: true,
+      };
+      const centerX = rect.x + rect.w / 2;
+      const centerY = rect.y + rect.h / 2;
+      if (game.mapId === 'city' && game.isInRiver?.(centerX, centerY)) continue;
+      if (game.walls.some((wall) => wall && wall.hp !== 0 && rectanglesOverlap(rect, wall, 5))) continue;
+      game.walls.push(rect);
+      added += 1;
+    }
+    state.mapCoverApplied = game.mapId;
+    if (added) refreshWallSpatialIndex(game);
+    return added;
+  }
+
+  function isSoloSelected() {
+    return Boolean(document.querySelector('#modeSelector button[data-mode="solo"].active'));
+  }
+
+  function dispatchInput(element) {
+    if (!element) return;
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function installSetupFixes() {
+    const colorInput = document.querySelector('#bodyColor');
+    const modeSelector = document.querySelector('#modeSelector');
+    const resetButton = document.querySelector('#resetCpuConfigsButton');
+    const colorKey = 'trion-v109-solo-body-color';
+    let savedSoloColor = null;
+    try { savedSoloColor = localStorage.getItem(colorKey); } catch (_) { }
+    if (!savedSoloColor && colorInput?.value) savedSoloColor = colorInput.value;
+
+    const rememberColor = () => {
+      if (!colorInput?.value) return;
+      savedSoloColor = colorInput.value;
+      try { localStorage.setItem(colorKey, savedSoloColor); } catch (_) { }
+    };
+    const restoreSoloColor = () => {
+      if (!colorInput || !isSoloSelected()) return;
+      const color = savedSoloColor || colorInput.value || '#4aa8ff';
+      if (colorInput.value !== color) colorInput.value = color;
+      dispatchInput(colorInput);
+      document.documentElement.style.setProperty('--v109-player-color', color);
+      document.querySelectorAll('[data-player-color-preview],.player-color-preview,.character-color-preview').forEach((node) => {
+        node.style.setProperty('--body-color', color);
+        if (node.matches('[data-player-color-preview],.character-color-preview')) node.style.backgroundColor = color;
+      });
+    };
+
+    colorInput?.addEventListener('input', rememberColor, true);
+    modeSelector?.addEventListener('click', (event) => {
+      const button = event.target.closest?.('button[data-mode]');
+      if (!button) return;
+      if (button.dataset.mode !== 'solo') {
+        rememberColor();
+        return;
+      }
+      requestAnimationFrame(() => {
+        restoreSoloColor();
+        requestAnimationFrame(restoreSoloColor);
+      });
+    });
+
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest?.('#startButton') || !isSoloSelected()) return;
+      restoreSoloColor();
+    }, true);
+
+    if (resetButton && !resetButton.dataset.v109OneClickReset) {
+      resetButton.dataset.v109OneClickReset = 'true';
+      let forwarding = false;
+      document.addEventListener('click', (event) => {
+        const button = event.target.closest?.('#resetCpuConfigsButton');
+        if (!button || forwarding) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        forwarding = true;
+        const fire = () => button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+        fire();
+        requestAnimationFrame(() => {
+          fire();
+          forwarding = false;
+        });
+      }, true);
+    }
+  }
+
+  function installMobileUi() {
+    const root = document.querySelector('#mobileControls');
+    if (!root || root.dataset.v109MobileUi) return;
+    root.dataset.v109MobileUi = 'true';
+    root.classList.add('v109-mobile-controls');
+    const labels = {
+      main: 'MAIN ATTACK', sub: 'SUB ATTACK', KeyC: 'COMBINE', shift: 'MODIFIER', KeyZ: 'UTILITY', KeyR: 'SCOPE', KeyF: 'FLAG',
+    };
+    root.querySelectorAll('button').forEach((button) => {
+      const key = button.dataset.mobileHold || button.dataset.mobileKey || '';
+      const label = labels[key] || (key.startsWith('Digit') ? `SLOT ${key.slice(5)}` : button.textContent.trim());
+      button.setAttribute('aria-label', label);
+      button.dataset.v109Label = label;
+    });
+    const guide = document.querySelector('.guide-mobile');
+    if (guide) guide.innerHTML = '<b>左パッド</b><span>移動</span><b>右パッド</b><span>照準</span><b>MAIN / SUB</b><span>攻撃</span><b>1–8</b><span>装備選択</span><b>C / SHIFT / Z</b><span>連携・補助</span><b>SCOPE / FLAG</b><span>狙撃・防衛</span>';
+  }
+
   function patchGame(game) {
     if (!game || !game.constructor) return;
     currentGame = game;
+    ensureMapCover(game);
     const state = gameState(game);
     state.physicalViewW = Number(game.viewW) || state.physicalViewW;
     state.physicalViewH = Number(game.viewH) || state.physicalViewH;
@@ -552,6 +719,39 @@
       };
     }
 
+
+    const oldApplyTerrainPhysics = proto.applyTerrainPhysics;
+    if (typeof oldApplyTerrainPhysics === 'function') {
+      proto.applyTerrainPhysics = function(player, dt) {
+        const terrain = this.terrain || {};
+        if (this.mapId === 'city' && Array.isArray(terrain.forests) && terrain.forests.length) {
+          const forests = terrain.forests;
+          terrain.forests = [];
+          try { return oldApplyTerrainPhysics.call(this, player, dt); }
+          finally { terrain.forests = forests; }
+        }
+        if (this.mapId === 'underground' && Array.isArray(terrain.subwayWaterways) && terrain.subwayWaterways.length) {
+          const waterways = terrain.subwayWaterways;
+          terrain.subwayWaterways = [];
+          let result;
+          try { result = oldApplyTerrainPhysics.call(this, player, dt); }
+          finally { terrain.subwayWaterways = waterways; }
+          const level = clamp(Number(this.subwayWaterLevel?.() ?? (this.environment?.subway?.waterDrained ? 0 : 1)), 0, 1);
+          const water = level > .02 ? waterways.find((zone) => this.isPointInRect?.(player.x, player.y, zone)) : null;
+          if (water) {
+            const factor = lerp(1, .58, level);
+            player.vx = Number(player.vx || 0) * factor + Number(water.flowX || 0) * dt * level;
+            player.vy = Number(player.vy || 0) * factor + Number(water.flowY || 0) * dt * level;
+            player.v109SubwayWaterSlow = level;
+          } else {
+            player.v109SubwayWaterSlow = 0;
+          }
+          return result;
+        }
+        return oldApplyTerrainPhysics.call(this, player, dt);
+      };
+    }
+
     const oldUpdatePlayableDefenseAI = proto.updatePlayableDefenseAI;
     if (typeof oldUpdatePlayableDefenseAI === 'function') {
       proto.updatePlayableDefenseAI = function(unit, dt) {
@@ -567,7 +767,7 @@
   function installSimulationApi() {
     const api = window.TRION_SIMULATION_API;
     if (!api || typeof api.runMatch !== 'function') return;
-    if (api.runMatch !== simulationBase && !api.runMatch.v108Wrapped) {
+    if (api.runMatch !== simulationBase && !api.runMatch.v109Wrapped) {
       const base = api.runMatch.bind(api);
       const wrapped = async (request) => {
         const result = await base(request);
@@ -579,12 +779,12 @@
         }
         return result;
       };
-      wrapped.v108Wrapped = true;
+      wrapped.v109Wrapped = true;
       simulationBase = wrapped;
       api.runMatch = wrapped;
     }
     api.version = VERSION;
-    api.v108Wrapped = true;
+    api.v109Wrapped = true;
   }
 
   function syncVersion() {
@@ -673,17 +873,29 @@
   }
 
   function initialize() {
+    installSetupFixes();
+    installMobileUi();
     bindGlobalControls();
     syncVersion();
     captureGame();
     installSimulationApi();
-    window.TRION_V108_AUDIT = {
+    window.TRION_V109_AUDIT = {
       version: VERSION,
       spectatorModes: ['auto','lock','free'],
       zoomRange: [.45, 2.25],
       dprSafeZoom: true,
       worldFitClamp: true,
       supportTypes: [...SUPPORT_TYPES],
+      fixes: {
+        soloColorSync: true,
+        mobileUi: true,
+        cityForestSlowRemoved: true,
+        cityCoverProps: CITY_COVER_SPECS.length,
+        desertCoverProps: DESERT_COVER_SPECS.length,
+        undergroundWaterSlow: .58,
+        oneClickRosterReset: true,
+      },
+      testHooks: { ensureMapCover, patchGame },
     };
     const timer = window.setInterval(() => {
       captureGame();
